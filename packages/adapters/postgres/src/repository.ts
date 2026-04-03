@@ -31,7 +31,8 @@ function rowToNode(row: NodeRow): Node {
     type: row.type_name as Node['type'],
     content: row.content,
     isDeleted: row.is_deleted,
-    createdAt: typeof row.created_at === 'string' ? row.created_at : new Date(row.created_at).toISOString(),
+    createdAt:
+      typeof row.created_at === 'string' ? row.created_at : new Date(row.created_at).toISOString(),
     modelName: row.model_name,
     provider: row.provider,
     tokenCount: row.token_count,
@@ -43,7 +44,8 @@ function rowToTree(row: TreeRow): Tree {
   return {
     treeId: row.tree_id,
     title: row.title,
-    createdAt: typeof row.created_at === 'string' ? row.created_at : new Date(row.created_at).toISOString(),
+    createdAt:
+      typeof row.created_at === 'string' ? row.created_at : new Date(row.created_at).toISOString(),
     rootNodeId: row.root_node_id,
   };
 }

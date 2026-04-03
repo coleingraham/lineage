@@ -57,14 +57,14 @@ pnpm format
 
 ## Available Commands
 
-| Command | Description |
-|---------|-------------|
-| `pnpm turbo build` | Build all packages and apps |
-| `pnpm turbo test` | Run all tests |
-| `pnpm turbo typecheck` | Type check all packages |
-| `pnpm turbo lint` | Lint all packages |
-| `pnpm format` | Format all files with Prettier |
-| `pnpm format:check` | Check formatting without modifying |
+| Command                | Description                        |
+| ---------------------- | ---------------------------------- |
+| `pnpm turbo build`     | Build all packages and apps        |
+| `pnpm turbo test`      | Run all tests                      |
+| `pnpm turbo typecheck` | Type check all packages            |
+| `pnpm turbo lint`      | Lint all packages                  |
+| `pnpm format`          | Format all files with Prettier     |
+| `pnpm format:check`    | Check formatting without modifying |
 
 ## Turborepo Remote Caching
 

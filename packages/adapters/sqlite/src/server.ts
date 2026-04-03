@@ -150,9 +150,7 @@ export class SqliteRepository implements NodeRepository {
   }
 
   async softDeleteNode(nodeId: string): Promise<void> {
-    const result = this.db
-      .prepare('UPDATE nodes SET is_deleted = 1 WHERE node_id = ?')
-      .run(nodeId);
+    const result = this.db.prepare('UPDATE nodes SET is_deleted = 1 WHERE node_id = ?').run(nodeId);
     if (result.changes === 0) {
       throw new Error(`Node not found: ${nodeId}`);
     }
