@@ -18,7 +18,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@lineage/core": "workspace:*"
+    "@lineage/core": "workspace:*",
+    "postgres": "^3.4.8"
   },
   "devDependencies": {
     "@lineage/eslint-config": "workspace:*",
