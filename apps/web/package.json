@@ -18,6 +18,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@lineage/adapter-sqlite": "workspace:*",
     "@lineage/core": "workspace:*",
     "@lineage/sdk": "workspace:*"
   },

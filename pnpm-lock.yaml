@@ -104,6 +104,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@lineage/adapter-sqlite':
+        specifier: workspace:*
+        version: link:../../packages/adapters/sqlite
       '@lineage/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -236,6 +239,9 @@ importers:
       better-sqlite3:
         specifier: ^12.8.0
         version: 12.8.0
+      wa-sqlite:
+        specifier: ^1.0.0
+        version: 1.0.0
     devDependencies:
       '@lineage/eslint-config':
         specifier: workspace:*
@@ -1435,6 +1441,9 @@ packages:
       jsdom:
         optional: true
 
+  wa-sqlite@1.0.0:
+    resolution: {integrity: sha512-Kyybo5/BaJp76z7gDWGk2J6Hthl4NIPsE+swgraEjy3IY6r5zIR02wAs1OJH4XtJp1y3puj3Onp5eMGS0z7nUA==}
+
   web-streams-polyfill@4.0.0-beta.3:
     resolution: {integrity: sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug==}
     engines: {node: '>= 14'}
@@ -2484,6 +2493,8 @@ snapshots:
       '@types/node': 25.5.2
     transitivePeerDependencies:
       - msw
+
+  wa-sqlite@1.0.0: {}
 
   web-streams-polyfill@4.0.0-beta.3: {}
 
