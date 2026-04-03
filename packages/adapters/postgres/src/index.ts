@@ -1,1 +1,1 @@
-export {};
+export { PostgresRepository } from './repository.js';
