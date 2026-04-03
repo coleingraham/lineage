@@ -3,6 +3,13 @@ import type postgres from 'postgres';
 const INIT_SQL = `
 CREATE EXTENSION IF NOT EXISTS vector;
 
+CREATE TABLE IF NOT EXISTS node_types (
+  id   SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+INSERT INTO node_types (name) VALUES ('human'), ('ai'), ('summary') ON CONFLICT DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS trees (
   tree_id      UUID PRIMARY KEY,
   title        TEXT NOT NULL,
@@ -14,7 +21,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   node_id         UUID PRIMARY KEY,
   tree_id         UUID NOT NULL REFERENCES trees(tree_id),
   parent_id       UUID REFERENCES nodes(node_id),
-  type            TEXT NOT NULL CHECK (type IN ('human', 'ai', 'summary')),
+  node_type_id    INTEGER NOT NULL REFERENCES node_types(id),
   content         TEXT NOT NULL,
   is_deleted      BOOLEAN NOT NULL DEFAULT FALSE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),

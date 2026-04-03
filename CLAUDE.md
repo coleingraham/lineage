@@ -48,3 +48,4 @@ All apps depend on `core` + `sdk`. All adapters depend only on `core`.
 - **Linting:** Shared config in `@lineage/eslint-config`, each package imports it via `eslint.config.mjs`
 - **Testing:** Vitest with `--passWithNoTests` (packages may have no tests yet)
 - **ESM only:** All packages are `"type": "module"`
+- **Database enums:** Use lookup/reference tables (e.g. `node_types`) instead of `ENUM` types or `CHECK ... IN (...)` constraints. Store the foreign key ID in the referencing table and JOIN to resolve the name.
