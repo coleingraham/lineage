@@ -64,6 +64,7 @@ export function CurrentCard({
   if (node.type === 'summary') {
     return (
       <div
+        title="Summary nodes condense the conversation above into a single message. When generating new replies below a summary, only the summary is used as context — not the full original thread."
         style={{
           background: 'rgba(184,160,216,0.06)',
           border: `1px solid ${COLORS.summary}33`,
@@ -107,6 +108,17 @@ export function CurrentCard({
         >
           {node.content || '(empty)'}
         </p>
+        <div
+          style={{
+            marginTop: '12px',
+            fontSize: '10px',
+            color: COLORS.summary + '88',
+            fontFamily: FONTS.mono,
+            fontStyle: 'italic',
+          }}
+        >
+          This summary replaces the conversation above for context in future LLM calls.
+        </div>
       </div>
     );
   }
@@ -164,13 +176,11 @@ export function CurrentCard({
               onClick={() => callbacks.onNodeReply(node.id)}
               primary
             />
-            {isLeaf && (
-              <ActionBtn
-                label="Summarize path"
-                color={COLORS.summary}
-                onClick={() => callbacks.onNodeSummarize(node.id)}
-              />
-            )}
+            <ActionBtn
+              label="∑ Summarize"
+              color={COLORS.summary}
+              onClick={() => callbacks.onNodeSummarize(node.id)}
+            />
           </div>
         )}
       </div>

@@ -23,6 +23,7 @@ interface StreamingActions {
     nodeId: string;
     maxTokens?: number;
     temperature?: number;
+    endpoint?: 'complete' | 'summarize';
   }) => void;
   /** Cancel the current streaming request */
   cancel: () => void;
@@ -45,7 +46,14 @@ let abortController: AbortController | null = null;
 export const useStreamingStore = create<StreamingStore>((set, get) => ({
   ...initialState,
 
-  startCompletion: ({ serverUrl, treeId, nodeId, maxTokens = 4096, temperature }) => {
+  startCompletion: ({
+    serverUrl,
+    treeId,
+    nodeId,
+    maxTokens = 4096,
+    temperature,
+    endpoint = 'complete',
+  }) => {
     // Cancel any in-flight request
     if (abortController) {
       abortController.abort();
@@ -62,7 +70,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       resultNodeId: null,
     });
 
-    const url = `${serverUrl}/trees/${treeId}/nodes/${nodeId}/complete`;
+    const url = `${serverUrl}/trees/${treeId}/nodes/${nodeId}/${endpoint}`;
     const body = JSON.stringify({
       nodeId,
       maxTokens,
