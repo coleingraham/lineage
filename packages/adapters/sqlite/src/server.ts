@@ -6,7 +6,7 @@ interface NodeRow {
   node_id: string;
   tree_id: string;
   parent_id: string | null;
-  type: string;
+  type_name: string;
   content: string;
   is_deleted: number;
   created_at: string;
@@ -28,7 +28,7 @@ function rowToNode(row: NodeRow): Node {
     nodeId: row.node_id,
     treeId: row.tree_id,
     parentId: row.parent_id,
-    type: row.type as Node['type'],
+    type: row.type_name as Node['type'],
     content: row.content,
     isDeleted: row.is_deleted === 1,
     createdAt: row.created_at,
@@ -88,7 +88,14 @@ export class SqliteRepository implements NodeRepository {
 
   async getNode(nodeId: string): Promise<Node> {
     const row = this.db
-      .prepare<[string], NodeRow>('SELECT * FROM nodes WHERE node_id = ?')
+      .prepare<[string], NodeRow>(
+        `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+                n.content, n.is_deleted, n.created_at, n.model_name,
+                n.provider, n.token_count, n.embedding_model
+         FROM nodes n
+         JOIN node_types nt ON nt.id = n.node_type_id
+         WHERE n.node_id = ?`,
+      )
       .get(nodeId);
     if (!row) {
       throw new Error(`Node not found: ${nodeId}`);
@@ -98,7 +105,14 @@ export class SqliteRepository implements NodeRepository {
 
   async getNodes(treeId: string): Promise<Node[]> {
     const rows = this.db
-      .prepare<[string], NodeRow>('SELECT * FROM nodes WHERE tree_id = ?')
+      .prepare<[string], NodeRow>(
+        `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+                n.content, n.is_deleted, n.created_at, n.model_name,
+                n.provider, n.token_count, n.embedding_model
+         FROM nodes n
+         JOIN node_types nt ON nt.id = n.node_type_id
+         WHERE n.tree_id = ?`,
+      )
       .all(treeId);
     return rows.map(rowToNode);
   }
@@ -106,12 +120,12 @@ export class SqliteRepository implements NodeRepository {
   async putNode(node: Node): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO nodes (node_id, tree_id, parent_id, type, content, is_deleted, created_at, model_name, provider, token_count, embedding_model)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model)
+         VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(node_id) DO UPDATE SET
            tree_id = excluded.tree_id,
            parent_id = excluded.parent_id,
-           type = excluded.type,
+           node_type_id = excluded.node_type_id,
            content = excluded.content,
            is_deleted = excluded.is_deleted,
            created_at = excluded.created_at,

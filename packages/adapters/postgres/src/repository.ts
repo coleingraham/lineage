@@ -6,7 +6,7 @@ interface NodeRow {
   node_id: string;
   tree_id: string;
   parent_id: string | null;
-  type: string;
+  type_name: string;
   content: string;
   is_deleted: boolean;
   created_at: string;
@@ -28,7 +28,7 @@ function rowToNode(row: NodeRow): Node {
     nodeId: row.node_id,
     treeId: row.tree_id,
     parentId: row.parent_id,
-    type: row.type as Node['type'],
+    type: row.type_name as Node['type'],
     content: row.content,
     isDeleted: row.is_deleted,
     createdAt: typeof row.created_at === 'string' ? row.created_at : new Date(row.created_at).toISOString(),
@@ -92,10 +92,12 @@ export class PostgresRepository implements NodeRepository {
 
   async getNode(nodeId: string): Promise<Node> {
     const rows = await this.sql<NodeRow[]>`
-      SELECT node_id, tree_id, parent_id, type, content, is_deleted,
-             created_at, model_name, provider, token_count, embedding_model
-      FROM nodes
-      WHERE node_id = ${nodeId}
+      SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+             n.content, n.is_deleted, n.created_at, n.model_name,
+             n.provider, n.token_count, n.embedding_model
+      FROM nodes n
+      JOIN node_types nt ON nt.id = n.node_type_id
+      WHERE n.node_id = ${nodeId}
     `;
     if (rows.length === 0) {
       throw new Error(`Node not found: ${nodeId}`);
@@ -105,26 +107,29 @@ export class PostgresRepository implements NodeRepository {
 
   async getNodes(treeId: string): Promise<Node[]> {
     const rows = await this.sql<NodeRow[]>`
-      SELECT node_id, tree_id, parent_id, type, content, is_deleted,
-             created_at, model_name, provider, token_count, embedding_model
-      FROM nodes
-      WHERE tree_id = ${treeId}
+      SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+             n.content, n.is_deleted, n.created_at, n.model_name,
+             n.provider, n.token_count, n.embedding_model
+      FROM nodes n
+      JOIN node_types nt ON nt.id = n.node_type_id
+      WHERE n.tree_id = ${treeId}
     `;
     return rows.map(rowToNode);
   }
 
   async putNode(node: Node): Promise<void> {
     await this.sql`
-      INSERT INTO nodes (node_id, tree_id, parent_id, type, content, is_deleted,
+      INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted,
                          created_at, model_name, provider, token_count, embedding_model)
-      VALUES (${node.nodeId}, ${node.treeId}, ${node.parentId}, ${node.type},
+      VALUES (${node.nodeId}, ${node.treeId}, ${node.parentId},
+              (SELECT id FROM node_types WHERE name = ${node.type}),
               ${node.content}, ${node.isDeleted}, ${node.createdAt},
               ${node.modelName}, ${node.provider}, ${node.tokenCount},
               ${node.embeddingModel})
       ON CONFLICT (node_id) DO UPDATE SET
         tree_id = EXCLUDED.tree_id,
         parent_id = EXCLUDED.parent_id,
-        type = EXCLUDED.type,
+        node_type_id = EXCLUDED.node_type_id,
         content = EXCLUDED.content,
         is_deleted = EXCLUDED.is_deleted,
         created_at = EXCLUDED.created_at,

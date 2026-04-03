@@ -122,7 +122,7 @@ describe('PostgresRepository', () => {
           node_id: '550e8400-e29b-41d4-a716-446655440000',
           tree_id: '550e8400-e29b-41d4-a716-446655440001',
           parent_id: null,
-          type: 'human',
+          type_name: 'human',
           content: 'Hello',
           is_deleted: false,
           created_at: '2026-04-03T00:00:00.000Z',
