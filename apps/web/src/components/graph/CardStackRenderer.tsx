@@ -6,8 +6,14 @@ import { CurrentCard } from './CurrentCard.js';
 import { ChildCard } from './ChildCard.js';
 import { Connector } from './NodeCardShared.js';
 import { getAncestorIds } from './graphUtils.js';
+import { StreamingCard } from '../StreamingCard.js';
 
-export function CardStackRenderer({ nodes, selectedNodeId, callbacks }: GraphRendererProps) {
+export function CardStackRenderer({
+  nodes,
+  selectedNodeId,
+  callbacks,
+  streaming,
+}: GraphRendererProps) {
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const parentNode = selectedNode?.parentId
     ? nodes.find((n) => n.id === selectedNode.parentId)
@@ -22,6 +28,9 @@ export function CardStackRenderer({ nodes, selectedNodeId, callbacks }: GraphRen
     [nodes, selectedNodeId],
   );
   const breadcrumb = ancestors.map((id) => nodes.find((n) => n.id === id)!).filter(Boolean);
+
+  const showStreamingChild =
+    streaming && streaming.status !== 'idle' && streaming.parentNodeId === selectedNodeId;
 
   if (!selectedNode) {
     return (
@@ -129,11 +138,21 @@ export function CardStackRenderer({ nodes, selectedNodeId, callbacks }: GraphRen
                 {children.map((ch) => (
                   <ChildCard key={ch.id} node={ch} onSelect={callbacks.onNodeSelect} />
                 ))}
+                {showStreamingChild && (
+                  <StreamingCard
+                    content={streaming!.content}
+                    status={streaming!.status}
+                    error={streaming!.error}
+                    onCancel={streaming!.cancel}
+                    onRetry={() => callbacks.onNodeReply(selectedNodeId!)}
+                    variant="compact"
+                  />
+                )}
               </div>
             </>
           )}
 
-          {children.length === 0 && (
+          {children.length === 0 && !showStreamingChild && (
             <div
               style={{
                 display: 'flex',
@@ -161,6 +180,20 @@ export function CardStackRenderer({ nodes, selectedNodeId, callbacks }: GraphRen
                 LEAF NODE
               </span>
             </div>
+          )}
+
+          {children.length === 0 && showStreamingChild && (
+            <>
+              <Connector label="STREAMING" />
+              <StreamingCard
+                content={streaming!.content}
+                status={streaming!.status}
+                error={streaming!.error}
+                onCancel={streaming!.cancel}
+                onRetry={() => callbacks.onNodeReply(selectedNodeId!)}
+                variant="full"
+              />
+            </>
           )}
         </div>
       </div>

@@ -9,6 +9,9 @@ import {
   findDeepestFirstChild,
   buildPathEntries,
 } from '../components/graph/linearUtils.js';
+import { useStreamingStore } from '../store/streaming.js';
+import { useStreamingCallbacks } from '../store/useStreamingCallbacks.js';
+import { StreamingCard } from '../components/StreamingCard.js';
 
 // ── Mock data (shared with GraphView for development) ───────────────────────
 
@@ -437,6 +440,7 @@ function VerticalConnector() {
 
 export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
   const coreNodes = externalNodes ?? MOCK_NODES;
+  const treeId = coreNodes[0]?.treeId ?? '';
   const graphNodes = useMemo(() => toGraphNodes(coreNodes), [coreNodes]);
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
@@ -460,6 +464,9 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
     [nodeById, childrenOf],
   );
 
+  const streaming = useStreamingStore();
+  const { onNodeReply, onNodeRegenerate } = useStreamingCallbacks(treeId);
+
   const callbacks: GraphCallbacks = useMemo(
     () => ({
       onNodeSelect: (nodeId: string) => setSelectedNodeId(nodeId),
@@ -467,7 +474,8 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
         console.log('[stub] onNodeEdit', nodeId);
       },
       onNodeRegenerate: (nodeId: string) => {
-        console.log('[stub] onNodeRegenerate', nodeId);
+        const node = nodeById.get(nodeId);
+        onNodeRegenerate(nodeId, node?.parentId ?? null);
       },
       onNodeSummarize: (nodeId: string) => {
         console.log('[stub] onNodeSummarize', nodeId);
@@ -476,10 +484,10 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
         console.log('[stub] onNodeDelete', nodeId);
       },
       onNodeReply: (nodeId: string) => {
-        console.log('[stub] onNodeReply', nodeId);
+        onNodeReply(nodeId);
       },
     }),
-    [],
+    [nodeById, onNodeReply, onNodeRegenerate],
   );
 
   const pathEntries = useMemo(
@@ -489,6 +497,10 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
   );
 
   const lastNodeId = pathEntries.length > 0 ? pathEntries[pathEntries.length - 1].node.id : null;
+
+  // Show streaming card at the bottom if the last node in the path is the streaming parent
+  const showStreamingCard =
+    streaming.status !== 'idle' && lastNodeId != null && streaming.parentNodeId === lastNodeId;
 
   return (
     <div
@@ -508,12 +520,29 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
               node={node}
               siblings={siblings}
               isSelected={node.id === selectedNodeId}
-              isLeaf={node.id === lastNodeId && (childrenOf.get(node.id)?.length ?? 0) === 0}
+              isLeaf={
+                !showStreamingCard &&
+                node.id === lastNodeId &&
+                (childrenOf.get(node.id)?.length ?? 0) === 0
+              }
               callbacks={callbacks}
               onSiblingSelect={handleSiblingSelect}
             />
           </div>
         ))}
+        {showStreamingCard && (
+          <>
+            <VerticalConnector />
+            <StreamingCard
+              content={streaming.content}
+              status={streaming.status}
+              error={streaming.error}
+              onCancel={streaming.cancel}
+              onRetry={() => callbacks.onNodeReply(lastNodeId!)}
+              variant="full"
+            />
+          </>
+        )}
       </div>
     </div>
   );
