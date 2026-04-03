@@ -17,9 +17,12 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": {},
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
     "@lineage/eslint-config": "workspace:*",
+    "@types/node": "^25.5.2",
     "eslint": "^10.1.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"

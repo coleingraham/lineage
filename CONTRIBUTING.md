@@ -9,6 +9,7 @@ type/description
 ```
 
 Examples:
+
 - `feat/add-auth`
 - `fix/query-bug`
 - `chore/update-deps`

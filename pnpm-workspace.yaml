@@ -1,5 +1,5 @@
 packages:
-  - "packages/*"
-  - "packages/adapters/*"
-  - "packages/eslint-config"
-  - "apps/*"
+  - 'packages/*'
+  - 'packages/adapters/*'
+  - 'packages/eslint-config'
+  - 'apps/*'
