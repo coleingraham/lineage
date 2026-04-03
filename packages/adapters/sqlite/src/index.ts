@@ -1,1 +1,1 @@
-export {};
+export { InMemoryRepository } from './memory.js';
