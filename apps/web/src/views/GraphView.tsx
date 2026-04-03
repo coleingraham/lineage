@@ -5,6 +5,8 @@ import { GraphRenderer } from '../components/GraphRenderer.js';
 import type { GraphCallbacks } from '../components/graph/GraphRendererTypes.js';
 import { toGraphNodes } from '../components/graph/convertNodes.js';
 import { Sidebar } from '../components/graph/Sidebar.js';
+import { useStreamingStore } from '../store/streaming.js';
+import { useStreamingCallbacks } from '../store/useStreamingCallbacks.js';
 
 // ── Mock data for development ────────────────────────────────────────────────
 
@@ -126,10 +128,16 @@ const MOCK_NODES: Node[] = [
 
 export function GraphView({ nodes: externalNodes }: { nodes?: Node[] }) {
   const coreNodes = externalNodes ?? MOCK_NODES;
+  const treeId = coreNodes[0]?.treeId ?? '';
   const graphNodes = useMemo(() => toGraphNodes(coreNodes), [coreNodes]);
 
   const rootNode = graphNodes.find((n) => n.parentId === null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(rootNode?.id ?? null);
+
+  const streaming = useStreamingStore();
+  const { onNodeReply, onNodeRegenerate } = useStreamingCallbacks(treeId);
+
+  const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
 
   const callbacks: GraphCallbacks = useMemo(
     () => ({
@@ -138,7 +146,8 @@ export function GraphView({ nodes: externalNodes }: { nodes?: Node[] }) {
         console.log('[stub] onNodeEdit', nodeId);
       },
       onNodeRegenerate: (nodeId: string) => {
-        console.log('[stub] onNodeRegenerate', nodeId);
+        const node = nodeById.get(nodeId);
+        onNodeRegenerate(nodeId, node?.parentId ?? null);
       },
       onNodeSummarize: (nodeId: string) => {
         console.log('[stub] onNodeSummarize', nodeId);
@@ -147,10 +156,10 @@ export function GraphView({ nodes: externalNodes }: { nodes?: Node[] }) {
         console.log('[stub] onNodeDelete', nodeId);
       },
       onNodeReply: (nodeId: string) => {
-        console.log('[stub] onNodeReply', nodeId);
+        onNodeReply(nodeId);
       },
     }),
-    [],
+    [nodeById, onNodeReply, onNodeRegenerate],
   );
 
   return (
@@ -167,7 +176,12 @@ export function GraphView({ nodes: externalNodes }: { nodes?: Node[] }) {
         selectedNodeId={selectedNodeId}
         onSelect={callbacks.onNodeSelect}
       />
-      <GraphRenderer nodes={graphNodes} selectedNodeId={selectedNodeId} callbacks={callbacks} />
+      <GraphRenderer
+        nodes={graphNodes}
+        selectedNodeId={selectedNodeId}
+        callbacks={callbacks}
+        streaming={streaming}
+      />
     </div>
   );
 }

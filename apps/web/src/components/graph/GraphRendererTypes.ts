@@ -1,4 +1,5 @@
 import type { NodeType } from '@lineage/core';
+import type { StreamingStore } from '../../store/streaming.js';
 
 export interface GraphNode {
   id: string;
@@ -29,4 +30,5 @@ export interface GraphRendererProps {
   nodes: GraphNode[];
   selectedNodeId: string | null;
   callbacks: GraphCallbacks;
+  streaming?: StreamingStore;
 }
