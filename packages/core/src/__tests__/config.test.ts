@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseConfig, ConfigSchema } from '../config.js';
+import { parseConfig } from '../config.js';
 
 const validConfig = {
   storage: { backend: 'memory' as const },
@@ -7,14 +7,14 @@ const validConfig = {
   embedding: { enabled: false },
 };
 
-describe('ConfigSchema', () => {
+describe('parseConfig', () => {
   it('accepts a valid memory config', () => {
-    const result = ConfigSchema.parse(validConfig);
+    const result = parseConfig(validConfig);
     expect(result.storage.backend).toBe('memory');
   });
 
   it('accepts a valid sqlite config', () => {
-    const result = ConfigSchema.parse({
+    const result = parseConfig({
       ...validConfig,
       storage: { backend: 'sqlite', path: './data.db' },
     });
@@ -22,7 +22,7 @@ describe('ConfigSchema', () => {
   });
 
   it('accepts a valid postgres config with default poolSize', () => {
-    const result = ConfigSchema.parse({
+    const result = parseConfig({
       ...validConfig,
       storage: { backend: 'postgres', url: 'postgres://localhost/lineage' },
     });
@@ -33,25 +33,42 @@ describe('ConfigSchema', () => {
     });
   });
 
-  it('rejects unknown keys', () => {
-    expect(() => ConfigSchema.parse({ ...validConfig, unknownKey: true })).toThrow();
+  it('rejects unknown top-level keys', () => {
+    expect(() => parseConfig({ ...validConfig, unknownKey: true })).toThrow('Unknown key');
   });
 
   it('rejects invalid storage backend', () => {
-    expect(() => ConfigSchema.parse({ ...validConfig, storage: { backend: 'redis' } })).toThrow();
+    expect(() => parseConfig({ ...validConfig, storage: { backend: 'redis' } })).toThrow(
+      'must be one of',
+    );
   });
 
   it('defaults embedding.enabled to false', () => {
-    const result = ConfigSchema.parse({
+    const result = parseConfig({
       storage: { backend: 'memory' },
       llm: { provider: 'openai', model: 'gpt-4' },
       embedding: {},
     });
     expect(result.embedding.enabled).toBe(false);
   });
+
+  it('rejects unknown keys inside storage', () => {
+    expect(() =>
+      parseConfig({ ...validConfig, storage: { backend: 'memory', extra: true } }),
+    ).toThrow('Unknown key "extra" in storage');
+  });
+
+  it('rejects unknown keys inside llm', () => {
+    expect(() =>
+      parseConfig({
+        ...validConfig,
+        llm: { provider: 'anthropic', model: 'x', unknown: 1 },
+      }),
+    ).toThrow('Unknown key "unknown" in llm');
+  });
 });
 
-describe('parseConfig', () => {
+describe('env var interpolation', () => {
   const savedEnv: Record<string, string | undefined> = {};
 
   beforeEach(() => {
