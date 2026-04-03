@@ -4,5 +4,7 @@ export type { Message, GenerationConfig, LLMProvider } from './llm.js';
 export { parseConfig, ConfigError } from './config.js';
 export type { Config } from './config.js';
 export { createRepository } from './factory.js';
+export { buildContext } from './context.js';
+export type { BuildContextOptions } from './context.js';
 
 export const VERSION = '0.0.0';
