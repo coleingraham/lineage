@@ -1,0 +1,17 @@
+{
+  "name": "@lineage/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "typescript-eslint": "^8.58.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.4.0"
+  },
+  "peerDependencies": {
+    "eslint": "^10.0.0",
+    "typescript": "^6.0.0"
+  }
+}
