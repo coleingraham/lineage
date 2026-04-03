@@ -135,7 +135,7 @@ export function GraphView({ nodes: externalNodes }: { nodes?: Node[] }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(rootNode?.id ?? null);
 
   const streaming = useStreamingStore();
-  const { onNodeReply, onNodeRegenerate } = useStreamingCallbacks(treeId);
+  const { onNodeReply, onNodeRegenerate, onNodeSummarize } = useStreamingCallbacks(treeId);
 
   const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
 
@@ -150,7 +150,7 @@ export function GraphView({ nodes: externalNodes }: { nodes?: Node[] }) {
         onNodeRegenerate(nodeId, node?.parentId ?? null);
       },
       onNodeSummarize: (nodeId: string) => {
-        console.log('[stub] onNodeSummarize', nodeId);
+        onNodeSummarize(nodeId);
       },
       onNodeDelete: (nodeId: string) => {
         console.log('[stub] onNodeDelete', nodeId);
@@ -159,7 +159,7 @@ export function GraphView({ nodes: externalNodes }: { nodes?: Node[] }) {
         onNodeReply(nodeId);
       },
     }),
-    [nodeById, onNodeReply, onNodeRegenerate],
+    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize],
   );
 
   return (

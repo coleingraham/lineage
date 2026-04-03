@@ -32,6 +32,9 @@ export function CardStackRenderer({
   const showStreamingChild =
     streaming && streaming.status !== 'idle' && streaming.parentNodeId === selectedNodeId;
 
+  // When the selected node is a summary, its ancestors are "superseded"
+  const isSelectedSummary = selectedNode?.type === 'summary';
+
   if (!selectedNode) {
     return (
       <div
@@ -77,12 +80,26 @@ export function CardStackRenderer({
                 overflow: 'hidden',
                 maxWidth: i === breadcrumb.length - 1 ? '200px' : '120px',
                 textOverflow: 'ellipsis',
+                opacity: isSelectedSummary ? 0.35 : 1,
               }}
             >
               {crumb.content.slice(0, 40) || '(root)'}
             </span>
           </span>
         ))}
+        {isSelectedSummary && (
+          <span
+            style={{
+              fontSize: '9px',
+              color: COLORS.summary + 'aa',
+              fontFamily: FONTS.mono,
+              letterSpacing: '0.06em',
+              marginLeft: '8px',
+            }}
+          >
+            SUPERSEDED
+          </span>
+        )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '7px' }}>
           <button
             onClick={() => callbacks.onNodeReply(selectedNode.id)}
@@ -124,7 +141,9 @@ export function CardStackRenderer({
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           {parentNode && (
             <>
-              <ParentCard node={parentNode} onSelect={callbacks.onNodeSelect} />
+              <div style={{ opacity: isSelectedSummary ? 0.35 : 1, transition: 'opacity 0.15s' }}>
+                <ParentCard node={parentNode} onSelect={callbacks.onNodeSelect} />
+              </div>
               <Connector label="CURRENT" />
             </>
           )}

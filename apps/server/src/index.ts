@@ -3,6 +3,7 @@ import type { NodeRepository, LLMProvider } from '@lineage/core';
 import { treeRoutes } from './routes/trees.js';
 import { nodeRoutes } from './routes/nodes.js';
 import { completionRoutes } from './routes/completion.js';
+import { summarizeRoutes } from './routes/summarize.js';
 
 export interface CreateAppOptions {
   repo: NodeRepository;
@@ -30,6 +31,7 @@ export function createApp(repoOrOptions: NodeRepository | CreateAppOptions, llm?
 
   if (provider) {
     app.route('/trees/:treeId/nodes', completionRoutes(repo, provider));
+    app.route('/trees/:treeId/nodes', summarizeRoutes(repo, provider));
   }
 
   return app;
@@ -38,3 +40,4 @@ export function createApp(repoOrOptions: NodeRepository | CreateAppOptions, llm?
 export { treeRoutes } from './routes/trees.js';
 export { nodeRoutes } from './routes/nodes.js';
 export { completionRoutes } from './routes/completion.js';
+export { summarizeRoutes } from './routes/summarize.js';

@@ -202,14 +202,14 @@ function LinearNodeCard({
   node,
   siblings,
   isSelected,
-  isLeaf,
+  isSuperseded,
   callbacks,
   onSiblingSelect,
 }: {
   node: GraphNode;
   siblings: GraphNode[];
   isSelected: boolean;
-  isLeaf: boolean;
+  isSuperseded: boolean;
   callbacks: GraphCallbacks;
   onSiblingSelect: (nodeId: string) => void;
 }) {
@@ -272,6 +272,7 @@ function LinearNodeCard({
     return (
       <div
         onClick={() => callbacks.onNodeSelect(node.id)}
+        title="Summary nodes condense the conversation above into a single message. When generating new replies below a summary, only the summary is used as context — not the full original thread."
         style={{
           background: 'rgba(184,160,216,0.06)',
           border: `1px solid ${COLORS.summary}33`,
@@ -318,6 +319,17 @@ function LinearNodeCard({
         >
           {node.content || '(empty)'}
         </p>
+        <div
+          style={{
+            marginTop: '10px',
+            fontSize: '10px',
+            color: COLORS.summary + '88',
+            fontFamily: FONTS.mono,
+            fontStyle: 'italic',
+          }}
+        >
+          This summary replaces the conversation above for context in future LLM calls.
+        </div>
       </div>
     );
   }
@@ -331,11 +343,12 @@ function LinearNodeCard({
       style={{
         background: isSelected ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
         border: `1px solid ${isSelected ? 'rgba(255,255,255,0.12)' : COLORS.border}`,
-        borderLeft: `3px solid ${c}`,
+        borderLeft: `3px solid ${isSuperseded ? COLORS.muted : c}`,
         borderRadius: '8px',
         padding: '18px 22px',
         cursor: 'pointer',
-        transition: 'background 0.15s, border-color 0.15s',
+        transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
+        opacity: isSuperseded ? 0.4 : 1,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -353,12 +366,24 @@ function LinearNodeCard({
         >
           {node.type.toUpperCase()}
         </span>
+        {isSuperseded && (
+          <span
+            style={{
+              fontSize: '9px',
+              color: COLORS.summary + 'aa',
+              letterSpacing: '0.06em',
+              fontFamily: FONTS.mono,
+            }}
+          >
+            SUPERSEDED
+          </span>
+        )}
         <span style={{ fontSize: '9px', color: '#2e2e2e', fontFamily: FONTS.mono }}>
           depth {node.depth}
         </span>
         <div style={{ flex: 1 }} />
         <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
-        {(hover || isSelected) && (
+        {(hover || isSelected) && !isSuperseded && (
           <div style={{ display: 'flex', gap: '5px', marginLeft: '8px' }}>
             {node.type === 'human' && (
               <ActionBtn
@@ -380,13 +405,11 @@ function LinearNodeCard({
               onClick={() => callbacks.onNodeReply(node.id)}
               primary
             />
-            {isLeaf && (
-              <ActionBtn
-                label="Summarize"
-                color={COLORS.summary}
-                onClick={() => callbacks.onNodeSummarize(node.id)}
-              />
-            )}
+            <ActionBtn
+              label="∑ Summarize"
+              color={COLORS.summary}
+              onClick={() => callbacks.onNodeSummarize(node.id)}
+            />
           </div>
         )}
       </div>
@@ -465,7 +488,7 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
   );
 
   const streaming = useStreamingStore();
-  const { onNodeReply, onNodeRegenerate } = useStreamingCallbacks(treeId);
+  const { onNodeReply, onNodeRegenerate, onNodeSummarize } = useStreamingCallbacks(treeId);
 
   const callbacks: GraphCallbacks = useMemo(
     () => ({
@@ -478,7 +501,7 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
         onNodeRegenerate(nodeId, node?.parentId ?? null);
       },
       onNodeSummarize: (nodeId: string) => {
-        console.log('[stub] onNodeSummarize', nodeId);
+        onNodeSummarize(nodeId);
       },
       onNodeDelete: (nodeId: string) => {
         console.log('[stub] onNodeDelete', nodeId);
@@ -487,7 +510,7 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
         onNodeReply(nodeId);
       },
     }),
-    [nodeById, onNodeReply, onNodeRegenerate],
+    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize],
   );
 
   const pathEntries = useMemo(
@@ -497,6 +520,13 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
   );
 
   const lastNodeId = pathEntries.length > 0 ? pathEntries[pathEntries.length - 1].node.id : null;
+
+  // Nodes before a summary node on the path are "superseded" — their content is captured
+  // in the summary. Find the index of the first summary node on the path.
+  const summaryIndex = useMemo(
+    () => pathEntries.findIndex((e) => e.node.type === 'summary'),
+    [pathEntries],
+  );
 
   // Show streaming card at the bottom if the last node in the path is the streaming parent
   const showStreamingCard =
@@ -520,11 +550,7 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
               node={node}
               siblings={siblings}
               isSelected={node.id === selectedNodeId}
-              isLeaf={
-                !showStreamingCard &&
-                node.id === lastNodeId &&
-                (childrenOf.get(node.id)?.length ?? 0) === 0
-              }
+              isSuperseded={summaryIndex !== -1 && i < summaryIndex}
               callbacks={callbacks}
               onSiblingSelect={handleSiblingSelect}
             />

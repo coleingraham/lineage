@@ -41,5 +41,17 @@ export function useStreamingCallbacks(treeId: string) {
     [treeId, startCompletion, getServerUrl],
   );
 
-  return { onNodeReply, onNodeRegenerate, cancel, reset, status };
+  const onNodeSummarize = useCallback(
+    (nodeId: string) => {
+      try {
+        const serverUrl = getServerUrl();
+        startCompletion({ serverUrl, treeId, nodeId, endpoint: 'summarize' });
+      } catch (e) {
+        console.error('[streaming]', e);
+      }
+    },
+    [treeId, startCompletion, getServerUrl],
+  );
+
+  return { onNodeReply, onNodeRegenerate, onNodeSummarize, cancel, reset, status };
 }
