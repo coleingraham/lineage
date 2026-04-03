@@ -355,7 +355,7 @@ function LinearNodeCard({
         </span>
         <div style={{ flex: 1 }} />
         <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
-        {(hover || isSelected) && node.type !== 'summary' && (
+        {(hover || isSelected) && (
           <div style={{ display: 'flex', gap: '5px', marginLeft: '8px' }}>
             {node.type === 'human' && (
               <ActionBtn
