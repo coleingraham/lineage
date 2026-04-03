@@ -27,7 +27,8 @@
   },
   "dependencies": {
     "@lineage/core": "workspace:*",
-    "better-sqlite3": "^12.8.0"
+    "better-sqlite3": "^12.8.0",
+    "wa-sqlite": "^1.0.0"
   },
   "devDependencies": {
     "@lineage/eslint-config": "workspace:*",
