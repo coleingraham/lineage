@@ -40,6 +40,47 @@ All apps depend on `core` + `sdk`. All adapters depend only on `core`.
 - Node 22+ required (see `.nvmrc`).
 - Turbo task graph: `build` and `test` depend on `^build` (upstream builds first); `lint` runs independently.
 
+### Adding a storage backend adapter
+
+Each storage backend lives in `packages/adapters/<name>/` and implements `NodeRepository` from `@lineage/core`. Use `@lineage/adapter-sqlite` or `@lineage/adapter-postgres` as a reference.
+
+1. **Implement `NodeRepository`** from `@lineage/core` (`src/repository.ts`):
+   - All 8 methods: `getTree`, `listTrees`, `putTree`, `getNode`, `getNodes`, `putNode`, `softDeleteNode`, `updateNodeEmbedding`
+   - Constructor takes a database connection/client instance
+   - Map between snake_case DB rows and camelCase domain objects (`Node`, `Tree`)
+   - Use `INSERT ... ON CONFLICT ... DO UPDATE` for upserts in `putTree`/`putNode`
+2. **Migrations** (`src/migrations/index.ts`):
+   - Create tables: `node_types` (lookup), `trees`, `nodes`
+   - Use lookup/reference tables for enum-like columns — never `ENUM` types or `CHECK ... IN (...)`
+   - Export a `runMigrations()` function; sync for SQLite-style, async for network DBs
+   - SQLite runs migrations in the constructor; network DBs expose an explicit `migrate()` method called by the factory
+3. **Register in `@lineage/core`** (three files):
+   - `packages/core/src/config.ts` — add the backend name to `STORAGE_BACKENDS`, extend the `Config['storage']` union with its connection options, and update `parseStorage()` to validate the new variant
+   - `packages/core/src/factory.ts` — add a `case` in `createRepository()` that dynamically imports the adapter package and instantiates it (call `migrate()` after construction for async backends)
+4. **Tests**: the shared contract test suite in `packages/core/src/__tests__/repository.contract.test.ts` accepts a `RepositoryFixture` with `supportsEmbeddings` and `supportsConcurrentWrites` flags — add a fixture for the new backend so the contract tests cover it automatically.
+5. **Package scaffolding** — copy `tsconfig.json`, `eslint.config.mjs`, and `package.json` structure from an existing adapter; add the DB driver as a `dependency` alongside `@lineage/core`.
+6. **Verify**: `pnpm install`, then `pnpm build && pnpm test && pnpm lint`.
+
+### Adding an LLM provider adapter
+
+Each LLM provider lives in `packages/adapters/<name>/` and follows the same pattern. Use `@lineage/adapter-anthropic` or `@lineage/adapter-openai` as a reference.
+
+1. **Implement `LLMProvider`** from `@lineage/core` (`src/provider.ts`):
+   - `complete(messages, config)` → `Promise<string>` — single response
+   - `stream(messages, config)` → `AsyncIterable<string>` — yields text deltas
+   - Map core roles (`human`, `ai`, `system`) to the vendor's role names
+   - Spread optional config fields (e.g. `temperature`) only when defined
+   - Accept `apiKey`, `model`, and optional `baseURL` via an options interface
+2. **Export** the provider class and options type from `src/index.ts`.
+3. **Add the vendor SDK** as a `dependency` in `package.json` (the only runtime dep besides `@lineage/core`).
+4. **Tests** (`src/__tests__/provider.test.ts`): mock the vendor SDK with `vi.mock()`, then test:
+   - Role mapping for all three roles
+   - Optional parameter inclusion/omission (e.g. `temperature`)
+   - Response content extraction (`complete`)
+   - Streaming delta iteration and filtering (`stream`)
+5. **Package scaffolding** — copy `tsconfig.json`, `eslint.config.mjs`, and `package.json` structure from an existing adapter; update the package name to `@lineage/adapter-<name>`.
+6. **Verify**: `pnpm install`, then `pnpm --filter @lineage/adapter-<name> build && pnpm --filter @lineage/adapter-<name> test && pnpm --filter @lineage/adapter-<name> lint`.
+
 ### Conventions
 
 - **Commits:** Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
