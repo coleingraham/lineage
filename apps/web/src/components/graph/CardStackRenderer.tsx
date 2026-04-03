@@ -56,9 +56,7 @@ export function CardStackRenderer({ nodes, selectedNodeId, callbacks }: GraphRen
       >
         {breadcrumb.map((crumb, i) => (
           <span key={crumb.id} style={{ display: 'flex', alignItems: 'center' }}>
-            {i > 0 && (
-              <span style={{ color: '#222', margin: '0 7px', fontSize: '13px' }}>›</span>
-            )}
+            {i > 0 && <span style={{ color: '#222', margin: '0 7px', fontSize: '13px' }}>›</span>}
             <span
               onClick={() => callbacks.onNodeSelect(crumb.id)}
               style={{
@@ -122,11 +120,7 @@ export function CardStackRenderer({ nodes, selectedNodeId, callbacks }: GraphRen
             </>
           )}
 
-          <CurrentCard
-            node={selectedNode}
-            isLeaf={children.length === 0}
-            callbacks={callbacks}
-          />
+          <CurrentCard node={selectedNode} isLeaf={children.length === 0} callbacks={callbacks} />
 
           {children.length > 0 && (
             <>

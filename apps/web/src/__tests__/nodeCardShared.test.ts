@@ -11,7 +11,12 @@ function makeNode(overrides: Partial<GraphNode>): GraphNode {
     depth: 0,
     isDeleted: false,
     childCount: 0,
-    metadata: { modelName: null, provider: null, tokenCount: null, createdAt: '2026-01-01T00:00:00Z' },
+    metadata: {
+      modelName: null,
+      provider: null,
+      tokenCount: null,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
     ...overrides,
   };
 }

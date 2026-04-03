@@ -19,7 +19,7 @@ const MOCK_NODES: Node[] = [
     parentId: null,
     type: 'human',
     content:
-      'The recursive descent parser has grown to ~2,400 lines. Maintenance velocity has dropped — new grammar rules take 3–5x longer than six months ago. I\'m wondering if we should consider a rewrite.',
+      "The recursive descent parser has grown to ~2,400 lines. Maintenance velocity has dropped — new grammar rules take 3–5x longer than six months ago. I'm wondering if we should consider a rewrite.",
     isDeleted: false,
     createdAt: '2026-04-01T10:00:00Z',
     modelName: null,
@@ -484,9 +484,7 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
 
   const pathEntries = useMemo(
     () =>
-      selectedNodeId
-        ? buildPathEntries(selectedNodeId, graphNodes, nodeById, childrenOf)
-        : [],
+      selectedNodeId ? buildPathEntries(selectedNodeId, graphNodes, nodeById, childrenOf) : [],
     [selectedNodeId, graphNodes, nodeById, childrenOf],
   );
 

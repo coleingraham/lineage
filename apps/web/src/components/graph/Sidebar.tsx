@@ -83,11 +83,7 @@ function VerticalMinimap({
         </span>
       </div>
 
-      <svg
-        width="100%"
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ display: 'block', cursor: 'crosshair' }}
-      >
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', cursor: 'crosshair' }}>
         {/* Depth row guides */}
         {Object.keys(byDepth).map((depth) => {
           const d = parseInt(depth);
@@ -119,11 +115,7 @@ function VerticalMinimap({
               y1={from.y}
               x2={to.x}
               y2={to.y}
-              stroke={
-                isActive
-                  ? `${nodeColor(n.type, n.isDeleted)}66`
-                  : 'rgba(255,255,255,0.05)'
-              }
+              stroke={isActive ? `${nodeColor(n.type, n.isDeleted)}66` : 'rgba(255,255,255,0.05)'}
               strokeWidth={isActive ? 1.5 : 0.8}
             />
           );
@@ -464,9 +456,7 @@ function SmartCollapse({
   if (!rootNode) return null;
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '4px 4px' }}>
-      {renderNode(rootNode, 0)}
-    </div>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '4px 4px' }}>{renderNode(rootNode, 0)}</div>
   );
 }
 
@@ -533,9 +523,7 @@ export function Sidebar({
             strokeWidth="1.2"
           />
         </svg>
-        <span style={{ fontSize: '12px', letterSpacing: '0.12em', color: '#c8c8c8' }}>
-          LINEAGE
-        </span>
+        <span style={{ fontSize: '12px', letterSpacing: '0.12em', color: '#c8c8c8' }}>LINEAGE</span>
 
         {/* Mode toggle */}
         <div
@@ -558,8 +546,7 @@ export function Sidebar({
               key={m.id}
               onClick={() => setMode(m.id)}
               style={{
-                background:
-                  mode === m.id ? 'rgba(143,184,200,0.15)' : 'transparent',
+                background: mode === m.id ? 'rgba(143,184,200,0.15)' : 'transparent',
                 border: 'none',
                 color: mode === m.id ? '#8fb8c8' : '#333',
                 padding: '4px 9px',

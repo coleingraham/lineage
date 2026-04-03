@@ -190,10 +190,12 @@ describe('BrowserSqliteRepository', () => {
       const tree = makeTree();
       enqueue([], []);
       await repo.putTree(tree);
-      expect(mockAPI.bind).toHaveBeenCalledWith(
-        1,
-        [tree.treeId, tree.title, tree.createdAt, tree.rootNodeId],
-      );
+      expect(mockAPI.bind).toHaveBeenCalledWith(1, [
+        tree.treeId,
+        tree.title,
+        tree.createdAt,
+        tree.rootNodeId,
+      ]);
     });
   });
 

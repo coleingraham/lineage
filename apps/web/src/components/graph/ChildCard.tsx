@@ -2,13 +2,7 @@ import { FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode } from './GraphRendererTypes.js';
 import { Dot, nodeLabel } from './NodeCardShared.js';
 
-export function ChildCard({
-  node,
-  onSelect,
-}: {
-  node: GraphNode;
-  onSelect: (id: string) => void;
-}) {
+export function ChildCard({ node, onSelect }: { node: GraphNode; onSelect: (id: string) => void }) {
   const c = nodeColor(node.type, node.isDeleted);
   return (
     <div
@@ -60,9 +54,7 @@ export function ChildCard({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           {node.childCount > 0 && (
-            <span
-              style={{ fontSize: '9px', color: '#2a2a2a', fontFamily: FONTS.mono }}
-            >
+            <span style={{ fontSize: '9px', color: '#2a2a2a', fontFamily: FONTS.mono }}>
               ↓{node.childCount}
             </span>
           )}
