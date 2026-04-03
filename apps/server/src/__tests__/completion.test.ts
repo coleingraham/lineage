@@ -128,10 +128,10 @@ describe('completion routes', () => {
       temperature: 0.5,
     });
 
-    expect(llm.stream).toHaveBeenCalledWith(
-      [{ role: 'human', content: 'What is 2+2?' }],
-      { maxTokens: 200, temperature: 0.5 },
-    );
+    expect(llm.stream).toHaveBeenCalledWith([{ role: 'human', content: 'What is 2+2?' }], {
+      maxTokens: 200,
+      temperature: 0.5,
+    });
   });
 
   it('omits temperature when not provided', async () => {

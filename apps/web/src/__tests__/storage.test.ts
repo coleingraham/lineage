@@ -30,7 +30,9 @@ describe('detectStorageMode', () => {
 
   it('returns remote mode when a server URL is stored', () => {
     Object.defineProperty(globalThis, 'localStorage', {
-      value: { getItem: (key: string) => (key === 'lineage:serverUrl' ? 'http://localhost:3000' : null) },
+      value: {
+        getItem: (key: string) => (key === 'lineage:serverUrl' ? 'http://localhost:3000' : null),
+      },
       writable: true,
       configurable: true,
     });
@@ -61,8 +63,8 @@ describe('createStorage', () => {
   });
 
   it('throws in remote mode (not yet implemented)', async () => {
-    await expect(createStorage({ mode: 'remote', serverUrl: 'http://localhost:3000' })).rejects.toThrow(
-      'Remote storage is not yet implemented',
-    );
+    await expect(
+      createStorage({ mode: 'remote', serverUrl: 'http://localhost:3000' }),
+    ).rejects.toThrow('Remote storage is not yet implemented');
   });
 });

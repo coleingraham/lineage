@@ -66,9 +66,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider();
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       const messages: Message[] = [
         { role: 'human', content: 'Hello' },
@@ -90,9 +88,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider();
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       const messages: Message[] = [
         { role: 'system', content: 'You are helpful' },
@@ -112,9 +108,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider();
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       await provider.complete([{ role: 'human', content: 'Hi' }], {
         maxTokens: 100,
@@ -129,9 +123,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider();
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       await provider.complete([{ role: 'human', content: 'Hi' }], { maxTokens: 100 });
 
@@ -143,9 +135,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider();
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       await provider.complete([{ role: 'human', content: 'Hi' }], { maxTokens: 512 });
 
@@ -157,9 +147,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider();
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       await provider.complete([{ role: 'human', content: 'Hi' }], { maxTokens: 100 });
 
@@ -181,9 +169,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider();
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       await provider.complete([{ role: 'human', content: 'Hi' }], { maxTokens: 100 });
 
@@ -194,9 +180,7 @@ describe('OllamaProvider', () => {
       const provider = createProvider('http://myhost:8080');
       const fetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }),
-        );
+        .mockResolvedValue(mockFetchResponse({ message: { role: 'assistant', content: 'ok' } }));
 
       await provider.complete([{ role: 'human', content: 'Hi' }], { maxTokens: 100 });
 
@@ -260,9 +244,7 @@ describe('OllamaProvider', () => {
 
     it('sends stream: true for stream calls', async () => {
       const provider = createProvider();
-      const fetchSpy = vi
-        .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(mockStreamResponse([]));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockStreamResponse([]));
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of provider.stream([{ role: 'human', content: 'Hi' }], {

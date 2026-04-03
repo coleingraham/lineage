@@ -10,7 +10,12 @@ function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
     depth: 0,
     isDeleted: false,
     childCount: 0,
-    metadata: { modelName: null, provider: null, tokenCount: null, createdAt: '2026-01-01T00:00:00Z' },
+    metadata: {
+      modelName: null,
+      provider: null,
+      tokenCount: null,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
     ...overrides,
   };
 }
@@ -69,10 +74,7 @@ describe('findRoot', () => {
   });
 
   it('returns the first root if multiple exist', () => {
-    const nodes = [
-      makeNode({ id: 'r1' }),
-      makeNode({ id: 'r2' }),
-    ];
+    const nodes = [makeNode({ id: 'r1' }), makeNode({ id: 'r2' })];
     expect(findRoot(nodes)?.id).toBe('r1');
   });
 });
