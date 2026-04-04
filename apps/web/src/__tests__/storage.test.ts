@@ -8,6 +8,17 @@ vi.mock('@lineage/adapter-sqlite/browser', () => ({
   },
 }));
 
+// Mock the SDK so createStorage doesn't actually make HTTP requests
+vi.mock('@lineage/sdk', () => ({
+  RestNodeRepository: class {
+    baseUrl: string;
+    _mock = true;
+    constructor(opts: { baseUrl: string }) {
+      this.baseUrl = opts.baseUrl;
+    }
+  },
+}));
+
 describe('detectStorageMode', () => {
   const originalLocalStorage = globalThis.localStorage;
 
@@ -62,9 +73,8 @@ describe('createStorage', () => {
     expect(repo).toEqual({ _mock: true });
   });
 
-  it('throws in remote mode (not yet implemented)', async () => {
-    await expect(
-      createStorage({ mode: 'remote', serverUrl: 'http://localhost:3000' }),
-    ).rejects.toThrow('Remote storage is not yet implemented');
+  it('creates a RestNodeRepository in remote mode', async () => {
+    const repo = await createStorage({ mode: 'remote', serverUrl: 'http://localhost:3000' });
+    expect(repo).toEqual({ _mock: true, baseUrl: 'http://localhost:3000' });
   });
 });

@@ -72,6 +72,31 @@ export function nodeRoutes(repo: NodeRepository) {
     return c.json(node, 201);
   });
 
+  // GET /trees/:treeId/nodes/:nodeId — fetch a single node
+  app.get('/:nodeId', async (c) => {
+    const { nodeId } = c.req.param();
+    const treeId = c.req.param('treeId') as string;
+
+    try {
+      await c.var.repo.getTree(treeId);
+    } catch {
+      return c.json({ error: 'Tree not found' }, 404);
+    }
+
+    let node: Node;
+    try {
+      node = await c.var.repo.getNode(nodeId);
+    } catch {
+      return c.json({ error: 'Node not found' }, 404);
+    }
+
+    if (node.treeId !== treeId) {
+      return c.json({ error: 'Node not found' }, 404);
+    }
+
+    return c.json(node);
+  });
+
   // DELETE /trees/:treeId/nodes/:nodeId — soft delete a node
   app.delete('/:nodeId', async (c) => {
     const { nodeId } = c.req.param();
