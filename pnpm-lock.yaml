@@ -101,6 +101,9 @@ importers:
       '@lineage/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       eslint:
         specifier: ^10.1.0
         version: 10.1.0
