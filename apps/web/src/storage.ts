@@ -36,9 +36,8 @@ export async function createStorage(config?: StorageConfig): Promise<NodeReposit
       return BrowserSqliteRepository.create();
     }
     case 'remote': {
-      throw new Error(
-        'Remote storage is not yet implemented — clear the lineage:serverUrl localStorage key to use local mode',
-      );
+      const { RestNodeRepository } = await import('@lineage/sdk');
+      return new RestNodeRepository({ baseUrl: resolved.serverUrl! });
     }
   }
 }
