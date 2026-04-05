@@ -1,6 +1,6 @@
 import { FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode } from './GraphRendererTypes.js';
-import { Dot, nodeLabel } from './NodeCardShared.js';
+import { Dot, nodeLabel, previewContent } from './NodeCardShared.js';
 
 export function ParentCard({
   node,
@@ -60,7 +60,7 @@ export function ParentCard({
               whiteSpace: 'nowrap',
             }}
           >
-            {node.content || '(empty)'}
+            {previewContent(node.content) || '(empty)'}
           </span>
         </div>
         <span

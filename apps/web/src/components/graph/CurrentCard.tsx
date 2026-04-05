@@ -108,17 +108,6 @@ export function CurrentCard({
           />
         </div>
         <Markdown content={node.content} fontSize="13px" color={COLORS.textSecondary} />
-        <div
-          style={{
-            marginTop: '12px',
-            fontSize: '10px',
-            color: COLORS.summary + '88',
-            fontFamily: FONTS.mono,
-            fontStyle: 'italic',
-          }}
-        >
-          This summary replaces the conversation above for context in future LLM calls.
-        </div>
       </div>
     );
   }
@@ -192,23 +181,9 @@ export function CurrentCard({
           onCancel={onEditCancel}
         />
       ) : (
-        <>
-          <div style={{ marginBottom: '14px' }}>
+        <div>
             <Markdown content={node.content} fontSize="18px" />
           </div>
-          <p
-            style={{
-              fontSize: '12px',
-              color: '#383838',
-              fontFamily: FONTS.mono,
-              lineHeight: 1.75,
-              margin: 0,
-            }}
-          >
-            Navigate the tree by clicking the parent card above to go up, or any child card below to
-            go deeper. Use the sidebar to jump anywhere directly.
-          </p>
-        </>
       )}
     </div>
   );

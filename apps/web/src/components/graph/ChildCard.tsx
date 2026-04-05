@@ -1,6 +1,6 @@
 import { FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode } from './GraphRendererTypes.js';
-import { Dot, nodeLabel } from './NodeCardShared.js';
+import { Dot, nodeLabel, previewContent } from './NodeCardShared.js';
 
 export function ChildCard({ node, onSelect }: { node: GraphNode; onSelect: (id: string) => void }) {
   const c = nodeColor(node.type, node.isDeleted);
@@ -49,7 +49,7 @@ export function ChildCard({ node, onSelect }: { node: GraphNode; onSelect: (id: 
               textDecoration: node.isDeleted ? 'line-through' : 'none',
             }}
           >
-            {node.content || '(empty)'}
+            {previewContent(node.content) || '(empty)'}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

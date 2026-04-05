@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, type RefCallback } from 'react';
+import { useState, useMemo, useCallback, type RefCallback } from 'react';
 import type { Node, Tree, NodeRepository } from '@lineage/core';
 import { COLORS, FONTS, nodeColor } from '../styles/theme.js';
 import type { GraphCallbacks, GraphNode } from '../components/graph/GraphRendererTypes.js';
@@ -12,8 +12,6 @@ import {
 import { useStreamingStore } from '../store/streaming.js';
 import { useStreamingCallbacks } from '../store/useStreamingCallbacks.js';
 import { StreamingCard } from '../components/StreamingCard.js';
-import { ComposeInput } from '../components/ComposeInput.js';
-import type { ComposeInputHandle } from '../components/ComposeInput.js';
 import { Sidebar } from '../components/graph/Sidebar.js';
 import { Markdown } from '../components/Markdown.js';
 import { InlineEditor } from '../components/InlineEditor.js';
@@ -379,7 +377,6 @@ function VerticalConnector() {
 // ── LinearView ──────────────────────────────────────────────────────────────
 
 export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled }: LinearViewProps) {
-  const composeRef = useRef<ComposeInputHandle>(null);
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
@@ -595,13 +592,6 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHu
                 variant="full"
               />
             </div>
-          )}
-          {lastNodeId && streaming.status === 'idle' && (
-            <ComposeInput
-              ref={composeRef}
-              onSend={(content) => onCompose(lastNodeId, content)}
-              placeholder="Type a message..."
-            />
           )}
         </div>
       </div>

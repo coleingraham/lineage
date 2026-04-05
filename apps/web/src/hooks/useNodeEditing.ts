@@ -53,6 +53,15 @@ export function useNodeEditing({
     setEditText('');
   }, []);
 
+  // Auto-select root node when nodes load and nothing is selected
+  useEffect(() => {
+    if (selectedNodeId && nodeById.has(selectedNodeId)) return;
+    const root = [...nodeById.values()].find((n) => n.parentId === null);
+    if (root) {
+      setSelectedNodeId(root.id);
+    }
+  }, [nodeById, selectedNodeId]);
+
   // Auto-trigger edit for pending node (e.g. new conversation root)
   useEffect(() => {
     if (pendingEditNodeId && nodeById.has(pendingEditNodeId)) {

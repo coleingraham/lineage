@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import type { Tree, NodeRepository } from '@lineage/core';
 import { FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode } from './GraphRendererTypes.js';
-import { Dot } from './NodeCardShared.js';
+import { Dot, previewContent } from './NodeCardShared.js';
 import { buildFlatList, findRoot, getAncestorIds } from './graphUtils.js';
 import type { FlatNode } from './graphUtils.js';
 
@@ -220,8 +220,8 @@ function DrilldownSlice({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {(anc.content || '(root)').slice(0, 24)}
-                {(anc.content || '').length > 24 ? '…' : ''}
+                {(previewContent(anc.content) || '(root)').slice(0, 24)}
+                {(previewContent(anc.content) || '').length > 24 ? '…' : ''}
               </span>
             </div>
           ))}
@@ -273,7 +273,7 @@ function DrilldownSlice({
                   lineHeight: 1.4,
                 }}
               >
-                {sib.content || '(empty)'}
+                {previewContent(sib.content) || '(empty)'}
               </span>
               {sib._children.length > 0 && !isSelected && (
                 <span style={{ fontSize: '9px', color: '#2a2a2a', flexShrink: 0 }}>
@@ -338,7 +338,7 @@ function DrilldownSlice({
                     lineHeight: 1.4,
                   }}
                 >
-                  {ch.content || '(empty)'}
+                  {previewContent(ch.content) || '(empty)'}
                 </span>
                 {ch._children.length > 0 && (
                   <span style={{ fontSize: '9px', color: '#2a2a2a', flexShrink: 0 }}>
@@ -440,7 +440,7 @@ function SmartCollapse({
                 lineHeight: 1.4,
               }}
             >
-              {node.content || '(root)'}
+              {previewContent(node.content) || '(root)'}
             </span>
           </div>
         </div>

@@ -8,7 +8,7 @@ export function useTreeData(
 ): { tree: Tree | null; nodes: Node[]; isLoading: boolean; error: Error | null } {
   const [tree, setTree] = useState<Tree | null>(null);
   const [nodes, setNodes] = useState<Node[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!(treeId && repo));
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {

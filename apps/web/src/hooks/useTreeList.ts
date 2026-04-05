@@ -10,7 +10,7 @@ export function useTreeList(
   refreshKey = 0,
 ): { trees: Tree[]; isLoading: boolean; error: Error | null } {
   const [trees, setTrees] = useState<Tree[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!repo);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
