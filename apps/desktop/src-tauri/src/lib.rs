@@ -4,20 +4,22 @@ use tauri::Manager;
 
 struct ServerProcess(Mutex<Option<Child>>);
 
-fn find_server_script(app: &tauri::App) -> std::path::PathBuf {
+fn find_server_script(app: &tauri::App) -> Option<std::path::PathBuf> {
     // In production, resources are bundled alongside the binary
     if let Ok(resource_dir) = app.path().resource_dir() {
         let bundled = resource_dir.join("server-sidecar").join("serve.cjs");
         if bundled.exists() {
-            return bundled;
+            return Some(bundled);
         }
     }
-    // In development, the sidecar is at apps/desktop/server-sidecar/
+    // In development, the sidecar is at apps/desktop/src-tauri/server-sidecar/
     let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
         .join("server-sidecar")
         .join("serve.cjs");
-    dev_path
+    if dev_path.exists() {
+        return Some(dev_path);
+    }
+    None
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -26,7 +28,14 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let serve_script = find_server_script(app);
+            let serve_script = match find_server_script(app) {
+                Some(path) => path,
+                None => {
+                    eprintln!("[desktop] WARNING: server sidecar not found, LLM features unavailable");
+                    app.manage(ServerProcess(Mutex::new(None)));
+                    return Ok(());
+                }
+            };
 
             // Determine a writable directory for the database
             let db_path = app
@@ -38,20 +47,30 @@ pub fn run() {
                 })
                 .unwrap_or_else(|_| std::path::PathBuf::from("./lineage.db"));
 
-            let child = Command::new("node")
+            match Command::new("node")
                 .arg(&serve_script)
                 .env("PORT", "3210")
                 .env("STORAGE_PATH", db_path.to_string_lossy().to_string())
                 .spawn()
-                .expect("failed to start server sidecar — is Node.js installed?");
-
-            println!(
-                "[desktop] Server sidecar started (pid={}, script={})",
-                child.id(),
-                serve_script.display()
-            );
-
-            app.manage(ServerProcess(Mutex::new(Some(child))));
+            {
+                Ok(child) => {
+                    println!(
+                        "[desktop] Server sidecar started (pid={}, script={})",
+                        child.id(),
+                        serve_script.display()
+                    );
+                    app.manage(ServerProcess(Mutex::new(Some(child))));
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[desktop] WARNING: failed to start server sidecar: {} (script={})",
+                        e,
+                        serve_script.display()
+                    );
+                    eprintln!("[desktop] Is Node.js installed and on PATH?");
+                    app.manage(ServerProcess(Mutex::new(None)));
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

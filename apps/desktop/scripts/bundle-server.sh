@@ -6,7 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$DESKTOP_DIR/../.." && pwd)"
-OUT_DIR="$DESKTOP_DIR/server-sidecar"
+OUT_DIR="$DESKTOP_DIR/src-tauri/server-sidecar"
 
 echo "[bundle-server] Bundling server into $OUT_DIR"
 
