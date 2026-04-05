@@ -10,6 +10,8 @@ const completionBody = z.object({
   maxTokens: z.number().int().positive(),
   temperature: z.number().min(0).max(2).optional(),
   maxContextTokens: z.number().int().positive().optional(),
+  model: z.string().min(1).optional(),
+  thinking: z.boolean().optional(),
 });
 
 export type Env = {
@@ -32,7 +34,7 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
   app.post('/:nodeId/complete', zValidator('json', completionBody), async (c) => {
     const treeId = c.req.param('treeId') as string;
     const { nodeId } = c.req.param();
-    const { maxTokens, temperature, maxContextTokens } = c.req.valid('json');
+    const { maxTokens, temperature, maxContextTokens, model, thinking } = c.req.valid('json');
 
     console.log(`[complete] treeId=${treeId} nodeId=${nodeId} maxTokens=${maxTokens}`);
 
@@ -72,7 +74,7 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
       return c.json({ error: 'No context available for completion' }, 400);
     }
 
-    const config = { maxTokens, ...(temperature !== undefined && { temperature }) };
+    const config = { maxTokens, ...(temperature !== undefined && { temperature }), ...(model && { model }), ...(thinking !== undefined && { thinking }) };
 
     return streamSSE(c, async (stream) => {
       let thinkingContent = '';
@@ -114,7 +116,7 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
           content,
           isDeleted: false,
           createdAt: new Date().toISOString(),
-          modelName: null,
+          modelName: model ?? null,
           provider: null,
           tokenCount: null,
           embeddingModel: null,

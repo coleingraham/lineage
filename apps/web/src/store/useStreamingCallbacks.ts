@@ -16,16 +16,26 @@ export function useStreamingCallbacks(treeId: string) {
     return url.replace(/\/+$/, '');
   }, []);
 
+  const getModel = useCallback(() => {
+    return localStorage.getItem('lineage:llmModel') || undefined;
+  }, []);
+
+  const getThinking = useCallback(() => {
+    return localStorage.getItem('lineage:thinkingEnabled') === 'true';
+  }, []);
+
   const onNodeReply = useCallback(
     (nodeId: string) => {
       try {
         const serverUrl = getServerUrl();
-        startCompletion({ serverUrl, treeId, nodeId });
+        const model = getModel();
+        const thinking = getThinking();
+        startCompletion({ serverUrl, treeId, nodeId, model, thinking });
       } catch (e) {
         console.error('[streaming]', e);
       }
     },
-    [treeId, startCompletion, getServerUrl],
+    [treeId, startCompletion, getServerUrl, getModel, getThinking],
   );
 
   const onNodeRegenerate = useCallback(
@@ -33,24 +43,28 @@ export function useStreamingCallbacks(treeId: string) {
       if (!parentId) return;
       try {
         const serverUrl = getServerUrl();
-        startCompletion({ serverUrl, treeId, nodeId: parentId });
+        const model = getModel();
+        const thinking = getThinking();
+        startCompletion({ serverUrl, treeId, nodeId: parentId, model, thinking });
       } catch (e) {
         console.error('[streaming]', e);
       }
     },
-    [treeId, startCompletion, getServerUrl],
+    [treeId, startCompletion, getServerUrl, getModel, getThinking],
   );
 
   const onNodeSummarize = useCallback(
     (nodeId: string) => {
       try {
         const serverUrl = getServerUrl();
-        startCompletion({ serverUrl, treeId, nodeId, endpoint: 'summarize' });
+        const model = getModel();
+        const thinking = getThinking();
+        startCompletion({ serverUrl, treeId, nodeId, model, thinking, endpoint: 'summarize' });
       } catch (e) {
         console.error('[streaming]', e);
       }
     },
-    [treeId, startCompletion, getServerUrl],
+    [treeId, startCompletion, getServerUrl, getModel, getThinking],
   );
 
   return { onNodeReply, onNodeRegenerate, onNodeSummarize, cancel, reset, status };

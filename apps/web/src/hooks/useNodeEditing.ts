@@ -4,13 +4,18 @@ import type { GraphNode } from '../components/graph/GraphRendererTypes.js';
 interface UseNodeEditingOptions {
   nodeById: Map<string, GraphNode>;
   onEdit: (nodeId: string, content: string) => Promise<void>;
+  onCreateSibling: (originalNodeId: string, content: string) => Promise<string | null>;
+  onDelete: (nodeId: string) => void;
   onNodeReply: (nodeId: string) => void;
+  onRootNodeSubmitted?: (content: string) => void;
   pendingEditNodeId: string | null;
   onPendingEditHandled: () => void;
   focusNodeId: string | null;
   onFocusHandled: () => void;
   /** Initial value for selectedNodeId. */
   initialSelectedNodeId?: string | null;
+  /** Called whenever selectedNodeId changes. */
+  onSelectedNodeChange?: (nodeId: string) => void;
   /** Called when a node is focused, before onFocusHandled. */
   onFocus?: (nodeId: string) => void;
 }
@@ -18,17 +23,28 @@ interface UseNodeEditingOptions {
 export function useNodeEditing({
   nodeById,
   onEdit,
+  onCreateSibling,
+  onDelete,
   onNodeReply,
+  onRootNodeSubmitted,
   pendingEditNodeId,
   onPendingEditHandled,
   focusNodeId,
   onFocusHandled,
   initialSelectedNodeId,
+  onSelectedNodeChange,
   onFocus,
 }: UseNodeEditingOptions) {
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialSelectedNodeId ?? null);
+  const [selectedNodeId, _setSelectedNodeId] = useState<string | null>(initialSelectedNodeId ?? null);
+  const setSelectedNodeId = useCallback((id: string | null) => {
+    _setSelectedNodeId(id);
+    if (id) onSelectedNodeChange?.(id);
+  }, [onSelectedNodeChange]);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  // Tracks nodes created eagerly (e.g. handleAddHumanNode) that should be
+  // deleted if the user cancels before submitting content.
+  const [pendingNewNodeId, setPendingNewNodeId] = useState<string | null>(null);
 
   const handleEditStart = useCallback((nodeId: string, content: string) => {
     setEditingNodeId(nodeId);
@@ -39,33 +55,56 @@ export function useNodeEditing({
     if (editingNodeId) {
       const nodeId = editingNodeId;
       const node = nodeById.get(nodeId);
-      await onEdit(nodeId, editText);
       setEditingNodeId(null);
       setEditText('');
+      setPendingNewNodeId(null);
       if (node?.type === 'human') {
-        onNodeReply(nodeId);
+        const newNodeId = await onCreateSibling(nodeId, editText);
+        if (newNodeId) {
+          setSelectedNodeId(newNodeId);
+          onNodeReply(newNodeId);
+        } else {
+          // Root node — can't create sibling, edit in place
+          await onEdit(nodeId, editText);
+          onNodeReply(nodeId);
+          onRootNodeSubmitted?.(editText);
+        }
+      } else {
+        await onEdit(nodeId, editText);
       }
     }
-  }, [editingNodeId, editText, onEdit, nodeById, onNodeReply]);
+  }, [editingNodeId, editText, onEdit, onCreateSibling, nodeById, onNodeReply, onRootNodeSubmitted, setSelectedNodeId]);
 
   const handleEditCancel = useCallback(() => {
+    if (pendingNewNodeId) {
+      onDelete(pendingNewNodeId);
+      setPendingNewNodeId(null);
+    }
     setEditingNodeId(null);
     setEditText('');
-  }, []);
+  }, [pendingNewNodeId, onDelete]);
 
-  // Auto-select root node when nodes load and nothing is selected
+  // Sync internal selection when parent resets it (e.g. tree switch)
   useEffect(() => {
-    if (selectedNodeId && nodeById.has(selectedNodeId)) return;
+    if (initialSelectedNodeId === null) {
+      _setSelectedNodeId(null);
+    }
+  }, [initialSelectedNodeId]);
+
+  // Auto-select root node when nothing is selected
+  useEffect(() => {
+    if (selectedNodeId) return;
     const root = [...nodeById.values()].find((n) => n.parentId === null);
     if (root) {
       setSelectedNodeId(root.id);
     }
   }, [nodeById, selectedNodeId]);
 
-  // Auto-trigger edit for pending node (e.g. new conversation root)
+  // Auto-trigger edit for pending node (e.g. new conversation root or add human node)
   useEffect(() => {
     if (pendingEditNodeId && nodeById.has(pendingEditNodeId)) {
       setSelectedNodeId(pendingEditNodeId);
+      setPendingNewNodeId(pendingEditNodeId);
       handleEditStart(pendingEditNodeId, nodeById.get(pendingEditNodeId)!.content);
       onPendingEditHandled();
     }

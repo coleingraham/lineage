@@ -16,6 +16,9 @@ interface GraphViewProps {
   onEdit: (nodeId: string, content: string) => Promise<void>;
   onCompose: (parentNodeId: string, content: string) => Promise<void>;
   onAddHumanNode: (parentNodeId: string) => Promise<void>;
+  onCreateSibling: (originalNodeId: string, content: string) => Promise<string | null>;
+  selectedNodeId: string | null;
+  onSelectedNodeChange: (nodeId: string) => void;
   focusNodeId: string | null;
   onFocusHandled: () => void;
   trees: Tree[];
@@ -27,9 +30,12 @@ interface GraphViewProps {
   onRequestEdit: (nodeId: string) => void;
   pendingEditNodeId: string | null;
   onPendingEditHandled: () => void;
+  sidebarMode: 'focus' | 'power' | 'conversations';
+  onSidebarModeChange: (mode: 'focus' | 'power' | 'conversations') => void;
+  onRootNodeSubmitted: (content: string) => void;
 }
 
-export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled }: GraphViewProps) {
+export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: GraphViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
   const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
   const rootNode = graphNodes.find((n) => n.parentId === null);
@@ -49,12 +55,16 @@ export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHum
   } = useNodeEditing({
     nodeById,
     onEdit,
+    onCreateSibling,
+    onDelete,
     onNodeReply,
+    onRootNodeSubmitted,
     pendingEditNodeId,
     onPendingEditHandled,
     focusNodeId,
     onFocusHandled,
-    initialSelectedNodeId: rootNode?.id ?? null,
+    initialSelectedNodeId: controlledSelectedNodeId ?? rootNode?.id ?? null,
+    onSelectedNodeChange,
   });
 
   const callbacks: GraphCallbacks = useMemo(
@@ -100,6 +110,8 @@ export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHum
         nodes={graphNodes}
         selectedNodeId={selectedNodeId}
         onSelect={callbacks.onNodeSelect}
+        sidebarMode={sidebarMode}
+        onSidebarModeChange={onSidebarModeChange}
         trees={trees}
         selectedTreeId={selectedTreeId}
         onSelectTree={onSelectTree}

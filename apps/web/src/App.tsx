@@ -23,6 +23,7 @@ function readSavedMode(): ViewMode {
 export function App() {
   const [mode, setMode] = useState<ViewMode>(readSavedMode);
   const [showSettings, setShowSettings] = useState(false);
+  const [sidebarMode, setSidebarMode] = useState<'focus' | 'power' | 'conversations'>('conversations');
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -45,20 +46,21 @@ export function App() {
 
   // Auto-select first tree if none selected (or selected tree no longer exists)
   useEffect(() => {
-    if (trees.length === 0) return;
+    if (treesLoading || trees.length === 0) return;
     const exists = trees.some((t) => t.treeId === selectedTreeId);
     if (!exists) {
       setSelectedTreeId(trees[0].treeId);
     }
-  }, [trees, selectedTreeId]);
+  }, [trees, treesLoading, selectedTreeId]);
 
-  // Persist selected tree
+  // Persist selected tree & reset node selection when tree changes
   useEffect(() => {
     if (selectedTreeId) {
       localStorage.setItem(SELECTED_TREE_KEY, selectedTreeId);
     } else {
       localStorage.removeItem(SELECTED_TREE_KEY);
     }
+    setSelectedNodeId(null);
   }, [selectedTreeId]);
 
   // ── Node data ───────────────────────────────────────────────────────────────
@@ -73,6 +75,7 @@ export function App() {
   const resultNodeId = useStreamingStore((s) => s.resultNodeId);
   const resetStreaming = useStreamingStore((s) => s.reset);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [pendingEditNodeId, setPendingEditNodeId] = useState<string | null>(null);
   const clearPendingEdit = useCallback(() => setPendingEditNodeId(null), []);
 
@@ -120,6 +123,43 @@ export function App() {
     [repo, selectedTreeId, refresh],
   );
 
+  const generateTitle = useCallback(
+    async (treeId: string, content: string) => {
+      if (!repo) return;
+      const serverUrl =
+        localStorage.getItem('lineage:serverUrl') || 'http://localhost:3000';
+      const model = localStorage.getItem('lineage:llmModel') || undefined;
+      try {
+        const res = await fetch(`${serverUrl}/trees/${treeId}/generate-title`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, ...(model && { model }) }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { title?: string };
+        if (data.title) {
+          const tree = trees.find((t) => t.treeId === treeId);
+          if (tree) {
+            await repo.putTree({ ...tree, title: data.title });
+            refresh();
+          }
+        }
+      } catch (e) {
+        console.error('[App] title generation failed', e);
+      }
+    },
+    [repo, trees, refresh],
+  );
+
+  const handleRootNodeSubmitted = useCallback(
+    (content: string) => {
+      if (selectedTreeId && content.trim()) {
+        generateTitle(selectedTreeId, content);
+      }
+    },
+    [selectedTreeId, generateTitle],
+  );
+
   const handleEdit = useCallback(
     async (nodeId: string, content: string) => {
       if (!selectedTreeId) return;
@@ -141,6 +181,36 @@ export function App() {
       }
     },
     [selectedTreeId, refresh],
+  );
+
+  const handleCreateSibling = useCallback(
+    async (originalNodeId: string, content: string): Promise<string | null> => {
+      if (!repo || !selectedTreeId) return null;
+      const original = nodes.find((n) => n.nodeId === originalNodeId);
+      if (!original || !original.parentId) return null;
+      try {
+        const nodeId = crypto.randomUUID();
+        await repo.putNode({
+          nodeId,
+          treeId: selectedTreeId,
+          parentId: original.parentId,
+          type: 'human',
+          content,
+          isDeleted: false,
+          createdAt: new Date().toISOString(),
+          modelName: null,
+          provider: null,
+          tokenCount: null,
+          embeddingModel: null,
+        });
+        refresh();
+        return nodeId;
+      } catch (e) {
+        console.error('[App] create sibling failed', e);
+        return null;
+      }
+    },
+    [repo, selectedTreeId, nodes, refresh],
   );
 
   const handleCompose = useCallback(
@@ -228,6 +298,8 @@ export function App() {
         onRequestEdit: setPendingEditNodeId,
         pendingEditNodeId,
         onPendingEditHandled: clearPendingEdit,
+        sidebarMode,
+        onSidebarModeChange: setSidebarMode,
       }
     : null;
 
@@ -276,8 +348,12 @@ export function App() {
           onEdit={handleEdit}
           onCompose={handleCompose}
           onAddHumanNode={handleAddHumanNode}
+          onCreateSibling={handleCreateSibling}
+          selectedNodeId={selectedNodeId}
+          onSelectedNodeChange={setSelectedNodeId}
           focusNodeId={focusNodeId}
           onFocusHandled={handleFocusHandled}
+          onRootNodeSubmitted={handleRootNodeSubmitted}
           {...treeProps!}
         />
       );
@@ -290,8 +366,12 @@ export function App() {
         onEdit={handleEdit}
         onCompose={handleCompose}
         onAddHumanNode={handleAddHumanNode}
+        onCreateSibling={handleCreateSibling}
+        selectedNodeId={selectedNodeId}
+        onSelectedNodeChange={setSelectedNodeId}
         focusNodeId={focusNodeId}
         onFocusHandled={handleFocusHandled}
+        onRootNodeSubmitted={handleRootNodeSubmitted}
         {...treeProps!}
       />
     );

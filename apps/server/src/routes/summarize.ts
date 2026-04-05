@@ -9,6 +9,8 @@ const summarizeBody = z.object({
   maxTokens: z.number().int().positive(),
   temperature: z.number().min(0).max(2).optional(),
   maxContextTokens: z.number().int().positive().optional(),
+  model: z.string().min(1).optional(),
+  thinking: z.boolean().optional(),
 });
 
 export type Env = {
@@ -46,7 +48,7 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
   app.post('/:nodeId/summarize', zValidator('json', summarizeBody), async (c) => {
     const treeId = c.req.param('treeId') as string;
     const { nodeId } = c.req.param();
-    const { maxTokens, temperature } = c.req.valid('json');
+    const { maxTokens, temperature, model, thinking } = c.req.valid('json');
 
     // Validate tree exists
     try {
@@ -110,7 +112,7 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
       { role: 'human' as const, content: conversationText },
     ];
 
-    const config = { maxTokens, ...(temperature !== undefined && { temperature }) };
+    const config = { maxTokens, ...(temperature !== undefined && { temperature }), ...(model && { model }), ...(thinking !== undefined && { thinking }) };
 
     console.log(`[summarize] treeId=${treeId} nodeId=${nodeId} context=${contextMessages.length} messages`);
 
@@ -148,7 +150,7 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
           content,
           isDeleted: false,
           createdAt: new Date().toISOString(),
-          modelName: null,
+          modelName: model ?? null,
           provider: null,
           tokenCount: null,
           embeddingModel: null,

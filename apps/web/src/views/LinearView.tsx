@@ -24,6 +24,9 @@ interface LinearViewProps {
   onEdit: (nodeId: string, content: string) => Promise<void>;
   onCompose: (parentNodeId: string, content: string) => Promise<void>;
   onAddHumanNode: (parentNodeId: string) => Promise<void>;
+  onCreateSibling: (originalNodeId: string, content: string) => Promise<string | null>;
+  selectedNodeId: string | null;
+  onSelectedNodeChange: (nodeId: string) => void;
   focusNodeId: string | null;
   onFocusHandled: () => void;
   trees: Tree[];
@@ -35,6 +38,9 @@ interface LinearViewProps {
   onRequestEdit: (nodeId: string) => void;
   pendingEditNodeId: string | null;
   onPendingEditHandled: () => void;
+  sidebarMode: 'focus' | 'power' | 'conversations';
+  onSidebarModeChange: (mode: 'focus' | 'power' | 'conversations') => void;
+  onRootNodeSubmitted: (content: string) => void;
 }
 
 // ── Sibling navigator ───────────────────────────────────────────────────────
@@ -260,6 +266,11 @@ function LinearNodeCard({
         opacity: isSuperseded ? 0.4 : 1,
       }}
     >
+      {siblings.length > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
+          <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
         <RoleIcon role={node.type} size={16} />
         <span
@@ -291,9 +302,8 @@ function LinearNodeCard({
           depth {node.depth}
         </span>
         <div style={{ flex: 1 }} />
-        <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
-        {(hover || isSelected) && !isSuperseded && (
-          <div style={{ display: 'flex', gap: '5px', marginLeft: '8px' }}>
+        {!isSuperseded && (
+          <div style={{ display: 'flex', gap: '5px', visibility: hover || isSelected ? 'visible' : 'hidden' }}>
             {node.type === 'human' && (
               <ActionBtn
                 label="Edit"
@@ -376,7 +386,7 @@ function VerticalConnector() {
 
 // ── LinearView ──────────────────────────────────────────────────────────────
 
-export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled }: LinearViewProps) {
+export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: LinearViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
@@ -393,7 +403,7 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHu
   const streaming = useStreamingStore();
   const { onNodeReply, onNodeRegenerate, onNodeSummarize } = useStreamingCallbacks(treeId);
 
-  const [scrollToNodeId, setScrollToNodeId] = useState<string | null>(null);
+  const [scrollToNodeId, setScrollToNodeId] = useState<string | null>(controlledSelectedNodeId ?? defaultLeaf);
 
   const {
     selectedNodeId,
@@ -407,12 +417,16 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHu
   } = useNodeEditing({
     nodeById,
     onEdit,
+    onCreateSibling,
+    onDelete,
     onNodeReply,
+    onRootNodeSubmitted,
     pendingEditNodeId,
     onPendingEditHandled,
     focusNodeId,
     onFocusHandled,
-    initialSelectedNodeId: defaultLeaf,
+    initialSelectedNodeId: controlledSelectedNodeId ?? defaultLeaf,
+    onSelectedNodeChange,
     onFocus: (nodeId) => setScrollToNodeId(nodeId),
   });
 
@@ -423,17 +437,20 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHu
     [onAddHumanNode],
   );
 
-  // When a sibling is selected, navigate to the deepest first-child leaf from that sibling
+  // When a sibling is selected, navigate to the deepest most-recent child from that sibling
   const handleSiblingSelect = useCallback(
     (siblingId: string) => {
-      setSelectedNodeId(findDeepestFirstChild(siblingId, nodeById, childrenOf));
+      const leafId = findDeepestFirstChild(siblingId, nodeById, childrenOf);
+      setSelectedNodeId(leafId);
     },
     [nodeById, childrenOf, setSelectedNodeId],
   );
 
   const callbacks: GraphCallbacks = useMemo(
     () => ({
-      onNodeSelect: (nodeId: string) => setSelectedNodeId(nodeId),
+      onNodeSelect: (nodeId: string) => {
+        setSelectedNodeId(findDeepestFirstChild(nodeId, nodeById, childrenOf));
+      },
       onNodeEdit: (nodeId: string) => {
         const node = nodeById.get(nodeId);
         if (node) handleEditStart(nodeId, node.content);
@@ -452,7 +469,7 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHu
         onNodeReply(nodeId);
       },
     }),
-    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize, onDelete, handleEditStart],
+    [nodeById, childrenOf, onNodeReply, onNodeRegenerate, onNodeSummarize, onDelete, handleEditStart, setSelectedNodeId],
   );
 
   const pathEntries = useMemo(
@@ -502,7 +519,13 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHu
       <Sidebar
         nodes={graphNodes}
         selectedNodeId={selectedNodeId}
-        onSelect={callbacks.onNodeSelect}
+        onSelect={(nodeId: string) => {
+          const leafId = findDeepestFirstChild(nodeId, nodeById, childrenOf);
+          setSelectedNodeId(leafId);
+          setScrollToNodeId(nodeId);
+        }}
+        sidebarMode={sidebarMode}
+        onSidebarModeChange={onSidebarModeChange}
         trees={trees}
         selectedTreeId={selectedTreeId}
         onSelectTree={onSelectTree}

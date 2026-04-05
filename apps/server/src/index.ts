@@ -4,6 +4,7 @@ import { treeRoutes } from './routes/trees.js';
 import { nodeRoutes } from './routes/nodes.js';
 import { completionRoutes } from './routes/completion.js';
 import { summarizeRoutes } from './routes/summarize.js';
+import { titleRoutes } from './routes/title.js';
 
 export interface CreateAppOptions {
   repo: NodeRepository;
@@ -32,6 +33,7 @@ export function createApp(repoOrOptions: NodeRepository | CreateAppOptions, llm?
   if (provider) {
     app.route('/trees/:treeId/nodes', completionRoutes(repo, provider));
     app.route('/trees/:treeId/nodes', summarizeRoutes(repo, provider));
+    app.route('/trees/:treeId/generate-title', titleRoutes(repo, provider));
   }
 
   return app;
@@ -41,3 +43,4 @@ export { treeRoutes } from './routes/trees.js';
 export { nodeRoutes } from './routes/nodes.js';
 export { completionRoutes } from './routes/completion.js';
 export { summarizeRoutes } from './routes/summarize.js';
+export { titleRoutes } from './routes/title.js';

@@ -27,6 +27,8 @@ interface StreamingActions {
     nodeId: string;
     maxTokens?: number;
     temperature?: number;
+    model?: string;
+    thinking?: boolean;
     endpoint?: 'complete' | 'summarize';
   }) => void;
   /** Cancel the current streaming request */
@@ -58,6 +60,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     nodeId,
     maxTokens = 4096,
     temperature,
+    model,
+    thinking,
     endpoint = 'complete',
   }) => {
     // Cancel any in-flight request
@@ -81,6 +85,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       nodeId,
       maxTokens,
       ...(temperature !== undefined && { temperature }),
+      ...(model && { model }),
+      ...(thinking !== undefined && { thinking }),
     });
 
     fetch(url, {

@@ -6,6 +6,8 @@ export interface Message {
 export interface GenerationConfig {
   maxTokens: number;
   temperature?: number;
+  model?: string;
+  thinking?: boolean;
 }
 
 export interface StreamChunk {

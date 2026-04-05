@@ -37,10 +37,10 @@ export class OllamaProvider implements LLMProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: this.model,
+        model: config.model ?? this.model,
         messages: toOllamaMessages(messages),
         stream: false,
-        think: false,
+        think: config.thinking ?? false,
         options: {
           num_predict: config.maxTokens,
           ...(config.temperature !== undefined && { temperature: config.temperature }),
@@ -63,10 +63,10 @@ export class OllamaProvider implements LLMProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: this.model,
+        model: config.model ?? this.model,
         messages: toOllamaMessages(messages),
         stream: true,
-        think: false,
+        think: config.thinking ?? false,
         options: {
           num_predict: config.maxTokens,
           ...(config.temperature !== undefined && { temperature: config.temperature }),

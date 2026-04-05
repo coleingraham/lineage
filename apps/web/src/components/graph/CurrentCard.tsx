@@ -143,35 +143,33 @@ export function CurrentCard({
           depth {node.depth}
         </span>
         <div style={{ flex: 1 }} />
-        {(hover || isLeaf) && (
-          <div style={{ display: 'flex', gap: '5px' }}>
-            {node.type === 'human' && (
-              <ActionBtn
-                label="Edit"
-                color={COLORS.human}
-                onClick={() => callbacks.onNodeEdit(node.id)}
-              />
-            )}
-            {node.type === 'ai' && (
-              <ActionBtn
-                label="↺ Regenerate"
-                color={COLORS.ai}
-                onClick={() => callbacks.onNodeRegenerate(node.id)}
-              />
-            )}
+        <div style={{ display: 'flex', gap: '5px', visibility: hover || isLeaf ? 'visible' : 'hidden' }}>
+          {node.type === 'human' && (
             <ActionBtn
-              label={node.type === 'human' ? 'Generate reply ↓' : 'Add reply ↓'}
-              color={c}
-              onClick={() => callbacks.onNodeReply(node.id)}
-              primary
+              label="Edit"
+              color={COLORS.human}
+              onClick={() => callbacks.onNodeEdit(node.id)}
             />
+          )}
+          {node.type === 'ai' && (
             <ActionBtn
-              label="∑ Summarize"
-              color={COLORS.summary}
-              onClick={() => callbacks.onNodeSummarize(node.id)}
+              label="↺ Regenerate"
+              color={COLORS.ai}
+              onClick={() => callbacks.onNodeRegenerate(node.id)}
             />
-          </div>
-        )}
+          )}
+          <ActionBtn
+            label={node.type === 'human' ? 'Generate reply ↓' : 'Add reply ↓'}
+            color={c}
+            onClick={() => callbacks.onNodeReply(node.id)}
+            primary
+          />
+          <ActionBtn
+            label="∑ Summarize"
+            color={COLORS.summary}
+            onClick={() => callbacks.onNodeSummarize(node.id)}
+          />
+        </div>
       </div>
       {isEditing && onEditChange && onEditSave && onEditCancel ? (
         <InlineEditor
