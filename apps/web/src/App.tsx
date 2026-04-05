@@ -123,8 +123,8 @@ export function App() {
   const generateTitle = useCallback(
     async (treeId: string, content: string) => {
       if (!repo) return;
-      const serverUrl =
-        localStorage.getItem('lineage:serverUrl') || 'http://localhost:3000';
+      const serverUrl = localStorage.getItem('lineage:serverUrl');
+      if (!serverUrl) return;
       const model = localStorage.getItem('lineage:llmModel') || undefined;
       try {
         const res = await fetch(`${serverUrl}/trees/${treeId}/generate-title`, {
@@ -159,25 +159,31 @@ export function App() {
 
   const handleEdit = useCallback(
     async (nodeId: string, content: string) => {
-      if (!selectedTreeId) return;
-      const serverUrl =
-        localStorage.getItem('lineage:serverUrl') || 'http://localhost:3000';
+      if (!repo || !selectedTreeId) return;
       try {
-        const res = await fetch(
-          `${serverUrl}/trees/${selectedTreeId}/nodes/${nodeId}`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
-          },
-        );
-        if (!res.ok) throw new Error(`PATCH failed: HTTP ${res.status}`);
+        const serverUrl = localStorage.getItem('lineage:serverUrl');
+        if (serverUrl) {
+          // Remote mode: use PATCH so the server updates the node in place
+          const res = await fetch(
+            `${serverUrl}/trees/${selectedTreeId}/nodes/${nodeId}`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content }),
+            },
+          );
+          if (!res.ok) throw new Error(`PATCH failed: HTTP ${res.status}`);
+        } else {
+          // Local/Tauri mode: update via repository
+          const existing = await repo.getNode(nodeId);
+          await repo.putNode({ ...existing, content });
+        }
         refresh();
       } catch (e) {
         console.error('[App] edit failed', e);
       }
     },
-    [selectedTreeId, refresh],
+    [repo, selectedTreeId, refresh],
   );
 
   const handleCreateSibling = useCallback(

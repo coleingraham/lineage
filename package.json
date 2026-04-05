@@ -11,7 +11,9 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "desktop:dev": "pnpm --filter @lineage/desktop tauri:dev",
+    "desktop:build": "pnpm --filter @lineage/desktop tauri:build"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

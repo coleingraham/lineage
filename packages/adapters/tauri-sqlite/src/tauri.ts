@@ -1,5 +1,5 @@
 import type { Node, NodeRepository, Tree } from '@lineage/core';
-import initSqlJs, { type Database } from 'sql.js';
+import Database from '@tauri-apps/plugin-sql';
 
 const INIT_SQL = `
 CREATE TABLE IF NOT EXISTS node_types (
@@ -30,8 +30,6 @@ CREATE TABLE IF NOT EXISTS nodes (
   embedding_model TEXT
 );
 `;
-
-const IDB_STORE = 'lineage-sqlite';
 
 interface NodeRow {
   node_id: string;
@@ -79,114 +77,55 @@ function rowToTree(row: TreeRow): Tree {
   };
 }
 
-/** Load a previously-persisted database from IndexedDB, if any. */
-async function loadFromIDB(storeName: string): Promise<Uint8Array | null> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(storeName, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('db');
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => {
-      const tx = req.result.transaction('db', 'readonly');
-      const get = tx.objectStore('db').get('data');
-      get.onsuccess = () => resolve(get.result ?? null);
-      get.onerror = () => reject(get.error);
-    };
-  });
-}
-
-/** Persist the database to IndexedDB. */
-async function saveToIDB(storeName: string, data: Uint8Array): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(storeName, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('db');
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => {
-      const tx = req.result.transaction('db', 'readwrite');
-      tx.objectStore('db').put(data, 'data');
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    };
-  });
-}
-
 /**
- * Browser-side SQLite repository using sql.js (Emscripten SQLite).
- * Data is persisted to IndexedDB after each write operation.
+ * Tauri desktop SQLite repository using @tauri-apps/plugin-sql.
+ * Provides persistent local storage via Tauri's native SQLite plugin.
  *
- * Use the static `create()` factory to instantiate — it handles WASM loading,
- * IndexedDB restore, and schema migrations.
+ * Use the static `create()` factory to instantiate — it handles database
+ * loading and schema migrations.
  */
-export class BrowserSqliteRepository implements NodeRepository {
+export class TauriSqliteRepository implements NodeRepository {
   private db: Database;
-  private storeName: string;
 
-  private constructor(db: Database, storeName: string) {
+  private constructor(db: Database) {
     this.db = db;
-    this.storeName = storeName;
   }
 
-  static async create(dbName = 'lineage'): Promise<BrowserSqliteRepository> {
-    const SQL = await initSqlJs(
-      typeof window !== 'undefined' ? { locateFile: () => `/sql-wasm.wasm` } : undefined,
-    );
+  static async create(dbPath = 'sqlite:lineage.db'): Promise<TauriSqliteRepository> {
+    const db = await Database.load(dbPath);
+    await db.execute('PRAGMA foreign_keys = ON');
 
-    const storeName = `${IDB_STORE}-${dbName}`;
-    const saved = typeof indexedDB !== 'undefined' ? await loadFromIDB(storeName) : null;
-    const db = saved ? new SQL.Database(saved) : new SQL.Database();
-
-    db.run('PRAGMA foreign_keys = ON');
-    db.run(INIT_SQL);
-
-    return new BrowserSqliteRepository(db, storeName);
-  }
-
-  /** Persist the current database state to IndexedDB. */
-  private async persist(): Promise<void> {
-    if (typeof indexedDB !== 'undefined') {
-      await saveToIDB(this.storeName, this.db.export());
+    // Run each DDL statement individually — tauri-plugin-sql does not support
+    // multiple statements in a single execute call.
+    const statements = INIT_SQL.split(';')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    for (const stmt of statements) {
+      await db.execute(stmt);
     }
-  }
 
-  /** Execute a write statement and persist. */
-  private async run(sql: string, params: unknown[] = []): Promise<void> {
-    this.db.run(sql, params as (string | number | null | Uint8Array)[]);
-    await this.persist();
-  }
-
-  /** Execute a SELECT and return all matching rows as objects. */
-  private all<T>(sql: string, params: unknown[] = []): T[] {
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params as (string | number | null | Uint8Array)[]);
-    const rows: T[] = [];
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject() as T);
-    }
-    stmt.free();
-    return rows;
-  }
-
-  /** Execute a SELECT and return the first row, or undefined. */
-  private get<T>(sql: string, params: unknown[] = []): T | undefined {
-    return this.all<T>(sql, params)[0];
+    return new TauriSqliteRepository(db);
   }
 
   async getTree(treeId: string): Promise<Tree> {
-    const row = this.get<TreeRow>('SELECT * FROM trees WHERE tree_id = ?', [treeId]);
-    if (!row) {
+    const rows = await this.db.select<TreeRow[]>('SELECT * FROM trees WHERE tree_id = $1', [
+      treeId,
+    ]);
+    if (rows.length === 0) {
       throw new Error(`Tree not found: ${treeId}`);
     }
-    return rowToTree(row);
+    return rowToTree(rows[0]);
   }
 
   async listTrees(): Promise<Tree[]> {
-    const rows = this.all<TreeRow>('SELECT * FROM trees');
+    const rows = await this.db.select<TreeRow[]>('SELECT * FROM trees');
     return rows.map(rowToTree);
   }
 
   async putTree(tree: Tree): Promise<void> {
-    await this.run(
+    await this.db.execute(
       `INSERT INTO trees (tree_id, title, created_at, root_node_id)
-       VALUES (?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT(tree_id) DO UPDATE SET
          title = excluded.title,
          created_at = excluded.created_at,
@@ -196,38 +135,38 @@ export class BrowserSqliteRepository implements NodeRepository {
   }
 
   async getNode(nodeId: string): Promise<Node> {
-    const row = this.get<NodeRow>(
+    const rows = await this.db.select<NodeRow[]>(
       `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
               n.content, n.is_deleted, n.created_at, n.model_name,
               n.provider, n.token_count, n.embedding_model
        FROM nodes n
        JOIN node_types nt ON nt.id = n.node_type_id
-       WHERE n.node_id = ?`,
+       WHERE n.node_id = $1`,
       [nodeId],
     );
-    if (!row) {
+    if (rows.length === 0) {
       throw new Error(`Node not found: ${nodeId}`);
     }
-    return rowToNode(row);
+    return rowToNode(rows[0]);
   }
 
   async getNodes(treeId: string): Promise<Node[]> {
-    const rows = this.all<NodeRow>(
+    const rows = await this.db.select<NodeRow[]>(
       `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
               n.content, n.is_deleted, n.created_at, n.model_name,
               n.provider, n.token_count, n.embedding_model
        FROM nodes n
        JOIN node_types nt ON nt.id = n.node_type_id
-       WHERE n.tree_id = ?`,
+       WHERE n.tree_id = $1`,
       [treeId],
     );
     return rows.map(rowToNode);
   }
 
   async putNode(node: Node): Promise<void> {
-    await this.run(
+    await this.db.execute(
       `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model)
-       VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, (SELECT id FROM node_types WHERE name = $4), $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT(node_id) DO UPDATE SET
          tree_id = excluded.tree_id,
          parent_id = excluded.parent_id,
@@ -256,30 +195,30 @@ export class BrowserSqliteRepository implements NodeRepository {
   }
 
   async softDeleteNode(nodeId: string): Promise<void> {
-    const before = this.get<{ node_id: string }>(
-      'SELECT node_id FROM nodes WHERE node_id = ?',
+    const rows = await this.db.select<{ node_id: string }[]>(
+      'SELECT node_id FROM nodes WHERE node_id = $1',
       [nodeId],
     );
-    if (!before) {
+    if (rows.length === 0) {
       throw new Error(`Node not found: ${nodeId}`);
     }
-    await this.run('UPDATE nodes SET is_deleted = 1 WHERE node_id = ?', [nodeId]);
+    await this.db.execute('UPDATE nodes SET is_deleted = 1 WHERE node_id = $1', [nodeId]);
   }
 
   async deleteTree(treeId: string): Promise<void> {
-    const tree = this.get<{ tree_id: string }>(
-      'SELECT tree_id FROM trees WHERE tree_id = ?',
+    const rows = await this.db.select<{ tree_id: string }[]>(
+      'SELECT tree_id FROM trees WHERE tree_id = $1',
       [treeId],
     );
-    if (!tree) {
+    if (rows.length === 0) {
       throw new Error(`Tree not found: ${treeId}`);
     }
-    await this.run('DELETE FROM nodes WHERE tree_id = ?', [treeId]);
-    await this.run('DELETE FROM trees WHERE tree_id = ?', [treeId]);
+    await this.db.execute('DELETE FROM nodes WHERE tree_id = $1', [treeId]);
+    await this.db.execute('DELETE FROM trees WHERE tree_id = $1', [treeId]);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
-    // No-op: browser SQLite backend does not support embeddings
+    // No-op: Tauri desktop SQLite backend does not support embeddings
   }
 }

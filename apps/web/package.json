@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@lineage/adapter-sqlite": "workspace:*",
+    "@lineage/adapter-tauri-sqlite": "workspace:*",
     "@lineage/core": "workspace:*",
     "@lineage/sdk": "workspace:*",
     "highlight.js": "^11.11.1",

@@ -1,5 +1,5 @@
 {
-  "name": "@lineage/adapter-sqlite",
+  "name": "@lineage/adapter-tauri-sqlite",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,14 +9,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./server": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.js"
-    },
-    "./browser": {
-      "types": "./dist/browser.d.ts",
-      "import": "./dist/browser.js"
     }
   },
   "scripts": {
@@ -27,13 +19,10 @@
   },
   "dependencies": {
     "@lineage/core": "workspace:*",
-    "better-sqlite3": "^12.8.0",
-    "sql.js": "^1.14.1"
+    "@tauri-apps/plugin-sql": "^2.2.0"
   },
   "devDependencies": {
     "@lineage/eslint-config": "workspace:*",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/sql.js": "^1.4.11",
     "eslint": "^10.1.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"

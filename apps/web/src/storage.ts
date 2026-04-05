@@ -1,6 +1,6 @@
 import type { NodeRepository } from '@lineage/core';
 
-export type StorageMode = 'local' | 'remote';
+export type StorageMode = 'local' | 'remote' | 'tauri';
 
 export interface StorageConfig {
   mode: StorageMode;
@@ -14,6 +14,16 @@ export interface StorageConfig {
  * out-of-the-box against a running server.
  */
 export function detectStorageMode(): StorageConfig {
+  // Auto-detect Tauri runtime. The desktop app bundles a server sidecar
+  // on port 3210 for LLM and data operations. Use remote mode against it
+  // so the server has the context it needs for completions.
+  if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    const serverUrl = 'http://localhost:3210';
+    // Persist so streaming callbacks can read it from localStorage
+    localStorage.setItem('lineage:serverUrl', serverUrl);
+    return { mode: 'remote', serverUrl };
+  }
+
   if (typeof localStorage === 'undefined') return { mode: 'remote', serverUrl: 'http://localhost:3000' };
 
   const explicit = localStorage.getItem('lineage:storageMode');
@@ -36,15 +46,16 @@ export async function createStorage(config?: StorageConfig): Promise<NodeReposit
 
   switch (resolved.mode) {
     case 'local': {
-      // Use a variable so Vite/Rollup cannot statically resolve the import —
-      // wa-sqlite ships files that Vite's import analysis cannot follow.
-      const mod = '@lineage/adapter-sqlite/browser';
-      const { BrowserSqliteRepository } = await import(/* @vite-ignore */ mod);
+      const { BrowserSqliteRepository } = await import('@lineage/adapter-sqlite/browser');
       return BrowserSqliteRepository.create();
     }
     case 'remote': {
       const { RestNodeRepository } = await import('@lineage/sdk');
       return new RestNodeRepository({ baseUrl: resolved.serverUrl! });
+    }
+    case 'tauri': {
+      const { TauriSqliteRepository } = await import('@lineage/adapter-tauri-sqlite');
+      return TauriSqliteRepository.create();
     }
   }
 }

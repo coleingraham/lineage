@@ -1,0 +1,43 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/v2.18.0/tauri-conf-schema.json",
+  "productName": "Lineage",
+  "version": "0.0.0",
+  "identifier": "com.lineage.desktop",
+  "build": {
+    "beforeDevCommand": "bash scripts/bundle-server.sh && npx pnpm --filter @lineage/web dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "bash scripts/bundle-server.sh && npx pnpm --filter @lineage/web build",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Lineage",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://localhost:* ws://localhost:*; img-src 'self' data: blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": ["server-sidecar"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "sql": {
+      "preload": ["sqlite:lineage.db"]
+    }
+  }
+}
