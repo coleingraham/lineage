@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Tree, NodeRepository } from '@lineage/core';
 import { FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode } from './GraphRendererTypes.js';

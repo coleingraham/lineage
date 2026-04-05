@@ -6,7 +6,6 @@ import { CollapsibleThinking } from './CollapsibleThinking.js';
 export function StreamingCard({
   content,
   thinkingContent,
-  isThinking,
   status,
   error,
   onCancel,

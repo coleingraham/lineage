@@ -35,7 +35,7 @@ interface GraphViewProps {
   onRootNodeSubmitted: (content: string) => void;
 }
 
-export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: GraphViewProps) {
+export function GraphView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: GraphViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
   const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
   const rootNode = graphNodes.find((n) => n.parentId === null);

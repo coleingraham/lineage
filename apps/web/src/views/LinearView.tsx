@@ -74,7 +74,7 @@ function SiblingNav({
       }}
     >
       <button
-        onClick={(e) => { e.stopPropagation(); prev && onSelect(prev.id); }}
+        onClick={(e) => { e.stopPropagation(); if (prev) onSelect(prev.id); }}
         disabled={!prev}
         style={{
           background: 'none',
@@ -92,7 +92,7 @@ function SiblingNav({
         {current} / {total}
       </span>
       <button
-        onClick={(e) => { e.stopPropagation(); next && onSelect(next.id); }}
+        onClick={(e) => { e.stopPropagation(); if (next) onSelect(next.id); }}
         disabled={!next}
         style={{
           background: 'none',
@@ -388,7 +388,7 @@ function VerticalConnector() {
 
 // ── LinearView ──────────────────────────────────────────────────────────────
 
-export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: LinearViewProps) {
+export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: LinearViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
