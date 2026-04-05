@@ -144,7 +144,7 @@ export function CurrentCard({
         </span>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: '5px', visibility: hover || isLeaf ? 'visible' : 'hidden' }}>
-          {node.type === 'human' && (
+          {node.type === 'human' && node.parentId !== null && (
             <ActionBtn
               label="Edit"
               color={COLORS.human}
@@ -164,11 +164,13 @@ export function CurrentCard({
             onClick={() => callbacks.onNodeReply(node.id)}
             primary
           />
-          <ActionBtn
-            label="∑ Summarize"
-            color={COLORS.summary}
-            onClick={() => callbacks.onNodeSummarize(node.id)}
-          />
+          {node.parentId !== null && (
+            <ActionBtn
+              label="∑ Summarize"
+              color={COLORS.summary}
+              onClick={() => callbacks.onNodeSummarize(node.id)}
+            />
+          )}
         </div>
       </div>
       {isEditing && onEditChange && onEditSave && onEditCancel ? (

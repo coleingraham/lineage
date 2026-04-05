@@ -44,14 +44,11 @@ export function App() {
     localStorage.getItem(SELECTED_TREE_KEY),
   );
 
-  // Auto-select first tree if none selected (or selected tree no longer exists)
+  // Auto-select first tree only when nothing is selected
   useEffect(() => {
-    if (treesLoading || trees.length === 0) return;
-    const exists = trees.some((t) => t.treeId === selectedTreeId);
-    if (!exists) {
-      setSelectedTreeId(trees[0].treeId);
-    }
-  }, [trees, treesLoading, selectedTreeId]);
+    if (selectedTreeId || trees.length === 0) return;
+    setSelectedTreeId(trees[0].treeId);
+  }, [trees, selectedTreeId]);
 
   // Persist selected tree & reset node selection when tree changes
   useEffect(() => {

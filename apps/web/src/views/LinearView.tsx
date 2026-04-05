@@ -304,7 +304,7 @@ function LinearNodeCard({
         <div style={{ flex: 1 }} />
         {!isSuperseded && (
           <div style={{ display: 'flex', gap: '5px', visibility: hover || isSelected ? 'visible' : 'hidden' }}>
-            {node.type === 'human' && (
+            {node.type === 'human' && node.parentId !== null && (
               <ActionBtn
                 label="Edit"
                 color={COLORS.human}
@@ -333,11 +333,13 @@ function LinearNodeCard({
                 primary
               />
             )}
-            <ActionBtn
-              label="∑ Summarize"
-              color={COLORS.summary}
-              onClick={() => callbacks.onNodeSummarize(node.id)}
-            />
+            {node.parentId !== null && (
+              <ActionBtn
+                label="∑ Summarize"
+                color={COLORS.summary}
+                onClick={() => callbacks.onNodeSummarize(node.id)}
+              />
+            )}
           </div>
         )}
       </div>

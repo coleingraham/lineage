@@ -581,7 +581,7 @@ function ConversationList({
     if (creating) return;
     setCreating(true);
     try {
-      const title = `Conversation ${trees.length + 1}`;
+      const title = 'New Conversation';
       const treeId = crypto.randomUUID();
       const rootNodeId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
@@ -643,7 +643,7 @@ function ConversationList({
         </button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px' }}>
-        {trees.map((tree) => {
+        {[...trees].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((tree) => {
           const isSelected = tree.treeId === selectedTreeId;
           return (
             <div

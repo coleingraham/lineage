@@ -84,21 +84,10 @@ export function useNodeEditing({
     setEditText('');
   }, [pendingNewNodeId, onDelete]);
 
-  // Sync internal selection when parent resets it (e.g. tree switch)
+  // Sync internal selection when parent changes it (e.g. tree switch)
   useEffect(() => {
-    if (initialSelectedNodeId === null) {
-      _setSelectedNodeId(null);
-    }
+    _setSelectedNodeId(initialSelectedNodeId ?? null);
   }, [initialSelectedNodeId]);
-
-  // Auto-select root node when nothing is selected
-  useEffect(() => {
-    if (selectedNodeId) return;
-    const root = [...nodeById.values()].find((n) => n.parentId === null);
-    if (root) {
-      setSelectedNodeId(root.id);
-    }
-  }, [nodeById, selectedNodeId]);
 
   // Auto-trigger edit for pending node (e.g. new conversation root or add human node)
   useEffect(() => {
