@@ -14,9 +14,14 @@ export interface StorageConfig {
  * out-of-the-box against a running server.
  */
 export function detectStorageMode(): StorageConfig {
-  // Auto-detect Tauri runtime before checking localStorage
+  // Auto-detect Tauri runtime. The desktop app bundles a server sidecar
+  // on port 3210 for LLM and data operations. Use remote mode against it
+  // so the server has the context it needs for completions.
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-    return { mode: 'tauri' };
+    const serverUrl = 'http://localhost:3210';
+    // Persist so streaming callbacks can read it from localStorage
+    localStorage.setItem('lineage:serverUrl', serverUrl);
+    return { mode: 'remote', serverUrl };
   }
 
   if (typeof localStorage === 'undefined') return { mode: 'remote', serverUrl: 'http://localhost:3000' };
