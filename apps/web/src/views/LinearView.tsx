@@ -302,46 +302,44 @@ function LinearNodeCard({
           depth {node.depth}
         </span>
         <div style={{ flex: 1 }} />
-        {!isSuperseded && (
-          <div style={{ display: 'flex', gap: '5px', visibility: hover || isSelected ? 'visible' : 'hidden' }}>
-            {node.type === 'human' && node.parentId !== null && (
-              <ActionBtn
-                label="Edit"
-                color={COLORS.human}
-                onClick={() => onEditStart(node.id, node.content)}
-              />
-            )}
-            {node.type === 'ai' && (
-              <ActionBtn
-                label="↺ Regen"
-                color={COLORS.ai}
-                onClick={() => callbacks.onNodeRegenerate(node.id)}
-              />
-            )}
-            {node.type === 'human' ? (
-              <ActionBtn
-                label="Generate reply ↓"
-                color={c}
-                onClick={() => callbacks.onNodeReply(node.id)}
-                primary
-              />
-            ) : (
-              <ActionBtn
-                label="Add reply ↓"
-                color={c}
-                onClick={() => onAddHumanReply(node.id)}
-                primary
-              />
-            )}
-            {node.parentId !== null && (
-              <ActionBtn
-                label="∑ Summarize"
-                color={COLORS.summary}
-                onClick={() => callbacks.onNodeSummarize(node.id)}
-              />
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '5px', visibility: hover || isSelected ? 'visible' : 'hidden' }}>
+          {node.type === 'human' && node.parentId !== null && (
+            <ActionBtn
+              label="Edit"
+              color={COLORS.human}
+              onClick={() => onEditStart(node.id, node.content)}
+            />
+          )}
+          {node.type === 'ai' && (
+            <ActionBtn
+              label="↺ Regen"
+              color={COLORS.ai}
+              onClick={() => callbacks.onNodeRegenerate(node.id)}
+            />
+          )}
+          {node.type === 'human' ? (
+            <ActionBtn
+              label="Generate reply ↓"
+              color={c}
+              onClick={() => callbacks.onNodeReply(node.id)}
+              primary
+            />
+          ) : (
+            <ActionBtn
+              label="Add reply ↓"
+              color={c}
+              onClick={() => onAddHumanReply(node.id)}
+              primary
+            />
+          )}
+          {node.parentId !== null && (
+            <ActionBtn
+              label="∑ Summarize"
+              color={COLORS.summary}
+              onClick={() => callbacks.onNodeSummarize(node.id)}
+            />
+          )}
+        </div>
       </div>
       {isEditing ? (
         <InlineEditor
