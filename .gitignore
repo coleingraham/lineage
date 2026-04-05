@@ -9,3 +9,5 @@ dist/
 .DS_Store
 *.tsbuildinfo
 *.db*
+
+apps/desktop/src-tauri/target/
