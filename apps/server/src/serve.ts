@@ -6,12 +6,7 @@ import { SqliteRepository } from '@lineage/adapter-sqlite';
 import { OllamaProvider } from '@lineage/adapter-ollama';
 import { createApp } from './index.js';
 
-const model = process.env.OLLAMA_MODEL;
-if (!model) {
-  console.error('OLLAMA_MODEL env var is required (e.g. OLLAMA_MODEL=llama3.2)');
-  process.exit(1);
-}
-
+const model = process.env.OLLAMA_MODEL ?? 'llama3.2';
 const baseURL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
 const storagePath = process.env.STORAGE_PATH ?? './lineage.db';
 const port = Number(process.env.PORT ?? 3000);
@@ -28,6 +23,7 @@ app.route('/', inner);
 
 console.log(`Lineage server listening on http://localhost:${port}`);
 console.log(`  Storage: sqlite @ ${storagePath}`);
-console.log(`  LLM: ollama/${model} @ ${baseURL}`);
+console.log(`  LLM: ollama/${model} (default) @ ${baseURL}`);
+console.log(`  Model can be overridden from the web settings page`);
 
 serve({ fetch: app.fetch, port });

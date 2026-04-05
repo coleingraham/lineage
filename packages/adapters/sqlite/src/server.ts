@@ -156,6 +156,14 @@ export class SqliteRepository implements NodeRepository {
     }
   }
 
+  async deleteTree(treeId: string): Promise<void> {
+    this.db.prepare('DELETE FROM nodes WHERE tree_id = ?').run(treeId);
+    const result = this.db.prepare('DELETE FROM trees WHERE tree_id = ?').run(treeId);
+    if (result.changes === 0) {
+      throw new Error(`Tree not found: ${treeId}`);
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
     // No-op: SQLite backend does not support embeddings

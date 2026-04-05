@@ -34,7 +34,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async complete(messages: Message[], config: GenerationConfig): Promise<string> {
     const response = await this.client.chat.completions.create({
-      model: this.model,
+      model: config.model ?? this.model,
       max_tokens: config.maxTokens,
       ...(config.temperature !== undefined && { temperature: config.temperature }),
       messages: toOpenAIMessages(messages),
@@ -45,7 +45,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async *stream(messages: Message[], config: GenerationConfig): AsyncIterable<string> {
     const stream = await this.client.chat.completions.create({
-      model: this.model,
+      model: config.model ?? this.model,
       max_tokens: config.maxTokens,
       ...(config.temperature !== undefined && { temperature: config.temperature }),
       messages: toOpenAIMessages(messages),

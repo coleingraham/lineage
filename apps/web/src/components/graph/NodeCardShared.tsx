@@ -177,3 +177,11 @@ export function nodeLabel(node: GraphNode): string {
   if (node.isDeleted) return 'DELETED';
   return node.type.toUpperCase();
 }
+
+/** Strip thinking blocks from content for use in previews. */
+export function previewContent(content: string): string {
+  return content
+    .replace(/<details>\s*\n?<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*\n*/g, '')
+    .replace(/^> \*Thinking:\*\n((?:>.*\n)*)\n?/g, '')
+    .trim();
+}

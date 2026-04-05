@@ -4,10 +4,11 @@ import type { Node, Tree, NodeRepository } from '@lineage/core';
 export function useTreeData(
   treeId: string | null,
   repo: NodeRepository | null,
+  refreshKey = 0,
 ): { tree: Tree | null; nodes: Node[]; isLoading: boolean; error: Error | null } {
   const [tree, setTree] = useState<Tree | null>(null);
   const [nodes, setNodes] = useState<Node[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!(treeId && repo));
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export function useTreeData(
     return () => {
       cancelled = true;
     };
-  }, [treeId, repo]);
+  }, [treeId, repo, refreshKey]);
 
   return { tree, nodes, isLoading, error };
 }

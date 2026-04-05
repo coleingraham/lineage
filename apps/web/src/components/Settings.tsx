@@ -8,6 +8,8 @@ const KEYS = {
   serverUrl: 'lineage:serverUrl',
   llmProvider: 'lineage:llmProvider',
   llmApiKey: 'lineage:llmApiKey',
+  llmModel: 'lineage:llmModel',
+  thinkingEnabled: 'lineage:thinkingEnabled',
   ollamaBaseUrl: 'lineage:ollamaBaseUrl',
   embeddingEnabled: 'lineage:embeddingEnabled',
   embeddingProvider: 'lineage:embeddingProvider',
@@ -24,7 +26,9 @@ interface SettingsState {
   storageMode: StorageMode;
   serverUrl: string;
   llmProvider: LLMProvider;
+  llmModel: string;
   llmApiKey: string;
+  thinkingEnabled: boolean;
   ollamaBaseUrl: string;
   embeddingEnabled: boolean;
   embeddingProvider: EmbeddingProvider;
@@ -48,10 +52,12 @@ const EMBEDDING_PROVIDERS: { value: EmbeddingProvider; label: string }[] = [
 
 function loadSettings(): SettingsState {
   return {
-    storageMode: (localStorage.getItem(KEYS.storageMode) as StorageMode) ?? 'local',
-    serverUrl: localStorage.getItem(KEYS.serverUrl) ?? '',
+    storageMode: (localStorage.getItem(KEYS.storageMode) as StorageMode) ?? 'remote',
+    serverUrl: localStorage.getItem(KEYS.serverUrl) ?? 'http://localhost:3000',
     llmProvider: (localStorage.getItem(KEYS.llmProvider) as LLMProvider) ?? 'anthropic',
+    llmModel: localStorage.getItem(KEYS.llmModel) ?? '',
     llmApiKey: localStorage.getItem(KEYS.llmApiKey) ?? '',
+    thinkingEnabled: localStorage.getItem(KEYS.thinkingEnabled) === 'true',
     ollamaBaseUrl: localStorage.getItem(KEYS.ollamaBaseUrl) ?? 'http://localhost:11434',
     embeddingEnabled: localStorage.getItem(KEYS.embeddingEnabled) === 'true',
     embeddingProvider:
@@ -71,12 +77,20 @@ function saveSettings(state: SettingsState) {
 
   localStorage.setItem(KEYS.llmProvider, state.llmProvider);
 
+  if (state.llmModel) {
+    localStorage.setItem(KEYS.llmModel, state.llmModel);
+  } else {
+    localStorage.removeItem(KEYS.llmModel);
+  }
+
   // Only persist API key in local-first mode
   if (state.storageMode === 'local' && state.llmApiKey) {
     localStorage.setItem(KEYS.llmApiKey, state.llmApiKey);
   } else {
     localStorage.removeItem(KEYS.llmApiKey);
   }
+
+  localStorage.setItem(KEYS.thinkingEnabled, String(state.thinkingEnabled));
 
   if (state.llmProvider === 'ollama' && state.ollamaBaseUrl) {
     localStorage.setItem(KEYS.ollamaBaseUrl, state.ollamaBaseUrl);
@@ -287,6 +301,17 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </select>
           </div>
 
+          <div style={fieldGroup}>
+            <span style={label}>Model</span>
+            <input
+              type="text"
+              value={state.llmModel}
+              onChange={(e) => update('llmModel', e.target.value)}
+              placeholder="e.g. llama3.2, claude-sonnet-4-20250514, gpt-4o"
+              style={inputBase}
+            />
+          </div>
+
           {state.storageMode === 'local' && (
             <div style={fieldGroup}>
               <span style={label}>API Key</span>
@@ -322,6 +347,26 @@ export function Settings({ onClose }: { onClose: () => void }) {
               />
             </div>
           )}
+
+          <div style={fieldGroup}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={state.thinkingEnabled}
+                onChange={(e) => update('thinkingEnabled', e.target.checked)}
+                style={{ accentColor: COLORS.ai }}
+              />
+              Enable thinking
+            </label>
+          </div>
         </div>
 
         {/* ── Embedding ─────────────────────────────────────────── */}

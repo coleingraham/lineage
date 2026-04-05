@@ -116,16 +116,16 @@ describe('tree routes', () => {
   });
 
   describe('DELETE /trees/:treeId', () => {
-    it('soft deletes all nodes and returns 204', async () => {
+    it('deletes the tree and all its nodes and returns 204', async () => {
       const createRes = await jsonReq(app, '/trees', { title: 'To Delete' });
       const created = await createRes.json();
 
       const res = await app.request(`/trees/${created.treeId}`, { method: 'DELETE' });
       expect(res.status).toBe(204);
 
-      // root node should be soft-deleted
-      const rootNode = await repo.getNode(created.rootNodeId);
-      expect(rootNode.isDeleted).toBe(true);
+      // tree and nodes should be fully removed
+      await expect(repo.getTree(created.treeId)).rejects.toThrow();
+      await expect(repo.getNode(created.rootNodeId)).rejects.toThrow();
     });
 
     it('returns 404 for non-existent tree', async () => {

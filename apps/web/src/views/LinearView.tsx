@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
-import type { Node } from '@lineage/core';
+import { useState, useMemo, useCallback, type RefCallback } from 'react';
+import type { Node, Tree, NodeRepository } from '@lineage/core';
 import { COLORS, FONTS, nodeColor } from '../styles/theme.js';
 import type { GraphCallbacks, GraphNode } from '../components/graph/GraphRendererTypes.js';
 import { toGraphNodes } from '../components/graph/convertNodes.js';
@@ -12,122 +12,36 @@ import {
 import { useStreamingStore } from '../store/streaming.js';
 import { useStreamingCallbacks } from '../store/useStreamingCallbacks.js';
 import { StreamingCard } from '../components/StreamingCard.js';
+import { Sidebar } from '../components/graph/Sidebar.js';
+import { Markdown } from '../components/Markdown.js';
+import { InlineEditor } from '../components/InlineEditor.js';
+import { useNodeEditing } from '../hooks/useNodeEditing.js';
 
-// ── Mock data (shared with GraphView for development) ───────────────────────
-
-const MOCK_NODES: Node[] = [
-  {
-    nodeId: 'root',
-    treeId: 't1',
-    parentId: null,
-    type: 'human',
-    content:
-      "The recursive descent parser has grown to ~2,400 lines. Maintenance velocity has dropped — new grammar rules take 3–5x longer than six months ago. I'm wondering if we should consider a rewrite.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:00:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'a1',
-    treeId: 't1',
-    parentId: 'root',
-    type: 'ai',
-    content:
-      "That's a significant maintenance burden. Before committing to a rewrite, it's worth separating two distinct problems: the parser is hard to extend because the grammar is implicit (no formal spec), and the parser is hard to read because the rule boundaries aren't well-defined.\n\nA PEG-based approach addresses both — you get a formal grammar spec and generated parser code. The tradeoff is that PEG parsers require care around error recovery. What's your team's experience with parser generators?",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:01:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 120,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'h2',
-    treeId: 't1',
-    parentId: 'a1',
-    type: 'human',
-    content:
-      "We have one person who's worked with ANTLR before. The rest of the team hasn't used a parser generator. Error recovery is important to us — we surface parser errors directly to end users.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:05:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'a2',
-    treeId: 't1',
-    parentId: 'h2',
-    type: 'ai',
-    content:
-      "Given that error recovery is user-facing, I'd lean toward an incremental refactor rather than a full PEG rewrite. The risk with PEG is that error message quality regresses during the transition, and fixing that is non-trivial work on top of the rewrite itself.\n\nA middle path worth considering: write the grammar spec in BNF/PEG notation as documentation first, without changing the runtime parser.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:06:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 95,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'h3-branch',
-    treeId: 't1',
-    parentId: 'a1',
-    type: 'human',
-    content:
-      "What if we took the PEG approach but only for the expression subset? That's where 80% of the complexity lives.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:10:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'a3-branch',
-    treeId: 't1',
-    parentId: 'h3-branch',
-    type: 'ai',
-    content:
-      "That's a pragmatic hybrid approach. Rewriting just the expression parser in PEG would give you the biggest bang for the buck — expressions are where recursive descent gets most tangled. The statement-level parser could stay hand-written since it's more linear.\n\nThe key risk is the boundary between the two parsers. You'd need a clean handoff protocol.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:11:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 88,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'deleted-node',
-    treeId: 't1',
-    parentId: 'a2',
-    type: 'human',
-    content: 'This was a dead-end tangent about rewriting in Rust.',
-    isDeleted: true,
-    createdAt: '2026-04-01T10:08:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'summary-1',
-    treeId: 't1',
-    parentId: 'a2',
-    type: 'summary',
-    content:
-      'The team is considering whether to rewrite a 2,400-line recursive descent parser. Key constraint: error recovery is user-facing, making a full PEG rewrite risky. Converged on a hybrid approach — extract grammar rules into named functions for readability, write BNF spec as documentation in parallel.',
-    isDeleted: false,
-    createdAt: '2026-04-01T10:12:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 65,
-    embeddingModel: null,
-  },
-];
+interface LinearViewProps {
+  nodes: Node[];
+  treeId: string;
+  onDelete: (nodeId: string) => void;
+  onEdit: (nodeId: string, content: string) => Promise<void>;
+  onCompose: (parentNodeId: string, content: string) => Promise<void>;
+  onAddHumanNode: (parentNodeId: string) => Promise<void>;
+  onCreateSibling: (originalNodeId: string, content: string) => Promise<string | null>;
+  selectedNodeId: string | null;
+  onSelectedNodeChange: (nodeId: string) => void;
+  focusNodeId: string | null;
+  onFocusHandled: () => void;
+  trees: Tree[];
+  selectedTreeId: string | null;
+  onSelectTree: (treeId: string) => void;
+  onDeleteTree: (treeId: string) => void;
+  repo: NodeRepository;
+  onTreeCreated: () => void;
+  onRequestEdit: (nodeId: string) => void;
+  pendingEditNodeId: string | null;
+  onPendingEditHandled: () => void;
+  sidebarMode: 'focus' | 'power' | 'conversations';
+  onSidebarModeChange: (mode: 'focus' | 'power' | 'conversations') => void;
+  onRootNodeSubmitted: (content: string) => void;
+}
 
 // ── Sibling navigator ───────────────────────────────────────────────────────
 
@@ -160,7 +74,7 @@ function SiblingNav({
       }}
     >
       <button
-        onClick={() => prev && onSelect(prev.id)}
+        onClick={(e) => { e.stopPropagation(); if (prev) onSelect(prev.id); }}
         disabled={!prev}
         style={{
           background: 'none',
@@ -178,7 +92,7 @@ function SiblingNav({
         {current} / {total}
       </span>
       <button
-        onClick={() => next && onSelect(next.id)}
+        onClick={(e) => { e.stopPropagation(); if (next) onSelect(next.id); }}
         disabled={!next}
         style={{
           background: 'none',
@@ -205,6 +119,13 @@ function LinearNodeCard({
   isSuperseded,
   callbacks,
   onSiblingSelect,
+  isEditing,
+  editText,
+  onEditStart,
+  onEditChange,
+  onEditSave,
+  onEditCancel,
+  onAddHumanReply,
 }: {
   node: GraphNode;
   siblings: GraphNode[];
@@ -212,6 +133,13 @@ function LinearNodeCard({
   isSuperseded: boolean;
   callbacks: GraphCallbacks;
   onSiblingSelect: (nodeId: string) => void;
+  isEditing: boolean;
+  editText: string;
+  onEditStart: (nodeId: string, content: string) => void;
+  onEditChange: (text: string) => void;
+  onEditSave: () => void;
+  onEditCancel: () => void;
+  onAddHumanReply: (parentNodeId: string) => void;
 }) {
   const c = nodeColor(node.type, node.isDeleted);
   const [hover, setHover] = useState(false);
@@ -251,18 +179,9 @@ function LinearNodeCard({
           <div style={{ flex: 1 }} />
           <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
         </div>
-        <p
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: '13px',
-            color: '#383838',
-            lineHeight: 1.75,
-            margin: 0,
-            textDecoration: 'line-through',
-          }}
-        >
-          {node.content || '(empty)'}
-        </p>
+        <div style={{ textDecoration: 'line-through' }}>
+          <Markdown content={node.content} fontSize="13px" color="#383838" />
+        </div>
       </div>
     );
   }
@@ -307,18 +226,14 @@ function LinearNodeCard({
           </span>
           <div style={{ flex: 1 }} />
           <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
+          <ActionBtn
+            label="Add reply ↓"
+            color={COLORS.summary}
+            onClick={() => onAddHumanReply(node.id)}
+            primary
+          />
         </div>
-        <p
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: '13px',
-            color: COLORS.textSecondary,
-            lineHeight: 1.75,
-            margin: 0,
-          }}
-        >
-          {node.content || '(empty)'}
-        </p>
+        <Markdown content={node.content} fontSize="13px" color={COLORS.textSecondary} />
         <div
           style={{
             marginTop: '10px',
@@ -351,6 +266,11 @@ function LinearNodeCard({
         opacity: isSuperseded ? 0.4 : 1,
       }}
     >
+      {siblings.length > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
+          <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
         <RoleIcon role={node.type} size={16} />
         <span
@@ -382,14 +302,13 @@ function LinearNodeCard({
           depth {node.depth}
         </span>
         <div style={{ flex: 1 }} />
-        <SiblingNav siblings={siblings} currentId={node.id} onSelect={onSiblingSelect} />
-        {(hover || isSelected) && !isSuperseded && (
-          <div style={{ display: 'flex', gap: '5px', marginLeft: '8px' }}>
-            {node.type === 'human' && (
+        {!isSuperseded && (
+          <div style={{ display: 'flex', gap: '5px', visibility: hover || isSelected ? 'visible' : 'hidden' }}>
+            {node.type === 'human' && node.parentId !== null && (
               <ActionBtn
                 label="Edit"
                 color={COLORS.human}
-                onClick={() => callbacks.onNodeEdit(node.id)}
+                onClick={() => onEditStart(node.id, node.content)}
               />
             )}
             {node.type === 'ai' && (
@@ -399,33 +318,41 @@ function LinearNodeCard({
                 onClick={() => callbacks.onNodeRegenerate(node.id)}
               />
             )}
-            <ActionBtn
-              label={node.type === 'human' ? 'Generate reply ↓' : 'Add reply ↓'}
-              color={c}
-              onClick={() => callbacks.onNodeReply(node.id)}
-              primary
-            />
-            <ActionBtn
-              label="∑ Summarize"
-              color={COLORS.summary}
-              onClick={() => callbacks.onNodeSummarize(node.id)}
-            />
+            {node.type === 'human' ? (
+              <ActionBtn
+                label="Generate reply ↓"
+                color={c}
+                onClick={() => callbacks.onNodeReply(node.id)}
+                primary
+              />
+            ) : (
+              <ActionBtn
+                label="Add reply ↓"
+                color={c}
+                onClick={() => onAddHumanReply(node.id)}
+                primary
+              />
+            )}
+            {node.parentId !== null && (
+              <ActionBtn
+                label="∑ Summarize"
+                color={COLORS.summary}
+                onClick={() => callbacks.onNodeSummarize(node.id)}
+              />
+            )}
           </div>
         )}
       </div>
-      <div
-        style={{
-          fontFamily: FONTS.serif,
-          fontWeight: 400,
-          fontSize: node.type === 'ai' ? '15px' : '16px',
-          color: '#ececec',
-          lineHeight: 1.65,
-          margin: 0,
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {node.content || '(empty)'}
-      </div>
+      {isEditing ? (
+        <InlineEditor
+          value={editText}
+          onChange={onEditChange}
+          onSave={onEditSave}
+          onCancel={onEditCancel}
+        />
+      ) : (
+        <Markdown content={node.content} fontSize={node.type === 'ai' ? '15px' : '16px'} />
+      )}
       {node.metadata.modelName && (
         <div
           style={{
@@ -461,10 +388,8 @@ function VerticalConnector() {
 
 // ── LinearView ──────────────────────────────────────────────────────────────
 
-export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
-  const coreNodes = externalNodes ?? MOCK_NODES;
-  const treeId = coreNodes[0]?.treeId ?? '';
-  const graphNodes = useMemo(() => toGraphNodes(coreNodes), [coreNodes]);
+export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: LinearViewProps) {
+  const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
 
@@ -477,24 +402,60 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
     return findDeepestFirstChild(root.id, nodeById, childrenOf);
   }, [graphNodes, nodeById, childrenOf]);
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(defaultLeaf);
-
-  // When a sibling is selected, navigate to the deepest first-child leaf from that sibling
-  const handleSiblingSelect = useCallback(
-    (siblingId: string) => {
-      setSelectedNodeId(findDeepestFirstChild(siblingId, nodeById, childrenOf));
-    },
-    [nodeById, childrenOf],
-  );
-
   const streaming = useStreamingStore();
   const { onNodeReply, onNodeRegenerate, onNodeSummarize } = useStreamingCallbacks(treeId);
 
+  const [scrollToNodeId, setScrollToNodeId] = useState<string | null>(controlledSelectedNodeId ?? defaultLeaf);
+
+  const {
+    selectedNodeId,
+    setSelectedNodeId,
+    editingNodeId,
+    editText,
+    setEditText,
+    handleEditStart,
+    handleEditSave,
+    handleEditCancel,
+  } = useNodeEditing({
+    nodeById,
+    onEdit,
+    onCreateSibling,
+    onDelete,
+    onNodeReply,
+    onRootNodeSubmitted,
+    pendingEditNodeId,
+    onPendingEditHandled,
+    focusNodeId,
+    onFocusHandled,
+    initialSelectedNodeId: controlledSelectedNodeId ?? defaultLeaf,
+    onSelectedNodeChange,
+    onFocus: (nodeId) => setScrollToNodeId(nodeId),
+  });
+
+  const handleAddHumanReply = useCallback(
+    (parentNodeId: string) => {
+      onAddHumanNode(parentNodeId);
+    },
+    [onAddHumanNode],
+  );
+
+  // When a sibling is selected, navigate to the deepest most-recent child from that sibling
+  const handleSiblingSelect = useCallback(
+    (siblingId: string) => {
+      const leafId = findDeepestFirstChild(siblingId, nodeById, childrenOf);
+      setSelectedNodeId(leafId);
+    },
+    [nodeById, childrenOf, setSelectedNodeId],
+  );
+
   const callbacks: GraphCallbacks = useMemo(
     () => ({
-      onNodeSelect: (nodeId: string) => setSelectedNodeId(nodeId),
+      onNodeSelect: (nodeId: string) => {
+        setSelectedNodeId(findDeepestFirstChild(nodeId, nodeById, childrenOf));
+      },
       onNodeEdit: (nodeId: string) => {
-        console.log('[stub] onNodeEdit', nodeId);
+        const node = nodeById.get(nodeId);
+        if (node) handleEditStart(nodeId, node.content);
       },
       onNodeRegenerate: (nodeId: string) => {
         const node = nodeById.get(nodeId);
@@ -504,13 +465,13 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
         onNodeSummarize(nodeId);
       },
       onNodeDelete: (nodeId: string) => {
-        console.log('[stub] onNodeDelete', nodeId);
+        onDelete(nodeId);
       },
       onNodeReply: (nodeId: string) => {
         onNodeReply(nodeId);
       },
     }),
-    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize],
+    [nodeById, childrenOf, onNodeReply, onNodeRegenerate, onNodeSummarize, onDelete, handleEditStart, setSelectedNodeId],
   );
 
   const pathEntries = useMemo(
@@ -528,47 +489,136 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
     [pathEntries],
   );
 
-  // Show streaming card at the bottom if the last node in the path is the streaming parent
+  // Show streaming card when streaming is active and the parent node is on the path.
+  // If the parent's existing child is already on the path (regen case), replace it
+  // inline instead of appending at the bottom.
+  const pathNodeIds = useMemo(
+    () => new Set(pathEntries.map((e) => e.node.id)),
+    [pathEntries],
+  );
+  const isStreamingActive =
+    streaming.status !== 'idle' && streaming.parentNodeId != null;
+  const streamingParentIdx = isStreamingActive
+    ? pathEntries.findIndex((e) => e.node.id === streaming.parentNodeId)
+    : -1;
+  // Regen: the streaming parent is on the path and has a child after it on the path
+  const isRegen = streamingParentIdx >= 0 && streamingParentIdx < pathEntries.length - 1;
+  const regenReplacedNodeId = isRegen
+    ? pathEntries[streamingParentIdx + 1].node.id
+    : null;
   const showStreamingCard =
-    streaming.status !== 'idle' && lastNodeId != null && streaming.parentNodeId === lastNodeId;
+    isStreamingActive && pathNodeIds.has(streaming.parentNodeId!) && !isRegen;
+
+  // Auto-scroll to the streaming card when it first appears
+  const streamingCardRef: RefCallback<HTMLDivElement> = useCallback((el) => {
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, []);
 
   return (
-    <div
-      style={{
-        flex: 1,
-        display: 'flex',
-        justifyContent: 'center',
-        padding: '40px 20px',
-        overflowY: 'auto',
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: '720px' }}>
-        {pathEntries.map(({ node, siblings }, i) => (
-          <div key={node.id}>
-            {i > 0 && <VerticalConnector />}
-            <LinearNodeCard
-              node={node}
-              siblings={siblings}
-              isSelected={node.id === selectedNodeId}
-              isSuperseded={summaryIndex !== -1 && i < summaryIndex}
-              callbacks={callbacks}
-              onSiblingSelect={handleSiblingSelect}
-            />
-          </div>
-        ))}
-        {showStreamingCard && (
-          <>
-            <VerticalConnector />
-            <StreamingCard
-              content={streaming.content}
-              status={streaming.status}
-              error={streaming.error}
-              onCancel={streaming.cancel}
-              onRetry={() => callbacks.onNodeReply(lastNodeId!)}
-              variant="full"
-            />
-          </>
-        )}
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: COLORS.bg }}>
+      <Sidebar
+        nodes={graphNodes}
+        selectedNodeId={selectedNodeId}
+        onSelect={(nodeId: string) => {
+          const leafId = findDeepestFirstChild(nodeId, nodeById, childrenOf);
+          setSelectedNodeId(leafId);
+          setScrollToNodeId(nodeId);
+        }}
+        sidebarMode={sidebarMode}
+        onSidebarModeChange={onSidebarModeChange}
+        trees={trees}
+        selectedTreeId={selectedTreeId}
+        onSelectTree={onSelectTree}
+        onDeleteTree={onDeleteTree}
+        repo={repo}
+        onTreeCreated={onTreeCreated}
+        onRequestEdit={onRequestEdit}
+      />
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '40px 20px',
+          overflowY: 'auto',
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: '720px' }}>
+          {pathEntries.map(({ node, siblings }, i) => {
+            // During regen, replace the old AI node (and everything after it)
+            // with the streaming card
+            if (regenReplacedNodeId === node.id) {
+              return (
+                <div key="streaming-regen" ref={streamingCardRef}>
+                  <VerticalConnector />
+                  <StreamingCard
+                    content={streaming.content}
+                    thinkingContent={streaming.thinkingContent}
+                    isThinking={streaming.isThinking}
+                    status={streaming.status}
+                    error={streaming.error}
+                    onCancel={streaming.cancel}
+                    onRetry={() => callbacks.onNodeRegenerate(node.id)}
+                    variant="full"
+                  />
+                </div>
+              );
+            }
+            // Skip nodes after the replaced node during regen
+            if (regenReplacedNodeId && i > pathEntries.findIndex((e) => e.node.id === regenReplacedNodeId)) {
+              return null;
+            }
+            return (
+              <div
+                key={node.id}
+                ref={
+                  node.id === scrollToNodeId
+                    ? (el) => {
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          setScrollToNodeId(null);
+                        }
+                      }
+                    : undefined
+                }
+              >
+                {i > 0 && <VerticalConnector />}
+                <LinearNodeCard
+                  node={node}
+                  siblings={siblings}
+                  isSelected={node.id === selectedNodeId}
+                  isSuperseded={summaryIndex !== -1 && i < summaryIndex}
+                  callbacks={callbacks}
+                  onSiblingSelect={handleSiblingSelect}
+                  isEditing={editingNodeId === node.id}
+                  editText={editText}
+                  onEditStart={handleEditStart}
+                  onEditChange={setEditText}
+                  onEditSave={handleEditSave}
+                  onEditCancel={handleEditCancel}
+                  onAddHumanReply={handleAddHumanReply}
+                />
+              </div>
+            );
+          })}
+          {showStreamingCard && (
+            <div ref={streamingCardRef}>
+              <VerticalConnector />
+              <StreamingCard
+                content={streaming.content}
+                thinkingContent={streaming.thinkingContent}
+                isThinking={streaming.isThinking}
+                status={streaming.status}
+                error={streaming.error}
+                onCancel={streaming.cancel}
+                onRetry={() => callbacks.onNodeReply(lastNodeId!)}
+                variant="full"
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -5,6 +5,8 @@ import type { NodeRepository, Tree } from '@lineage/core';
 
 const createTreeBody = z.object({
   title: z.string().min(1),
+  treeId: z.string().uuid().optional(),
+  rootNodeId: z.string().uuid().optional(),
 });
 
 const updateTreeBody = z.object({
@@ -33,9 +35,10 @@ export function treeRoutes(repo: NodeRepository) {
 
   // POST /trees — create a new tree
   app.post('/', zValidator('json', createTreeBody), async (c) => {
-    const { title } = c.req.valid('json');
-    const treeId = crypto.randomUUID();
-    const rootNodeId = crypto.randomUUID();
+    const body = c.req.valid('json');
+    const title = body.title;
+    const treeId = body.treeId ?? crypto.randomUUID();
+    const rootNodeId = body.rootNodeId ?? crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     const tree: Tree = { treeId, title, createdAt, rootNodeId };
@@ -86,21 +89,14 @@ export function treeRoutes(repo: NodeRepository) {
     return c.json(updated);
   });
 
-  // DELETE /trees/:treeId — soft delete all nodes and remove tree
+  // DELETE /trees/:treeId — delete tree and all its nodes
   app.delete('/:treeId', async (c) => {
     const { treeId } = c.req.param();
 
     try {
-      await c.var.repo.getTree(treeId);
+      await c.var.repo.deleteTree(treeId);
     } catch {
       return c.json({ error: 'Tree not found' }, 404);
-    }
-
-    const nodes = await c.var.repo.getNodes(treeId);
-    for (const node of nodes) {
-      if (!node.isDeleted) {
-        await c.var.repo.softDeleteNode(node.nodeId);
-      }
     }
 
     return c.body(null, 204);

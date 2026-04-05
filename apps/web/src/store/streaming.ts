@@ -7,6 +7,10 @@ export interface StreamingState {
   parentNodeId: string | null;
   /** Accumulated content from SSE delta events */
   content: string;
+  /** Accumulated thinking content from SSE delta events */
+  thinkingContent: string;
+  /** Whether currently receiving thinking tokens */
+  isThinking: boolean;
   /** Current streaming status */
   status: StreamingStatus;
   /** Error message if status is 'error' */
@@ -23,6 +27,8 @@ interface StreamingActions {
     nodeId: string;
     maxTokens?: number;
     temperature?: number;
+    model?: string;
+    thinking?: boolean;
     endpoint?: 'complete' | 'summarize';
   }) => void;
   /** Cancel the current streaming request */
@@ -36,6 +42,8 @@ export type StreamingStore = StreamingState & StreamingActions;
 const initialState: StreamingState = {
   parentNodeId: null,
   content: '',
+  thinkingContent: '',
+  isThinking: false,
   status: 'idle',
   error: null,
   resultNodeId: null,
@@ -52,6 +60,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     nodeId,
     maxTokens = 4096,
     temperature,
+    model,
+    thinking,
     endpoint = 'complete',
   }) => {
     // Cancel any in-flight request
@@ -75,6 +85,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       nodeId,
       maxTokens,
       ...(temperature !== undefined && { temperature }),
+      ...(model && { model }),
+      ...(thinking !== undefined && { thinking }),
     });
 
     fetch(url, {
@@ -127,11 +139,25 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
                 const parsed = JSON.parse(data);
 
                 if (currentEvent === 'delta') {
-                  set((s) => ({ content: s.content + (parsed.content ?? '') }));
+                  const isThinking = !!parsed.thinking;
+                  set((s) => ({
+                    content: isThinking ? s.content : s.content + (parsed.content ?? ''),
+                    thinkingContent: isThinking
+                      ? s.thinkingContent + (parsed.content ?? '')
+                      : s.thinkingContent,
+                    isThinking,
+                  }));
                 } else if (currentEvent === 'done') {
                   set({
                     status: 'complete',
                     resultNodeId: parsed.nodeId ?? null,
+                  });
+                  abortController = null;
+                  return;
+                } else if (currentEvent === 'error') {
+                  set({
+                    status: 'error',
+                    error: parsed.error ?? 'Unknown streaming error',
                   });
                   abortController = null;
                   return;

@@ -151,6 +151,14 @@ export class PostgresRepository implements NodeRepository {
     }
   }
 
+  async deleteTree(treeId: string): Promise<void> {
+    await this.sql`DELETE FROM nodes WHERE tree_id = ${treeId}`;
+    const result = await this.sql`DELETE FROM trees WHERE tree_id = ${treeId}`;
+    if (result.count === 0) {
+      throw new Error(`Tree not found: ${treeId}`);
+    }
+  }
+
   async updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
     const vectorStr = `[${embedding.join(',')}]`;
     await this.sql`

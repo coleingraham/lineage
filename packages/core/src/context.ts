@@ -6,6 +6,10 @@ import type { Message } from './llm.js';
  * Deleted nodes are skipped — if a deleted node is encountered the path is broken
  * and only the segment from the given node back to (but not including) the deleted
  * ancestor is returned.
+ *
+ * Summary nodes act as context boundaries — the walk stops when a summary node
+ * is encountered (the summary itself is included). This ensures that only the
+ * summary and its descendants are used as context, not the full original thread.
  */
 function walkToRoot(nodeId: string, nodesById: Map<string, Node>): Node[] {
   const path: Node[] = [];
@@ -14,6 +18,8 @@ function walkToRoot(nodeId: string, nodesById: Map<string, Node>): Node[] {
   while (current) {
     if (current.isDeleted) break;
     path.push(current);
+    // Stop at summary nodes — they replace the conversation above
+    if (current.type === 'summary') break;
     current = current.parentId ? nodesById.get(current.parentId) : undefined;
   }
 
@@ -33,6 +39,14 @@ function nodeTypeToRole(type: Node['type']): Message['role'] {
     case 'summary':
       return 'ai';
   }
+}
+
+/** Strip thinking blocks from saved node content (both <details> and blockquote formats). */
+function stripThinking(content: string): string {
+  return content
+    .replace(/<details>\s*<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*/g, '')
+    .replace(/^> \*Thinking:\*\n(?:>.*\n)*\n?/, '')
+    .trim();
 }
 
 export interface BuildContextOptions {
@@ -68,10 +82,10 @@ export function buildContext(
   // Filter out the empty root node
   const filtered = path.filter((n) => !(n.parentId === null && n.content === ''));
 
-  // Convert to messages
+  // Convert to messages, stripping thinking blockquotes from content
   let messages: Message[] = filtered.map((n) => ({
     role: nodeTypeToRole(n.type),
-    content: n.content,
+    content: stripThinking(n.content),
   }));
 
   // Token budgeting: drop oldest messages first until within budget

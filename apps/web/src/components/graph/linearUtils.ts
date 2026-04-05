@@ -15,9 +15,9 @@ export function buildChildrenMap(nodes: GraphNode[]): Map<string | null, GraphNo
 }
 
 /**
- * Starting from a given node, follow the first child at each level
- * until a leaf is reached. Returns the leaf node's id, or the
- * starting node's id if it is already a leaf.
+ * Starting from a given node, follow the most recently created child
+ * at each level until a leaf is reached. Returns the leaf node's id,
+ * or the starting node's id if it is already a leaf.
  */
 export function findDeepestFirstChild(
   startId: string,
@@ -29,7 +29,9 @@ export function findDeepestFirstChild(
   while (true) {
     const children = childrenOf.get(cur.id);
     if (!children || children.length === 0) break;
-    cur = children[0];
+    cur = children.reduce((newest, child) =>
+      child.metadata.createdAt > newest.metadata.createdAt ? child : newest,
+    );
   }
   return cur.id;
 }

@@ -9,6 +9,8 @@ const summarizeBody = z.object({
   maxTokens: z.number().int().positive(),
   temperature: z.number().min(0).max(2).optional(),
   maxContextTokens: z.number().int().positive().optional(),
+  model: z.string().min(1).optional(),
+  thinking: z.boolean().optional(),
 });
 
 export type Env = {
@@ -17,6 +19,14 @@ export type Env = {
     llm: LLMProvider;
   };
 };
+
+/** Strip thinking blocks from saved node content (both <details> and blockquote formats). */
+function stripThinking(content: string): string {
+  return content
+    .replace(/<details>\s*<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*/g, '')
+    .replace(/^> \*Thinking:\*\n(?:>.*\n)*\n?/, '')
+    .trim();
+}
 
 const SUMMARIZE_SYSTEM_PROMPT = `You are a precise summarizer. The user will provide a conversation thread. Your task is to produce a concise summary that captures:
 - The key decisions and conclusions reached
@@ -38,7 +48,7 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
   app.post('/:nodeId/summarize', zValidator('json', summarizeBody), async (c) => {
     const treeId = c.req.param('treeId') as string;
     const { nodeId } = c.req.param();
-    const { maxTokens, temperature } = c.req.valid('json');
+    const { maxTokens, temperature, model, thinking } = c.req.valid('json');
 
     // Validate tree exists
     try {
@@ -85,7 +95,7 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
 
     const contextMessages: Message[] = filtered.map((n) => ({
       role: nodeTypeToRole(n.type),
-      content: n.content,
+      content: stripThinking(n.content),
     }));
 
     if (contextMessages.length === 0) {
@@ -102,37 +112,64 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
       { role: 'human' as const, content: conversationText },
     ];
 
-    const config = { maxTokens, ...(temperature !== undefined && { temperature }) };
+    const config = { maxTokens, ...(temperature !== undefined && { temperature }), ...(model && { model }), ...(thinking !== undefined && { thinking }) };
+
+    console.log(`[summarize] treeId=${treeId} nodeId=${nodeId} context=${contextMessages.length} messages`);
 
     return streamSSE(c, async (stream) => {
-      let content = '';
+      let thinkingContent = '';
+      let responseContent = '';
+      let chunkCount = 0;
 
-      for await (const chunk of c.var.llm.stream(messages, config)) {
-        content += chunk;
-        await stream.writeSSE({ event: 'delta', data: JSON.stringify({ content: chunk }) });
+      try {
+        for await (const chunk of c.var.llm.stream(messages, config)) {
+          chunkCount++;
+          const text = typeof chunk === 'string' ? chunk : chunk.content;
+          const thinking = typeof chunk === 'string' ? false : !!chunk.thinking;
+          if (thinking) {
+            thinkingContent += text;
+          } else {
+            responseContent += text;
+          }
+          await stream.writeSSE({
+            event: 'delta',
+            data: JSON.stringify({ content: text, ...(thinking && { thinking: true }) }),
+          });
+        }
+
+        const content = responseContent;
+
+        console.log(`[summarize] stream finished: ${chunkCount} chunks, thinking=${thinkingContent.length} response=${responseContent.length}`);
+
+        // Write the summary node to the repository
+        const summaryNode: Node = {
+          nodeId: crypto.randomUUID(),
+          treeId,
+          parentId: nodeId,
+          type: 'summary',
+          content,
+          isDeleted: false,
+          createdAt: new Date().toISOString(),
+          modelName: model ?? null,
+          provider: null,
+          tokenCount: null,
+          embeddingModel: null,
+        };
+
+        await c.var.repo.putNode(summaryNode);
+        console.log(`[summarize] saved summary node ${summaryNode.nodeId}`);
+
+        await stream.writeSSE({
+          event: 'done',
+          data: JSON.stringify({ nodeId: summaryNode.nodeId }),
+        });
+      } catch (err) {
+        console.error(`[summarize] streaming error:`, err);
+        await stream.writeSSE({
+          event: 'error',
+          data: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+        });
       }
-
-      // Write the summary node to the repository
-      const summaryNode: Node = {
-        nodeId: crypto.randomUUID(),
-        treeId,
-        parentId: nodeId,
-        type: 'summary',
-        content,
-        isDeleted: false,
-        createdAt: new Date().toISOString(),
-        modelName: null,
-        provider: null,
-        tokenCount: null,
-        embeddingModel: null,
-      };
-
-      await c.var.repo.putNode(summaryNode);
-
-      await stream.writeSSE({
-        event: 'done',
-        data: JSON.stringify({ nodeId: summaryNode.nodeId }),
-      });
     });
   });
 
