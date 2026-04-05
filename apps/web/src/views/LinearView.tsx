@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, type RefCallback } from 'react';
 import type { Node } from '@lineage/core';
 import { COLORS, FONTS, nodeColor } from '../styles/theme.js';
 import type { GraphCallbacks, GraphNode } from '../components/graph/GraphRendererTypes.js';
@@ -12,122 +12,18 @@ import {
 import { useStreamingStore } from '../store/streaming.js';
 import { useStreamingCallbacks } from '../store/useStreamingCallbacks.js';
 import { StreamingCard } from '../components/StreamingCard.js';
+import { ComposeInput } from '../components/ComposeInput.js';
+import type { ComposeInputHandle } from '../components/ComposeInput.js';
 
-// ── Mock data (shared with GraphView for development) ───────────────────────
-
-const MOCK_NODES: Node[] = [
-  {
-    nodeId: 'root',
-    treeId: 't1',
-    parentId: null,
-    type: 'human',
-    content:
-      "The recursive descent parser has grown to ~2,400 lines. Maintenance velocity has dropped — new grammar rules take 3–5x longer than six months ago. I'm wondering if we should consider a rewrite.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:00:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'a1',
-    treeId: 't1',
-    parentId: 'root',
-    type: 'ai',
-    content:
-      "That's a significant maintenance burden. Before committing to a rewrite, it's worth separating two distinct problems: the parser is hard to extend because the grammar is implicit (no formal spec), and the parser is hard to read because the rule boundaries aren't well-defined.\n\nA PEG-based approach addresses both — you get a formal grammar spec and generated parser code. The tradeoff is that PEG parsers require care around error recovery. What's your team's experience with parser generators?",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:01:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 120,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'h2',
-    treeId: 't1',
-    parentId: 'a1',
-    type: 'human',
-    content:
-      "We have one person who's worked with ANTLR before. The rest of the team hasn't used a parser generator. Error recovery is important to us — we surface parser errors directly to end users.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:05:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'a2',
-    treeId: 't1',
-    parentId: 'h2',
-    type: 'ai',
-    content:
-      "Given that error recovery is user-facing, I'd lean toward an incremental refactor rather than a full PEG rewrite. The risk with PEG is that error message quality regresses during the transition, and fixing that is non-trivial work on top of the rewrite itself.\n\nA middle path worth considering: write the grammar spec in BNF/PEG notation as documentation first, without changing the runtime parser.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:06:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 95,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'h3-branch',
-    treeId: 't1',
-    parentId: 'a1',
-    type: 'human',
-    content:
-      "What if we took the PEG approach but only for the expression subset? That's where 80% of the complexity lives.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:10:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'a3-branch',
-    treeId: 't1',
-    parentId: 'h3-branch',
-    type: 'ai',
-    content:
-      "That's a pragmatic hybrid approach. Rewriting just the expression parser in PEG would give you the biggest bang for the buck — expressions are where recursive descent gets most tangled. The statement-level parser could stay hand-written since it's more linear.\n\nThe key risk is the boundary between the two parsers. You'd need a clean handoff protocol.",
-    isDeleted: false,
-    createdAt: '2026-04-01T10:11:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 88,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'deleted-node',
-    treeId: 't1',
-    parentId: 'a2',
-    type: 'human',
-    content: 'This was a dead-end tangent about rewriting in Rust.',
-    isDeleted: true,
-    createdAt: '2026-04-01T10:08:00Z',
-    modelName: null,
-    provider: null,
-    tokenCount: null,
-    embeddingModel: null,
-  },
-  {
-    nodeId: 'summary-1',
-    treeId: 't1',
-    parentId: 'a2',
-    type: 'summary',
-    content:
-      'The team is considering whether to rewrite a 2,400-line recursive descent parser. Key constraint: error recovery is user-facing, making a full PEG rewrite risky. Converged on a hybrid approach — extract grammar rules into named functions for readability, write BNF spec as documentation in parallel.',
-    isDeleted: false,
-    createdAt: '2026-04-01T10:12:00Z',
-    modelName: 'claude-opus-4-6',
-    provider: 'anthropic',
-    tokenCount: 65,
-    embeddingModel: null,
-  },
-];
+interface LinearViewProps {
+  nodes: Node[];
+  treeId: string;
+  onDelete: (nodeId: string) => void;
+  onEdit: (nodeId: string, content: string) => Promise<void>;
+  onCompose: (parentNodeId: string, content: string) => Promise<void>;
+  focusNodeId: string | null;
+  onFocusHandled: () => void;
+}
 
 // ── Sibling navigator ───────────────────────────────────────────────────────
 
@@ -205,6 +101,13 @@ function LinearNodeCard({
   isSuperseded,
   callbacks,
   onSiblingSelect,
+  isEditing,
+  editText,
+  onEditStart,
+  onEditChange,
+  onEditSave,
+  onEditCancel,
+  onAddHumanReply,
 }: {
   node: GraphNode;
   siblings: GraphNode[];
@@ -212,6 +115,13 @@ function LinearNodeCard({
   isSuperseded: boolean;
   callbacks: GraphCallbacks;
   onSiblingSelect: (nodeId: string) => void;
+  isEditing: boolean;
+  editText: string;
+  onEditStart: (nodeId: string, content: string) => void;
+  onEditChange: (text: string) => void;
+  onEditSave: () => void;
+  onEditCancel: () => void;
+  onAddHumanReply: (parentNodeId: string) => void;
 }) {
   const c = nodeColor(node.type, node.isDeleted);
   const [hover, setHover] = useState(false);
@@ -389,7 +299,7 @@ function LinearNodeCard({
               <ActionBtn
                 label="Edit"
                 color={COLORS.human}
-                onClick={() => callbacks.onNodeEdit(node.id)}
+                onClick={() => onEditStart(node.id, node.content)}
               />
             )}
             {node.type === 'ai' && (
@@ -399,12 +309,21 @@ function LinearNodeCard({
                 onClick={() => callbacks.onNodeRegenerate(node.id)}
               />
             )}
-            <ActionBtn
-              label={node.type === 'human' ? 'Generate reply ↓' : 'Add reply ↓'}
-              color={c}
-              onClick={() => callbacks.onNodeReply(node.id)}
-              primary
-            />
+            {node.type === 'human' ? (
+              <ActionBtn
+                label="Generate reply ↓"
+                color={c}
+                onClick={() => callbacks.onNodeReply(node.id)}
+                primary
+              />
+            ) : (
+              <ActionBtn
+                label="Add reply ↓"
+                color={c}
+                onClick={() => onAddHumanReply(node.id)}
+                primary
+              />
+            )}
             <ActionBtn
               label="∑ Summarize"
               color={COLORS.summary}
@@ -413,19 +332,83 @@ function LinearNodeCard({
           </div>
         )}
       </div>
-      <div
-        style={{
-          fontFamily: FONTS.serif,
-          fontWeight: 400,
-          fontSize: node.type === 'ai' ? '15px' : '16px',
-          color: '#ececec',
-          lineHeight: 1.65,
-          margin: 0,
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {node.content || '(empty)'}
-      </div>
+      {isEditing ? (
+        <div>
+          <textarea
+            value={editText}
+            onChange={(e) => onEditChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                onEditSave();
+              }
+              if (e.key === 'Escape') onEditCancel();
+            }}
+            autoFocus
+            style={{
+              width: '100%',
+              minHeight: '80px',
+              background: 'rgba(255,255,255,0.04)',
+              border: `1px solid rgba(255,255,255,0.15)`,
+              borderRadius: '4px',
+              fontFamily: FONTS.serif,
+              fontSize: '16px',
+              color: '#ececec',
+              lineHeight: 1.65,
+              padding: '8px 10px',
+              resize: 'vertical',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ display: 'flex', gap: '6px', marginTop: '8px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={onEditCancel}
+              style={{
+                background: 'transparent',
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: '4px',
+                padding: '4px 12px',
+                fontFamily: FONTS.mono,
+                fontSize: '10px',
+                color: COLORS.textSecondary,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onEditSave}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: `1px solid rgba(255,255,255,0.15)`,
+                borderRadius: '4px',
+                padding: '4px 12px',
+                fontFamily: FONTS.mono,
+                fontSize: '10px',
+                color: COLORS.text,
+                cursor: 'pointer',
+              }}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            fontFamily: FONTS.serif,
+            fontWeight: 400,
+            fontSize: node.type === 'ai' ? '15px' : '16px',
+            color: '#ececec',
+            lineHeight: 1.65,
+            margin: 0,
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {node.content || '(empty)'}
+        </div>
+      )}
       {node.metadata.modelName && (
         <div
           style={{
@@ -461,10 +444,9 @@ function VerticalConnector() {
 
 // ── LinearView ──────────────────────────────────────────────────────────────
 
-export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
-  const coreNodes = externalNodes ?? MOCK_NODES;
-  const treeId = coreNodes[0]?.treeId ?? '';
-  const graphNodes = useMemo(() => toGraphNodes(coreNodes), [coreNodes]);
+export function LinearView({ nodes, treeId, onDelete, onEdit, onCompose, focusNodeId, onFocusHandled }: LinearViewProps) {
+  const composeRef = useRef<ComposeInputHandle>(null);
+  const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
 
@@ -478,6 +460,42 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
   }, [graphNodes, nodeById, childrenOf]);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(defaultLeaf);
+
+  // ── Inline editing state ──────────────────────────────────────────────────
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+
+  const handleEditStart = useCallback((nodeId: string, content: string) => {
+    setEditingNodeId(nodeId);
+    setEditText(content);
+  }, []);
+
+  const handleEditSave = useCallback(() => {
+    if (editingNodeId) {
+      onEdit(editingNodeId, editText);
+      setEditingNodeId(null);
+      setEditText('');
+    }
+  }, [editingNodeId, editText, onEdit]);
+
+  const handleEditCancel = useCallback(() => {
+    setEditingNodeId(null);
+    setEditText('');
+  }, []);
+
+  const handleAddHumanReply = useCallback(() => {
+    composeRef.current?.focus();
+  }, []);
+
+  // Focus newly created node after streaming completes
+  const [scrollToNodeId, setScrollToNodeId] = useState<string | null>(null);
+  useEffect(() => {
+    if (focusNodeId && nodeById.has(focusNodeId)) {
+      setSelectedNodeId(focusNodeId);
+      setScrollToNodeId(focusNodeId);
+      onFocusHandled();
+    }
+  }, [focusNodeId, nodeById, onFocusHandled]);
 
   // When a sibling is selected, navigate to the deepest first-child leaf from that sibling
   const handleSiblingSelect = useCallback(
@@ -494,7 +512,8 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
     () => ({
       onNodeSelect: (nodeId: string) => setSelectedNodeId(nodeId),
       onNodeEdit: (nodeId: string) => {
-        console.log('[stub] onNodeEdit', nodeId);
+        const node = nodeById.get(nodeId);
+        if (node) handleEditStart(nodeId, node.content);
       },
       onNodeRegenerate: (nodeId: string) => {
         const node = nodeById.get(nodeId);
@@ -504,13 +523,13 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
         onNodeSummarize(nodeId);
       },
       onNodeDelete: (nodeId: string) => {
-        console.log('[stub] onNodeDelete', nodeId);
+        onDelete(nodeId);
       },
       onNodeReply: (nodeId: string) => {
         onNodeReply(nodeId);
       },
     }),
-    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize],
+    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize, onDelete, handleEditStart],
   );
 
   const pathEntries = useMemo(
@@ -528,9 +547,23 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
     [pathEntries],
   );
 
-  // Show streaming card at the bottom if the last node in the path is the streaming parent
+  // Show streaming card at the bottom when streaming is active and the parent node
+  // is visible in the current path (handles both reply and regen cases).
+  const pathNodeIds = useMemo(
+    () => new Set(pathEntries.map((e) => e.node.id)),
+    [pathEntries],
+  );
   const showStreamingCard =
-    streaming.status !== 'idle' && lastNodeId != null && streaming.parentNodeId === lastNodeId;
+    streaming.status !== 'idle' &&
+    streaming.parentNodeId != null &&
+    pathNodeIds.has(streaming.parentNodeId);
+
+  // Auto-scroll to the streaming card when it first appears
+  const streamingCardRef: RefCallback<HTMLDivElement> = useCallback((el) => {
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, []);
 
   return (
     <div
@@ -544,7 +577,19 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
     >
       <div style={{ width: '100%', maxWidth: '720px' }}>
         {pathEntries.map(({ node, siblings }, i) => (
-          <div key={node.id}>
+          <div
+            key={node.id}
+            ref={
+              node.id === scrollToNodeId
+                ? (el) => {
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      setScrollToNodeId(null);
+                    }
+                  }
+                : undefined
+            }
+          >
             {i > 0 && <VerticalConnector />}
             <LinearNodeCard
               node={node}
@@ -553,11 +598,18 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
               isSuperseded={summaryIndex !== -1 && i < summaryIndex}
               callbacks={callbacks}
               onSiblingSelect={handleSiblingSelect}
+              isEditing={editingNodeId === node.id}
+              editText={editText}
+              onEditStart={handleEditStart}
+              onEditChange={setEditText}
+              onEditSave={handleEditSave}
+              onEditCancel={handleEditCancel}
+              onAddHumanReply={handleAddHumanReply}
             />
           </div>
         ))}
         {showStreamingCard && (
-          <>
+          <div ref={streamingCardRef}>
             <VerticalConnector />
             <StreamingCard
               content={streaming.content}
@@ -567,7 +619,14 @@ export function LinearView({ nodes: externalNodes }: { nodes?: Node[] }) {
               onRetry={() => callbacks.onNodeReply(lastNodeId!)}
               variant="full"
             />
-          </>
+          </div>
+        )}
+        {lastNodeId && streaming.status === 'idle' && (
+          <ComposeInput
+            ref={composeRef}
+            onSend={(content) => onCompose(lastNodeId, content)}
+            placeholder="Type a message..."
+          />
         )}
       </div>
     </div>

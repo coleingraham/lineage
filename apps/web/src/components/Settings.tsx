@@ -48,8 +48,8 @@ const EMBEDDING_PROVIDERS: { value: EmbeddingProvider; label: string }[] = [
 
 function loadSettings(): SettingsState {
   return {
-    storageMode: (localStorage.getItem(KEYS.storageMode) as StorageMode) ?? 'local',
-    serverUrl: localStorage.getItem(KEYS.serverUrl) ?? '',
+    storageMode: (localStorage.getItem(KEYS.storageMode) as StorageMode) ?? 'remote',
+    serverUrl: localStorage.getItem(KEYS.serverUrl) ?? 'http://localhost:3000',
     llmProvider: (localStorage.getItem(KEYS.llmProvider) as LLMProvider) ?? 'anthropic',
     llmApiKey: localStorage.getItem(KEYS.llmApiKey) ?? '',
     ollamaBaseUrl: localStorage.getItem(KEYS.ollamaBaseUrl) ?? 'http://localhost:11434',

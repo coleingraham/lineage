@@ -9,14 +9,18 @@ export interface StorageConfig {
 
 /**
  * Detect which storage mode to use at startup.
- * If a server URL is stored in localStorage, use the REST API; otherwise fall
- * back to browser-local wa-sqlite + OPFS.
+ * Reads the explicit storageMode preference from localStorage.
+ * Defaults to 'remote' with the standard dev server URL so the app works
+ * out-of-the-box against a running server.
  */
 export function detectStorageMode(): StorageConfig {
-  const serverUrl =
-    typeof localStorage !== 'undefined' ? localStorage.getItem('lineage:serverUrl') : null;
+  if (typeof localStorage === 'undefined') return { mode: 'remote', serverUrl: 'http://localhost:3000' };
 
-  return serverUrl ? { mode: 'remote', serverUrl } : { mode: 'local' };
+  const explicit = localStorage.getItem('lineage:storageMode');
+  const serverUrl = localStorage.getItem('lineage:serverUrl');
+
+  if (explicit === 'local') return { mode: 'local' };
+  return { mode: 'remote', serverUrl: serverUrl || 'http://localhost:3000' };
 }
 
 /**
@@ -32,7 +36,10 @@ export async function createStorage(config?: StorageConfig): Promise<NodeReposit
 
   switch (resolved.mode) {
     case 'local': {
-      const { BrowserSqliteRepository } = await import('@lineage/adapter-sqlite/browser');
+      // Use a variable so Vite/Rollup cannot statically resolve the import —
+      // wa-sqlite ships files that Vite's import analysis cannot follow.
+      const mod = '@lineage/adapter-sqlite/browser';
+      const { BrowserSqliteRepository } = await import(/* @vite-ignore */ mod);
       return BrowserSqliteRepository.create();
     }
     case 'remote': {

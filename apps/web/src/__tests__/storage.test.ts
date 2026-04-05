@@ -30,36 +30,47 @@ describe('detectStorageMode', () => {
     });
   });
 
-  it('returns local mode when no server URL is stored', () => {
+  it('defaults to remote mode with localhost:3000 when no settings exist', () => {
     Object.defineProperty(globalThis, 'localStorage', {
       value: { getItem: () => null },
+      writable: true,
+      configurable: true,
+    });
+    expect(detectStorageMode()).toEqual({ mode: 'remote', serverUrl: 'http://localhost:3000' });
+  });
+
+  it('returns local mode when storageMode is explicitly set to local', () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => (key === 'lineage:storageMode' ? 'local' : null),
+      },
       writable: true,
       configurable: true,
     });
     expect(detectStorageMode()).toEqual({ mode: 'local' });
   });
 
-  it('returns remote mode when a server URL is stored', () => {
+  it('returns remote mode with stored server URL', () => {
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
-        getItem: (key: string) => (key === 'lineage:serverUrl' ? 'http://localhost:3000' : null),
+        getItem: (key: string) => (key === 'lineage:serverUrl' ? 'http://example.com' : null),
       },
       writable: true,
       configurable: true,
     });
     expect(detectStorageMode()).toEqual({
       mode: 'remote',
-      serverUrl: 'http://localhost:3000',
+      serverUrl: 'http://example.com',
     });
   });
 
-  it('returns local mode when localStorage is unavailable', () => {
+  it('defaults to remote mode when localStorage is unavailable', () => {
     Object.defineProperty(globalThis, 'localStorage', {
       value: undefined,
       writable: true,
       configurable: true,
     });
-    expect(detectStorageMode()).toEqual({ mode: 'local' });
+    expect(detectStorageMode()).toEqual({ mode: 'remote', serverUrl: 'http://localhost:3000' });
   });
 });
 

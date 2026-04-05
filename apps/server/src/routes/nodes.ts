@@ -9,6 +9,10 @@ const createNodeBody = z.object({
   parentId: z.string().min(1),
 });
 
+const updateNodeBody = z.object({
+  content: z.string(),
+});
+
 export type Env = {
   Variables: {
     repo: NodeRepository;
@@ -95,6 +99,34 @@ export function nodeRoutes(repo: NodeRepository) {
     }
 
     return c.json(node);
+  });
+
+  // PATCH /trees/:treeId/nodes/:nodeId — update node content
+  app.patch('/:nodeId', zValidator('json', updateNodeBody), async (c) => {
+    const { nodeId } = c.req.param();
+    const treeId = c.req.param('treeId') as string;
+    const { content } = c.req.valid('json');
+
+    try {
+      await c.var.repo.getTree(treeId);
+    } catch {
+      return c.json({ error: 'Tree not found' }, 404);
+    }
+
+    let node: Node;
+    try {
+      node = await c.var.repo.getNode(nodeId);
+    } catch {
+      return c.json({ error: 'Node not found' }, 404);
+    }
+
+    if (node.treeId !== treeId) {
+      return c.json({ error: 'Node not found' }, 404);
+    }
+
+    const updated: Node = { ...node, content };
+    await c.var.repo.putNode(updated);
+    return c.json(updated);
   });
 
   // DELETE /trees/:treeId/nodes/:nodeId — soft delete a node
