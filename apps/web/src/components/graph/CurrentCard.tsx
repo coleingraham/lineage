@@ -2,15 +2,27 @@ import { useState } from 'react';
 import { COLORS, FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphCallbacks, GraphNode } from './GraphRendererTypes.js';
 import { ActionBtn, RoleIcon } from './NodeCardShared.js';
+import { Markdown } from '../Markdown.js';
+import { InlineEditor } from '../InlineEditor.js';
 
 export function CurrentCard({
   node,
   isLeaf,
   callbacks,
+  isEditing,
+  editText,
+  onEditChange,
+  onEditSave,
+  onEditCancel,
 }: {
   node: GraphNode;
   isLeaf: boolean;
   callbacks: GraphCallbacks;
+  isEditing?: boolean;
+  editText?: string;
+  onEditChange?: (text: string) => void;
+  onEditSave?: () => void;
+  onEditCancel?: () => void;
 }) {
   const c = nodeColor(node.type, node.isDeleted);
   const [hover, setHover] = useState(false);
@@ -45,18 +57,9 @@ export function CurrentCard({
             depth {node.depth}
           </span>
         </div>
-        <p
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: '13px',
-            color: '#383838',
-            lineHeight: 1.75,
-            margin: 0,
-            textDecoration: 'line-through',
-          }}
-        >
-          {node.content || '(empty)'}
-        </p>
+        <div style={{ textDecoration: 'line-through' }}>
+          <Markdown content={node.content} fontSize="13px" color="#383838" />
+        </div>
       </div>
     );
   }
@@ -96,18 +99,15 @@ export function CurrentCard({
           <span style={{ fontSize: '9px', color: '#2e2e2e', fontFamily: FONTS.mono }}>
             depth {node.depth}
           </span>
+          <div style={{ flex: 1 }} />
+          <ActionBtn
+            label="Add reply ↓"
+            color={COLORS.summary}
+            onClick={() => callbacks.onNodeReply(node.id)}
+            primary
+          />
         </div>
-        <p
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: '13px',
-            color: COLORS.textSecondary,
-            lineHeight: 1.75,
-            margin: 0,
-          }}
-        >
-          {node.content || '(empty)'}
-        </p>
+        <Markdown content={node.content} fontSize="13px" color={COLORS.textSecondary} />
         <div
           style={{
             marginTop: '12px',
@@ -184,30 +184,32 @@ export function CurrentCard({
           </div>
         )}
       </div>
-      <h2
-        style={{
-          fontFamily: FONTS.serif,
-          fontWeight: 400,
-          fontSize: '18px',
-          color: '#ececec',
-          lineHeight: 1.45,
-          margin: '0 0 14px',
-        }}
-      >
-        {node.content || '(empty)'}
-      </h2>
-      <p
-        style={{
-          fontSize: '12px',
-          color: '#383838',
-          fontFamily: FONTS.mono,
-          lineHeight: 1.75,
-          margin: 0,
-        }}
-      >
-        Navigate the tree by clicking the parent card above to go up, or any child card below to go
-        deeper. Use the sidebar to jump anywhere directly.
-      </p>
+      {isEditing && onEditChange && onEditSave && onEditCancel ? (
+        <InlineEditor
+          value={editText ?? ''}
+          onChange={onEditChange}
+          onSave={onEditSave}
+          onCancel={onEditCancel}
+        />
+      ) : (
+        <>
+          <div style={{ marginBottom: '14px' }}>
+            <Markdown content={node.content} fontSize="18px" />
+          </div>
+          <p
+            style={{
+              fontSize: '12px',
+              color: '#383838',
+              fontFamily: FONTS.mono,
+              lineHeight: 1.75,
+              margin: 0,
+            }}
+          >
+            Navigate the tree by clicking the parent card above to go up, or any child card below to
+            go deeper. Use the sidebar to jump anywhere directly.
+          </p>
+        </>
+      )}
     </div>
   );
 }

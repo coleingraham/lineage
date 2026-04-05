@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import type { Node } from '@lineage/core';
+import { useMemo } from 'react';
+import type { Node, Tree, NodeRepository } from '@lineage/core';
 import { COLORS } from '../styles/theme.js';
 import { GraphRenderer } from '../components/GraphRenderer.js';
 import type { GraphCallbacks } from '../components/graph/GraphRendererTypes.js';
@@ -7,6 +7,7 @@ import { toGraphNodes } from '../components/graph/convertNodes.js';
 import { Sidebar } from '../components/graph/Sidebar.js';
 import { useStreamingStore } from '../store/streaming.js';
 import { useStreamingCallbacks } from '../store/useStreamingCallbacks.js';
+import { useNodeEditing } from '../hooks/useNodeEditing.js';
 
 interface GraphViewProps {
   nodes: Node[];
@@ -14,45 +15,55 @@ interface GraphViewProps {
   onDelete: (nodeId: string) => void;
   onEdit: (nodeId: string, content: string) => Promise<void>;
   onCompose: (parentNodeId: string, content: string) => Promise<void>;
+  onAddHumanNode: (parentNodeId: string) => Promise<void>;
   focusNodeId: string | null;
   onFocusHandled: () => void;
+  trees: Tree[];
+  selectedTreeId: string | null;
+  onSelectTree: (treeId: string) => void;
+  onDeleteTree: (treeId: string) => void;
+  repo: NodeRepository;
+  onTreeCreated: () => void;
+  onRequestEdit: (nodeId: string) => void;
+  pendingEditNodeId: string | null;
+  onPendingEditHandled: () => void;
 }
 
-export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, focusNodeId, onFocusHandled }: GraphViewProps) {
+export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, onAddHumanNode, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled }: GraphViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
-
+  const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
   const rootNode = graphNodes.find((n) => n.parentId === null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(rootNode?.id ?? null);
 
   const streaming = useStreamingStore();
   const { onNodeReply, onNodeRegenerate, onNodeSummarize } = useStreamingCallbacks(treeId);
 
-  const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
-
-  // Focus newly created node after streaming completes
-  useEffect(() => {
-    if (focusNodeId && nodeById.has(focusNodeId)) {
-      setSelectedNodeId(focusNodeId);
-      onFocusHandled();
-    }
-  }, [focusNodeId, nodeById, onFocusHandled]);
-
-  const handleNodeEdit = useCallback(
-    (nodeId: string) => {
-      const node = nodeById.get(nodeId);
-      if (!node) return;
-      const newContent = prompt('Edit message:', node.content);
-      if (newContent !== null && newContent !== node.content) {
-        onEdit(nodeId, newContent);
-      }
-    },
-    [nodeById, onEdit],
-  );
+  const {
+    selectedNodeId,
+    setSelectedNodeId,
+    editingNodeId,
+    editText,
+    setEditText,
+    handleEditStart,
+    handleEditSave,
+    handleEditCancel,
+  } = useNodeEditing({
+    nodeById,
+    onEdit,
+    onNodeReply,
+    pendingEditNodeId,
+    onPendingEditHandled,
+    focusNodeId,
+    onFocusHandled,
+    initialSelectedNodeId: rootNode?.id ?? null,
+  });
 
   const callbacks: GraphCallbacks = useMemo(
     () => ({
       onNodeSelect: (nodeId: string) => setSelectedNodeId(nodeId),
-      onNodeEdit: handleNodeEdit,
+      onNodeEdit: (nodeId: string) => {
+        const node = nodeById.get(nodeId);
+        if (node) handleEditStart(nodeId, node.content);
+      },
       onNodeRegenerate: (nodeId: string) => {
         const node = nodeById.get(nodeId);
         onNodeRegenerate(nodeId, node?.parentId ?? null);
@@ -65,23 +76,23 @@ export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, focusNod
       },
       onNodeReply: (nodeId: string) => {
         const node = nodeById.get(nodeId);
-        if (node && node.type === 'ai') {
-          const content = prompt('Your reply:');
-          if (content) onCompose(nodeId, content);
+        if (node && (node.type === 'ai' || node.type === 'summary')) {
+          onAddHumanNode(nodeId);
         } else {
           onNodeReply(nodeId);
         }
       },
     }),
-    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize, onDelete, handleNodeEdit, onCompose],
+    [nodeById, onNodeReply, onNodeRegenerate, onNodeSummarize, onDelete, handleEditStart, onAddHumanNode, setSelectedNodeId],
   );
 
   return (
     <div
       style={{
-        minHeight: '100vh',
+        height: '100%',
         background: COLORS.bg,
         display: 'flex',
+        overflow: 'hidden',
         color: COLORS.text,
       }}
     >
@@ -89,12 +100,24 @@ export function GraphView({ nodes, treeId, onDelete, onEdit, onCompose, focusNod
         nodes={graphNodes}
         selectedNodeId={selectedNodeId}
         onSelect={callbacks.onNodeSelect}
+        trees={trees}
+        selectedTreeId={selectedTreeId}
+        onSelectTree={onSelectTree}
+        onDeleteTree={onDeleteTree}
+        repo={repo}
+        onTreeCreated={onTreeCreated}
+        onRequestEdit={onRequestEdit}
       />
       <GraphRenderer
         nodes={graphNodes}
         selectedNodeId={selectedNodeId}
         callbacks={callbacks}
         streaming={streaming}
+        editingNodeId={editingNodeId}
+        editText={editText}
+        onEditChange={setEditText}
+        onEditSave={handleEditSave}
+        onEditCancel={handleEditCancel}
       />
     </div>
   );

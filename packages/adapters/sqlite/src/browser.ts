@@ -249,6 +249,18 @@ export class BrowserSqliteRepository implements NodeRepository {
     await this.run('UPDATE nodes SET is_deleted = 1 WHERE node_id = ?', [nodeId]);
   }
 
+  async deleteTree(treeId: string): Promise<void> {
+    const tree = await this.get<{ tree_id: string }>(
+      'SELECT tree_id FROM trees WHERE tree_id = ?',
+      [treeId],
+    );
+    if (!tree) {
+      throw new Error(`Tree not found: ${treeId}`);
+    }
+    await this.run('DELETE FROM nodes WHERE tree_id = ?', [treeId]);
+    await this.run('DELETE FROM trees WHERE tree_id = ?', [treeId]);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
     // No-op: browser SQLite backend does not support embeddings

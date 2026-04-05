@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { GraphView } from './views/GraphView.js';
 import { LinearView } from './views/LinearView.js';
 import { Settings } from './components/Settings.js';
-import { TreeSelector } from './components/TreeSelector.js';
 import { COLORS, FONTS } from './styles/theme.js';
 import { useRepository } from './hooks/useRepository.js';
 import { useTreeList } from './hooks/useTreeList.js';
 import { useTreeData } from './hooks/useTreeData.js';
 import { useStreamingStore } from './store/streaming.js';
+import { Sidebar } from './components/graph/Sidebar.js';
 import './styles/graph.css';
 
 type ViewMode = 'graph' | 'linear';
@@ -73,10 +73,14 @@ export function App() {
   const resultNodeId = useStreamingStore((s) => s.resultNodeId);
   const resetStreaming = useStreamingStore((s) => s.reset);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [pendingEditNodeId, setPendingEditNodeId] = useState<string | null>(null);
+  const clearPendingEdit = useCallback(() => setPendingEditNodeId(null), []);
 
   useEffect(() => {
-    if (streamingStatus === 'complete' && resultNodeId) {
-      setFocusNodeId(resultNodeId);
+    if (streamingStatus === 'complete') {
+      if (resultNodeId) {
+        setFocusNodeId(resultNodeId);
+      }
       refresh();
     }
   }, [streamingStatus, resultNodeId, refresh]);
@@ -98,6 +102,22 @@ export function App() {
       }
     },
     [repo, refresh],
+  );
+
+  const handleDeleteTree = useCallback(
+    async (treeId: string) => {
+      if (!repo) return;
+      try {
+        await repo.deleteTree(treeId);
+        if (treeId === selectedTreeId) {
+          setSelectedTreeId(null);
+        }
+        refresh();
+      } catch (e) {
+        console.error('[App] delete tree failed', e);
+      }
+    },
+    [repo, selectedTreeId, refresh],
   );
 
   const handleEdit = useCallback(
@@ -148,14 +168,68 @@ export function App() {
     [repo, selectedTreeId, refresh],
   );
 
+  const handleAddHumanNode = useCallback(
+    async (parentNodeId: string) => {
+      if (!repo || !selectedTreeId) return;
+      try {
+        const nodeId = crypto.randomUUID();
+        await repo.putNode({
+          nodeId,
+          treeId: selectedTreeId,
+          parentId: parentNodeId,
+          type: 'human',
+          content: '',
+          isDeleted: false,
+          createdAt: new Date().toISOString(),
+          modelName: null,
+          provider: null,
+          tokenCount: null,
+          embeddingModel: null,
+        });
+        refresh();
+        console.log(`[App] handleAddHumanNode: setPendingEditNodeId(${nodeId})`);
+        setPendingEditNodeId(nodeId);
+      } catch (e) {
+        console.error('[App] add human node failed', e);
+      }
+    },
+    [repo, selectedTreeId, refresh],
+  );
+
   // ── Settings close handler ──────────────────────────────────────────────────
   const handleSettingsClose = useCallback(() => {
     setShowSettings(false);
     setSettingsVersion((v) => v + 1);
   }, []);
 
+  // ── Tree selection (re-selecting the same tree forces a data refresh) ──────
+  const handleSelectTree = useCallback(
+    (treeId: string) => {
+      if (treeId === selectedTreeId) {
+        refresh();
+      } else {
+        setSelectedTreeId(treeId);
+      }
+    },
+    [selectedTreeId, refresh],
+  );
+
   // ── Loading / error states ──────────────────────────────────────────────────
   const isLoading = repoLoading || treesLoading || nodesLoading;
+
+  const treeProps = repo
+    ? {
+        trees,
+        selectedTreeId,
+        onSelectTree: handleSelectTree,
+        onDeleteTree: handleDeleteTree,
+        repo,
+        onTreeCreated: refresh,
+        onRequestEdit: setPendingEditNodeId,
+        pendingEditNodeId,
+        onPendingEditHandled: clearPendingEdit,
+      }
+    : null;
 
   const renderContent = () => {
     if (repoError) {
@@ -167,28 +241,29 @@ export function App() {
       );
     }
 
-    if (nodesError) {
+    // Show sidebar + status message for empty/error states when repo is available
+    const statusMessage = (() => {
+      if (trees.length === 0 && !isLoading) return 'No conversations yet. Use ☰ in the sidebar to create one.';
+      if (nodesError && trees.length > 0) return null; // tree was likely just deleted, auto-select will fix
+      return null;
+    })();
+
+    if (statusMessage !== null && repo) {
       return (
-        <div style={statusStyle}>
-          <span style={{ color: '#e55' }}>Failed to load nodes:</span> {nodesError.message}
+        <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: COLORS.bg }}>
+          <Sidebar
+            nodes={[]}
+            selectedNodeId={null}
+            onSelect={() => {}}
+            {...treeProps}
+          />
+          <div style={{ ...statusStyle, flex: 1 }}>{statusMessage}</div>
         </div>
       );
     }
 
-    if (isLoading && nodes.length === 0) {
-      return <div style={statusStyle}>Loading...</div>;
-    }
-
-    if (trees.length === 0 && !isLoading) {
-      return (
-        <div style={statusStyle}>
-          No trees yet. Click <strong>+ New</strong> to create one.
-        </div>
-      );
-    }
-
-    if (nodes.length === 0 && !isLoading) {
-      return <div style={statusStyle}>No nodes in this tree.</div>;
+    if (statusMessage !== null) {
+      return <div style={statusStyle}>{statusMessage}</div>;
     }
 
     const treeId = selectedTreeId ?? '';
@@ -200,8 +275,10 @@ export function App() {
           onDelete={handleDelete}
           onEdit={handleEdit}
           onCompose={handleCompose}
+          onAddHumanNode={handleAddHumanNode}
           focusNodeId={focusNodeId}
           onFocusHandled={handleFocusHandled}
+          {...treeProps!}
         />
       );
     }
@@ -212,14 +289,16 @@ export function App() {
         onDelete={handleDelete}
         onEdit={handleEdit}
         onCompose={handleCompose}
+        onAddHumanNode={handleAddHumanNode}
         focusNodeId={focusNodeId}
         onFocusHandled={handleFocusHandled}
+        {...treeProps!}
       />
     );
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: COLORS.bg, color: COLORS.text }}>
+    <div style={{ height: '100vh', overflow: 'hidden', background: COLORS.bg, color: COLORS.text }}>
       {/* Top bar */}
       <div
         style={{
@@ -232,17 +311,6 @@ export function App() {
           alignItems: 'center',
         }}
       >
-        {/* Tree selector */}
-        {repo && (
-          <TreeSelector
-            trees={trees}
-            selectedTreeId={selectedTreeId}
-            onSelect={setSelectedTreeId}
-            repo={repo}
-            onTreeCreated={refresh}
-          />
-        )}
-
         {/* View toggle */}
         <div
           style={{

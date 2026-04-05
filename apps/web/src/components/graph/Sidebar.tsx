@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import type { Tree, NodeRepository } from '@lineage/core';
 import { FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode } from './GraphRendererTypes.js';
 import { Dot } from './NodeCardShared.js';
@@ -460,17 +461,215 @@ function SmartCollapse({
   );
 }
 
+// ── Conversation list ────────────────────────────────────────────────────────
+function ConversationList({
+  trees,
+  selectedTreeId,
+  onSelectTree,
+  onDeleteTree,
+  repo,
+  onTreeCreated,
+  onRequestEdit,
+}: {
+  trees: Tree[];
+  selectedTreeId: string | null;
+  onSelectTree: (treeId: string) => void;
+  onDeleteTree: (treeId: string) => void;
+  repo: NodeRepository;
+  onTreeCreated: () => void;
+  onRequestEdit: (nodeId: string) => void;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+
+  const handleCreate = useCallback(async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const title = `Conversation ${trees.length + 1}`;
+      const treeId = crypto.randomUUID();
+      const rootNodeId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+
+      await repo.putTree({ treeId, title, createdAt, rootNodeId });
+      await repo.putNode({
+        nodeId: rootNodeId,
+        treeId,
+        parentId: null,
+        type: 'human',
+        content: '',
+        isDeleted: false,
+        createdAt,
+        modelName: null,
+        provider: null,
+        tokenCount: null,
+        embeddingModel: null,
+      });
+
+      onTreeCreated();
+      onSelectTree(treeId);
+      console.log(`[ConversationList] onRequestEdit(${rootNodeId}) for tree ${treeId}`);
+      onRequestEdit(rootNodeId);
+    } catch (e) {
+      console.error('[ConversationList] create failed', e);
+    } finally {
+      setCreating(false);
+    }
+  }, [creating, trees.length, repo, onTreeCreated, onSelectTree, onRequestEdit]);
+
+  const confirmDelete = useCallback(
+    (treeId: string) => {
+      onDeleteTree(treeId);
+      setConfirmingDeleteId(null);
+    },
+    [onDeleteTree],
+  );
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ padding: '8px', flexShrink: 0 }}>
+        <button
+          onClick={handleCreate}
+          disabled={creating}
+          style={{
+            width: '100%',
+            background: 'rgba(143,184,200,0.08)',
+            border: '1px solid rgba(143,184,200,0.15)',
+            borderRadius: '5px',
+            padding: '8px',
+            cursor: creating ? 'default' : 'pointer',
+            fontFamily: FONTS.mono,
+            fontSize: '11px',
+            color: '#8fb8c8',
+            letterSpacing: '0.06em',
+            opacity: creating ? 0.5 : 1,
+          }}
+        >
+          + New Conversation
+        </button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px' }}>
+        {trees.map((tree) => {
+          const isSelected = tree.treeId === selectedTreeId;
+          return (
+            <div
+              key={tree.treeId}
+              onClick={() => onSelectTree(tree.treeId)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 10px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                background: isSelected ? 'rgba(143,184,200,0.07)' : 'transparent',
+                borderLeft: `2px solid ${isSelected ? '#8fb8c8' : 'transparent'}`,
+                transition: 'all 0.12s',
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: '12px',
+                  fontFamily: FONTS.mono,
+                  color: isSelected ? '#d0d0d0' : '#666',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tree.title || tree.treeId.slice(0, 8)}
+              </span>
+              {confirmingDeleteId === tree.treeId ? (
+                <div
+                  style={{ display: 'flex', gap: '4px', flexShrink: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => confirmDelete(tree.treeId)}
+                    style={{
+                      background: 'rgba(238,85,85,0.15)',
+                      border: '1px solid rgba(238,85,85,0.3)',
+                      borderRadius: '3px',
+                      color: '#e55',
+                      cursor: 'pointer',
+                      fontSize: '9px',
+                      padding: '2px 6px',
+                      fontFamily: FONTS.mono,
+                    }}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDeleteId(null)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '3px',
+                      color: '#666',
+                      cursor: 'pointer',
+                      fontSize: '9px',
+                      padding: '2px 6px',
+                      fontFamily: FONTS.mono,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmingDeleteId(tree.treeId);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#444',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    padding: '2px 4px',
+                    fontFamily: FONTS.mono,
+                    opacity: 0.6,
+                  }}
+                  title="Delete conversation"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 export function Sidebar({
   nodes,
   selectedNodeId,
   onSelect,
+  trees,
+  selectedTreeId,
+  onSelectTree,
+  onDeleteTree,
+  repo,
+  onTreeCreated,
+  onRequestEdit,
 }: {
   nodes: GraphNode[];
   selectedNodeId: string | null;
   onSelect: (id: string) => void;
+  trees?: Tree[];
+  selectedTreeId?: string | null;
+  onSelectTree?: (treeId: string) => void;
+  onDeleteTree?: (treeId: string) => void;
+  repo?: NodeRepository;
+  onTreeCreated?: () => void;
+  onRequestEdit?: (nodeId: string) => void;
 }) {
-  const [mode, setMode] = useState<'focus' | 'power'>('focus');
+  const [mode, setMode] = useState<'focus' | 'power' | 'conversations'>('conversations');
   const flat = useMemo(() => buildFlatList(nodes), [nodes]);
   const rootNode = useMemo(() => {
     const root = findRoot(nodes);
@@ -538,6 +737,7 @@ export function Sidebar({
         >
           {(
             [
+              { id: 'conversations', label: '☰' },
               { id: 'focus', label: 'Focus' },
               { id: 'power', label: '⚡' },
             ] as const
@@ -573,7 +773,11 @@ export function Sidebar({
           flexShrink: 0,
         }}
       >
-        {mode === 'focus' ? 'FOCUS VIEW — DRILL DOWN' : 'POWER VIEW — MAP + TREE'}
+        {mode === 'focus'
+          ? 'FOCUS VIEW — DRILL DOWN'
+          : mode === 'power'
+            ? 'POWER VIEW — MAP + TREE'
+            : 'CONVERSATIONS'}
       </div>
 
       {/* Content */}
@@ -621,9 +825,27 @@ export function Sidebar({
             />
           </>
         )}
+        {mode === 'conversations' &&
+          trees &&
+          onSelectTree &&
+          onDeleteTree &&
+          repo &&
+          onTreeCreated &&
+          onRequestEdit && (
+            <ConversationList
+              trees={trees}
+              selectedTreeId={selectedTreeId ?? null}
+              onSelectTree={onSelectTree}
+              onDeleteTree={onDeleteTree}
+              repo={repo}
+              onTreeCreated={onTreeCreated}
+              onRequestEdit={onRequestEdit}
+            />
+          )}
       </div>
 
       {/* Depth bar */}
+      {mode !== 'conversations' && (
       <div
         style={{
           padding: '8px 12px',
@@ -673,6 +895,7 @@ export function Sidebar({
           {selectedNode?.depth ?? 0}
         </span>
       </div>
+      )}
     </div>
   );
 }

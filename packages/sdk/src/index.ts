@@ -37,7 +37,11 @@ export class RestNodeRepository implements NodeRepository {
       const res = await fetch(`${this.baseUrl}/trees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: tree.title }),
+        body: JSON.stringify({
+          title: tree.title,
+          treeId: tree.treeId,
+          rootNodeId: tree.rootNodeId,
+        }),
       });
       if (!res.ok) throw new Error(`putTree (create) failed: HTTP ${res.status}`);
     }
@@ -68,6 +72,7 @@ export class RestNodeRepository implements NodeRepository {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        nodeId: node.nodeId,
         type: node.type,
         content: node.content,
         parentId: node.parentId,
@@ -82,6 +87,13 @@ export class RestNodeRepository implements NodeRepository {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error(`softDeleteNode failed: HTTP ${res.status}`);
+  }
+
+  async deleteTree(treeId: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/trees/${treeId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok && res.status !== 204) throw new Error(`deleteTree failed: HTTP ${res.status}`);
   }
 
   async updateNodeEmbedding(): Promise<void> {

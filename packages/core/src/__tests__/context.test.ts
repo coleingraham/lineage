@@ -44,16 +44,22 @@ describe('buildContext', () => {
     expect(result).toEqual([{ role: 'human', content: 'hi' }]);
   });
 
-  it('maps summary nodes to ai role', () => {
+  it('maps summary nodes to ai role and treats them as context boundaries', () => {
     const nodes: Node[] = [
       makeNode({ nodeId: 'root', content: 'start', type: 'human' }),
       makeNode({ nodeId: 's1', parentId: 'root', content: 'summary text', type: 'summary' }),
+      makeNode({ nodeId: 'h2', parentId: 's1', content: 'follow-up', type: 'human' }),
     ];
 
-    const result = buildContext(nodes, 's1');
-    expect(result).toEqual([
-      { role: 'human', content: 'start' },
+    // When targeting the summary itself, only the summary is context
+    expect(buildContext(nodes, 's1')).toEqual([
       { role: 'ai', content: 'summary text' },
+    ]);
+
+    // When targeting a child of the summary, context starts at the summary
+    expect(buildContext(nodes, 'h2')).toEqual([
+      { role: 'ai', content: 'summary text' },
+      { role: 'human', content: 'follow-up' },
     ]);
   });
 

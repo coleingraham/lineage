@@ -7,6 +7,7 @@ const createNodeBody = z.object({
   type: z.enum(['human', 'summary']),
   content: z.string(),
   parentId: z.string().min(1),
+  nodeId: z.string().uuid().optional(),
 });
 
 const updateNodeBody = z.object({
@@ -44,7 +45,8 @@ export function nodeRoutes(repo: NodeRepository) {
   // POST /trees/:treeId/nodes — create a node
   app.post('/', zValidator('json', createNodeBody), async (c) => {
     const treeId = c.req.param('treeId') as string;
-    const { type, content, parentId } = c.req.valid('json');
+    const body = c.req.valid('json');
+    const { type, content, parentId } = body;
 
     try {
       await c.var.repo.getTree(treeId);
@@ -59,7 +61,7 @@ export function nodeRoutes(repo: NodeRepository) {
     }
 
     const node: Node = {
-      nodeId: crypto.randomUUID(),
+      nodeId: body.nodeId ?? crypto.randomUUID(),
       treeId,
       parentId,
       type,

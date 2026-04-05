@@ -31,4 +31,9 @@ export interface GraphRendererProps {
   selectedNodeId: string | null;
   callbacks: GraphCallbacks;
   streaming?: StreamingStore;
+  editingNodeId?: string | null;
+  editText?: string;
+  onEditChange?: (text: string) => void;
+  onEditSave?: () => void;
+  onEditCancel?: () => void;
 }

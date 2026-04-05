@@ -212,7 +212,7 @@ describe('OllamaProvider', () => {
         ]),
       );
 
-      const results: string[] = [];
+      const results: (string | { content: string; thinking?: boolean })[] = [];
       for await (const chunk of provider.stream([{ role: 'human', content: 'Hi' }], {
         maxTokens: 256,
       })) {
@@ -232,7 +232,7 @@ describe('OllamaProvider', () => {
         ]),
       );
 
-      const results: string[] = [];
+      const results: (string | { content: string; thinking?: boolean })[] = [];
       for await (const chunk of provider.stream([{ role: 'human', content: 'Hi' }], {
         maxTokens: 256,
       })) {

@@ -13,6 +13,11 @@ export function CardStackRenderer({
   selectedNodeId,
   callbacks,
   streaming,
+  editingNodeId,
+  editText,
+  onEditChange,
+  onEditSave,
+  onEditCancel,
 }: GraphRendererProps) {
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const parentNode = selectedNode?.parentId
@@ -29,8 +34,12 @@ export function CardStackRenderer({
   );
   const breadcrumb = ancestors.map((id) => nodes.find((n) => n.id === id)!).filter(Boolean);
 
+  const isStreamingActive = streaming && streaming.status !== 'idle';
   const showStreamingChild =
-    streaming && streaming.status !== 'idle' && streaming.parentNodeId === selectedNodeId;
+    isStreamingActive && streaming.parentNodeId === selectedNodeId;
+  // Regen case: streaming parent is the selected node's parent (replacing current node)
+  const isRegen =
+    isStreamingActive && selectedNode?.parentId != null && streaming.parentNodeId === selectedNode.parentId;
 
   // When the selected node is a summary, its ancestors are "superseded"
   const isSelectedSummary = selectedNode?.type === 'summary';
@@ -100,40 +109,6 @@ export function CardStackRenderer({
             SUPERSEDED
           </span>
         )}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '7px' }}>
-          <button
-            onClick={() => callbacks.onNodeReply(selectedNode.id)}
-            style={{
-              background: 'rgba(126,200,160,0.08)',
-              border: '1px solid rgba(126,200,160,0.2)',
-              color: '#7ec8a0',
-              borderRadius: '5px',
-              padding: '4px 11px',
-              fontSize: '10px',
-              cursor: 'pointer',
-              fontFamily: FONTS.mono,
-              letterSpacing: '0.05em',
-            }}
-          >
-            + BRANCH
-          </button>
-          <button
-            onClick={() => callbacks.onNodeSummarize(selectedNode.id)}
-            style={{
-              background: 'rgba(184,160,216,0.08)',
-              border: '1px solid rgba(184,160,216,0.2)',
-              color: '#b8a0d8',
-              borderRadius: '5px',
-              padding: '4px 11px',
-              fontSize: '10px',
-              cursor: 'pointer',
-              fontFamily: FONTS.mono,
-              letterSpacing: '0.05em',
-            }}
-          >
-            ∑ SUMMARIZE
-          </button>
-        </div>
       </div>
 
       {/* Card stack */}
@@ -148,7 +123,29 @@ export function CardStackRenderer({
             </>
           )}
 
-          <CurrentCard node={selectedNode} isLeaf={children.length === 0} callbacks={callbacks} />
+          {isRegen ? (
+            <StreamingCard
+              content={streaming!.content}
+              thinkingContent={streaming!.thinkingContent}
+              isThinking={streaming!.isThinking}
+              status={streaming!.status}
+              error={streaming!.error}
+              onCancel={streaming!.cancel}
+              onRetry={() => callbacks.onNodeRegenerate(selectedNode.id)}
+              variant="full"
+            />
+          ) : (
+            <CurrentCard
+              node={selectedNode}
+              isLeaf={children.length === 0}
+              callbacks={callbacks}
+              isEditing={editingNodeId === selectedNode.id}
+              editText={editText ?? ''}
+              onEditChange={onEditChange}
+              onEditSave={onEditSave}
+              onEditCancel={onEditCancel}
+            />
+          )}
 
           {children.length > 0 && (
             <>
@@ -160,6 +157,8 @@ export function CardStackRenderer({
                 {showStreamingChild && (
                   <StreamingCard
                     content={streaming!.content}
+                    thinkingContent={streaming!.thinkingContent}
+                    isThinking={streaming!.isThinking}
                     status={streaming!.status}
                     error={streaming!.error}
                     onCancel={streaming!.cancel}
@@ -206,6 +205,8 @@ export function CardStackRenderer({
               <Connector label="STREAMING" />
               <StreamingCard
                 content={streaming!.content}
+                thinkingContent={streaming!.thinkingContent}
+                isThinking={streaming!.isThinking}
                 status={streaming!.status}
                 error={streaming!.error}
                 onCancel={streaming!.cancel}

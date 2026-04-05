@@ -1,8 +1,12 @@
 import { COLORS, FONTS } from '../styles/theme.js';
 import type { StreamingStatus } from '../store/streaming.js';
+import { Markdown } from './Markdown.js';
+import { CollapsibleThinking } from './CollapsibleThinking.js';
 
 export function StreamingCard({
   content,
+  thinkingContent,
+  isThinking,
   status,
   error,
   onCancel,
@@ -10,6 +14,8 @@ export function StreamingCard({
   variant = 'full',
 }: {
   content: string;
+  thinkingContent?: string;
+  isThinking?: boolean;
   status: StreamingStatus;
   error: string | null;
   onCancel: () => void;
@@ -179,19 +185,11 @@ export function StreamingCard({
           {error}
         </p>
       ) : (
-        <div
-          style={{
-            fontFamily: FONTS.serif,
-            fontWeight: 400,
-            fontSize: '15px',
-            color: '#ececec',
-            lineHeight: 1.65,
-            margin: 0,
-            whiteSpace: 'pre-wrap',
-            minHeight: isPending ? '24px' : undefined,
-          }}
-        >
-          {content || (isPending ? '' : '')}
+        <div style={{ minHeight: isPending ? '24px' : undefined }}>
+          {thinkingContent ? (
+            <CollapsibleThinking content={thinkingContent} />
+          ) : null}
+          {content ? <Markdown content={content} /> : null}
           {(isPending || isStreaming) && <BlinkingCursor />}
         </div>
       )}
