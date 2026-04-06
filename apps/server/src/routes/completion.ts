@@ -120,6 +120,8 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
           provider: null,
           tokenCount: null,
           embeddingModel: null,
+          metadata: null,
+          author: null,
         };
 
         await c.var.repo.putNode(aiNode);

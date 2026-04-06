@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS node_types (
   name TEXT NOT NULL UNIQUE
 );
 
-INSERT INTO node_types (name) VALUES ('human'), ('ai'), ('summary') ON CONFLICT DO NOTHING;
+INSERT INTO node_types (name) VALUES ('human'), ('ai'), ('summary'), ('system'), ('tool_call'), ('tool_result') ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS trees (
   tree_id      UUID PRIMARY KEY,
@@ -29,12 +29,21 @@ CREATE TABLE IF NOT EXISTS nodes (
   provider        TEXT,
   token_count     INTEGER,
   embedding_model TEXT,
-  embedding       vector(1536)
+  embedding       vector(1536),
+  metadata        JSONB,
+  author          TEXT
 );
 
 CREATE INDEX IF NOT EXISTS nodes_embedding_idx ON nodes USING hnsw (embedding vector_cosine_ops);
 `;
 
+const MIGRATE_V2 = `
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS metadata JSONB;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS author TEXT;
+INSERT INTO node_types (name) VALUES ('system'), ('tool_call'), ('tool_result') ON CONFLICT DO NOTHING;
+`;
+
 export async function runMigrations(sql: postgres.Sql): Promise<void> {
   await sql.unsafe(INIT_SQL);
+  await sql.unsafe(MIGRATE_V2);
 }

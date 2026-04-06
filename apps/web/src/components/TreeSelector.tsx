@@ -46,6 +46,8 @@ export function TreeSelector({
         provider: null,
         tokenCount: null,
         embeddingModel: null,
+        metadata: null,
+        author: null,
       });
 
       onTreeCreated();

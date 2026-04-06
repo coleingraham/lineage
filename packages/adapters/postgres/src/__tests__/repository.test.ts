@@ -25,6 +25,8 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     provider: null,
     tokenCount: null,
     embeddingModel: null,
+    metadata: null,
+    author: null,
     ...overrides,
   };
 }
@@ -130,6 +132,8 @@ describe('PostgresRepository', () => {
           provider: null,
           token_count: null,
           embedding_model: null,
+          metadata: null,
+          author: null,
         },
       ]);
       const repo = new PostgresRepository(sql as never);

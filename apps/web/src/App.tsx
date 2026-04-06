@@ -7,6 +7,7 @@ import { useRepository } from './hooks/useRepository.js';
 import { useTreeList } from './hooks/useTreeList.js';
 import { useTreeData } from './hooks/useTreeData.js';
 import { useStreamingStore } from './store/streaming.js';
+import { useNodeOperations } from './hooks/useNodeOperations.js';
 import { Sidebar } from './components/graph/Sidebar.js';
 import './styles/graph.css';
 
@@ -90,184 +91,24 @@ export function App() {
     resetStreaming();
   }, [resetStreaming]);
 
-  // ── Callbacks for views ─────────────────────────────────────────────────────
-  const handleDelete = useCallback(
-    async (nodeId: string) => {
-      if (!repo) return;
-      try {
-        await repo.softDeleteNode(nodeId);
-        refresh();
-      } catch (e) {
-        console.error('[App] delete failed', e);
-      }
-    },
-    [repo, refresh],
-  );
-
-  const handleDeleteTree = useCallback(
-    async (treeId: string) => {
-      if (!repo) return;
-      try {
-        await repo.deleteTree(treeId);
-        if (treeId === selectedTreeId) {
-          setSelectedTreeId(null);
-        }
-        refresh();
-      } catch (e) {
-        console.error('[App] delete tree failed', e);
-      }
-    },
-    [repo, selectedTreeId, refresh],
-  );
-
-  const generateTitle = useCallback(
-    async (treeId: string, content: string) => {
-      if (!repo) return;
-      const serverUrl = localStorage.getItem('lineage:serverUrl');
-      if (!serverUrl) return;
-      const model = localStorage.getItem('lineage:llmModel') || undefined;
-      try {
-        const res = await fetch(`${serverUrl}/trees/${treeId}/generate-title`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, ...(model && { model }) }),
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { title?: string };
-        if (data.title) {
-          const tree = trees.find((t) => t.treeId === treeId);
-          if (tree) {
-            await repo.putTree({ ...tree, title: data.title });
-            refresh();
-          }
-        }
-      } catch (e) {
-        console.error('[App] title generation failed', e);
-      }
-    },
-    [repo, trees, refresh],
-  );
-
-  const handleRootNodeSubmitted = useCallback(
-    (content: string) => {
-      if (selectedTreeId && content.trim()) {
-        generateTitle(selectedTreeId, content);
-      }
-    },
-    [selectedTreeId, generateTitle],
-  );
-
-  const handleEdit = useCallback(
-    async (nodeId: string, content: string) => {
-      if (!repo || !selectedTreeId) return;
-      try {
-        const serverUrl = localStorage.getItem('lineage:serverUrl');
-        if (serverUrl) {
-          // Remote mode: use PATCH so the server updates the node in place
-          const res = await fetch(
-            `${serverUrl}/trees/${selectedTreeId}/nodes/${nodeId}`,
-            {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ content }),
-            },
-          );
-          if (!res.ok) throw new Error(`PATCH failed: HTTP ${res.status}`);
-        } else {
-          // Local/Tauri mode: update via repository
-          const existing = await repo.getNode(nodeId);
-          await repo.putNode({ ...existing, content });
-        }
-        refresh();
-      } catch (e) {
-        console.error('[App] edit failed', e);
-      }
-    },
-    [repo, selectedTreeId, refresh],
-  );
-
-  const handleCreateSibling = useCallback(
-    async (originalNodeId: string, content: string): Promise<string | null> => {
-      if (!repo || !selectedTreeId) return null;
-      const original = nodes.find((n) => n.nodeId === originalNodeId);
-      if (!original || !original.parentId) return null;
-      try {
-        const nodeId = crypto.randomUUID();
-        await repo.putNode({
-          nodeId,
-          treeId: selectedTreeId,
-          parentId: original.parentId,
-          type: 'human',
-          content,
-          isDeleted: false,
-          createdAt: new Date().toISOString(),
-          modelName: null,
-          provider: null,
-          tokenCount: null,
-          embeddingModel: null,
-        });
-        refresh();
-        return nodeId;
-      } catch (e) {
-        console.error('[App] create sibling failed', e);
-        return null;
-      }
-    },
-    [repo, selectedTreeId, nodes, refresh],
-  );
-
-  const handleCompose = useCallback(
-    async (parentNodeId: string, content: string) => {
-      if (!repo || !selectedTreeId) return;
-      try {
-        await repo.putNode({
-          nodeId: crypto.randomUUID(),
-          treeId: selectedTreeId,
-          parentId: parentNodeId,
-          type: 'human',
-          content,
-          isDeleted: false,
-          createdAt: new Date().toISOString(),
-          modelName: null,
-          provider: null,
-          tokenCount: null,
-          embeddingModel: null,
-        });
-        refresh();
-      } catch (e) {
-        console.error('[App] compose failed', e);
-      }
-    },
-    [repo, selectedTreeId, refresh],
-  );
-
-  const handleAddHumanNode = useCallback(
-    async (parentNodeId: string) => {
-      if (!repo || !selectedTreeId) return;
-      try {
-        const nodeId = crypto.randomUUID();
-        await repo.putNode({
-          nodeId,
-          treeId: selectedTreeId,
-          parentId: parentNodeId,
-          type: 'human',
-          content: '',
-          isDeleted: false,
-          createdAt: new Date().toISOString(),
-          modelName: null,
-          provider: null,
-          tokenCount: null,
-          embeddingModel: null,
-        });
-        refresh();
-        console.log(`[App] handleAddHumanNode: setPendingEditNodeId(${nodeId})`);
-        setPendingEditNodeId(nodeId);
-      } catch (e) {
-        console.error('[App] add human node failed', e);
-      }
-    },
-    [repo, selectedTreeId, refresh],
-  );
+  // ── Node operations ─────────────────────────────────────────────────────────
+  const {
+    handleDelete,
+    handleDeleteTree,
+    handleEdit,
+    handleCreateSibling,
+    handleCompose,
+    handleAddHumanNode,
+    handleRootNodeSubmitted,
+  } = useNodeOperations({
+    repo,
+    selectedTreeId,
+    nodes,
+    trees,
+    refresh,
+    setSelectedTreeId,
+    setPendingEditNodeId,
+  });
 
   // ── Settings close handler ──────────────────────────────────────────────────
   const handleSettingsClose = useCallback(() => {
@@ -319,7 +160,7 @@ export function App() {
     // Show sidebar + status message for empty/error states when repo is available
     const statusMessage = (() => {
       if (trees.length === 0 && !isLoading) return 'No conversations yet. Use ☰ in the sidebar to create one.';
-      if (nodesError && trees.length > 0) return null; // tree was likely just deleted, auto-select will fix
+      if (nodesError && trees.length > 0) return null;
       return null;
     })();
 

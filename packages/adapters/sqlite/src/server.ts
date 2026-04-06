@@ -14,6 +14,8 @@ interface NodeRow {
   provider: string | null;
   token_count: number | null;
   embedding_model: string | null;
+  metadata: string | null;
+  author: string | null;
 }
 
 interface TreeRow {
@@ -36,6 +38,8 @@ function rowToNode(row: NodeRow): Node {
     provider: row.provider,
     tokenCount: row.token_count,
     embeddingModel: row.embedding_model,
+    metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : null,
+    author: row.author,
   };
 }
 
@@ -91,7 +95,8 @@ export class SqliteRepository implements NodeRepository {
       .prepare<[string], NodeRow>(
         `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                 n.content, n.is_deleted, n.created_at, n.model_name,
-                n.provider, n.token_count, n.embedding_model
+                n.provider, n.token_count, n.embedding_model,
+                n.metadata, n.author
          FROM nodes n
          JOIN node_types nt ON nt.id = n.node_type_id
          WHERE n.node_id = ?`,
@@ -108,7 +113,8 @@ export class SqliteRepository implements NodeRepository {
       .prepare<[string], NodeRow>(
         `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                 n.content, n.is_deleted, n.created_at, n.model_name,
-                n.provider, n.token_count, n.embedding_model
+                n.provider, n.token_count, n.embedding_model,
+                n.metadata, n.author
          FROM nodes n
          JOIN node_types nt ON nt.id = n.node_type_id
          WHERE n.tree_id = ?`,
@@ -120,8 +126,8 @@ export class SqliteRepository implements NodeRepository {
   async putNode(node: Node): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model)
-         VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model, metadata, author)
+         VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(node_id) DO UPDATE SET
            tree_id = excluded.tree_id,
            parent_id = excluded.parent_id,
@@ -132,7 +138,9 @@ export class SqliteRepository implements NodeRepository {
            model_name = excluded.model_name,
            provider = excluded.provider,
            token_count = excluded.token_count,
-           embedding_model = excluded.embedding_model`,
+           embedding_model = excluded.embedding_model,
+           metadata = excluded.metadata,
+           author = excluded.author`,
       )
       .run(
         node.nodeId,
@@ -146,6 +154,8 @@ export class SqliteRepository implements NodeRepository {
         node.provider,
         node.tokenCount,
         node.embeddingModel,
+        node.metadata ? JSON.stringify(node.metadata) : null,
+        node.author,
       );
   }
 

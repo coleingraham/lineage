@@ -1,5 +1,8 @@
 import type { Node, Tree, NodeRepository } from '@lineage/core';
 
+export { streamCompletion } from './streaming.js';
+export type { StreamCompletionOptions } from './streaming.js';
+
 export interface RestNodeRepositoryOptions {
   baseUrl: string;
 }
@@ -55,6 +58,36 @@ export class RestNodeRepository implements NodeRepository {
       if (res.ok) return res.json() as Promise<Node>;
     }
     throw new Error(`Node ${nodeId} not found`);
+  }
+
+  /** Fetch a node when the treeId is already known (avoids scanning all trees). */
+  async getNodeInTree(treeId: string, nodeId: string): Promise<Node> {
+    const res = await fetch(`${this.baseUrl}/trees/${treeId}/nodes/${nodeId}`);
+    if (!res.ok) throw new Error(`getNodeInTree failed: HTTP ${res.status}`);
+    return res.json() as Promise<Node>;
+  }
+
+  /** Update a node's content via PATCH. */
+  async updateNode(treeId: string, nodeId: string, content: string): Promise<Node> {
+    const res = await fetch(`${this.baseUrl}/trees/${treeId}/nodes/${nodeId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) throw new Error(`updateNode failed: HTTP ${res.status}`);
+    return res.json() as Promise<Node>;
+  }
+
+  /** Generate a title for a tree from the given content. Returns null on failure. */
+  async generateTitle(treeId: string, content: string, model?: string): Promise<string | null> {
+    const res = await fetch(`${this.baseUrl}/trees/${treeId}/generate-title`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, ...(model && { model }) }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { title?: string };
+    return data.title ?? null;
   }
 
   async getNodes(treeId: string): Promise<Node[]> {

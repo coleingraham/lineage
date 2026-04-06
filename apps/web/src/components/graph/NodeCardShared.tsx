@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { stripThinking } from '@lineage/core';
 import { COLORS, FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode } from './GraphRendererTypes.js';
 
@@ -180,8 +181,5 @@ export function nodeLabel(node: GraphNode): string {
 
 /** Strip thinking blocks from content for use in previews. */
 export function previewContent(content: string): string {
-  return content
-    .replace(/<details>\s*\n?<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*\n*/g, '')
-    .replace(/^> \*Thinking:\*\n((?:>.*\n)*)\n?/g, '')
-    .trim();
+  return stripThinking(content);
 }
