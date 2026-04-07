@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { COLORS, FONTS } from '../styles/theme.js';
 import {
   useSettings,
   saveSettings,
+  type StorageMode,
   type LLMProvider,
   type EmbeddingProvider,
 } from '../hooks/useSettings.js';

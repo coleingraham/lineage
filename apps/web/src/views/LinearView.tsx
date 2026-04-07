@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, type RefCallback } from 'react';
 import type { Node, Tree, NodeRepository } from '@lineage/core';
 import { COLORS } from '../styles/theme.js';
-import type { GraphCallbacks, GraphNode } from '../components/graph/GraphRendererTypes.js';
+import type { GraphCallbacks } from '../components/graph/GraphRendererTypes.js';
 import { toGraphNodes } from '../components/graph/convertNodes.js';
 import {
   buildChildrenMap,

@@ -81,7 +81,7 @@ describe('node routes', () => {
       expect(node.type).toBe('summary');
     });
 
-    it('rejects ai type', async () => {
+    it('accepts any node type including ai', async () => {
       const tree = await createTree(app);
 
       const res = await jsonReq(app, `/trees/${tree.treeId}/nodes`, {
@@ -89,7 +89,9 @@ describe('node routes', () => {
         content: 'AI response',
         parentId: tree.rootNodeId,
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(201);
+      const node = await res.json();
+      expect(node.type).toBe('ai');
     });
 
     it('rejects missing content', async () => {
