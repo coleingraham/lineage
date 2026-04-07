@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { COLORS, FONTS, nodeColor } from '../styles/theme.js';
 import type { GraphCallbacks, GraphNode } from './graph/GraphRendererTypes.js';
-import { RoleIcon, ActionBtn } from './graph/NodeCardShared.js';
+import { RoleIcon, ActionBtn, PinIcon } from './graph/NodeCardShared.js';
 import { Markdown } from './Markdown.js';
 import { InlineEditor } from './InlineEditor.js';
 import { SiblingNav } from './SiblingNav.js';
@@ -20,6 +20,8 @@ export function LinearNodeCard({
   onEditSave,
   onEditCancel,
   onAddHumanReply,
+  isPinned,
+  onTogglePin,
 }: {
   node: GraphNode;
   siblings: GraphNode[];
@@ -34,6 +36,8 @@ export function LinearNodeCard({
   onEditSave: () => void;
   onEditCancel: () => void;
   onAddHumanReply: (parentNodeId: string) => void;
+  isPinned?: boolean;
+  onTogglePin?: () => void;
 }) {
   const c = nodeColor(node.type, node.isDeleted);
   const [hover, setHover] = useState(false);
@@ -105,6 +109,7 @@ export function LinearNodeCard({
               flexShrink: 0,
             }}
           />
+          {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
           <span
             style={{
               fontSize: '10px',
@@ -167,6 +172,7 @@ export function LinearNodeCard({
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
         <RoleIcon role={node.type} size={16} />
+        {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
         <span
           style={{
             fontSize: '9px',

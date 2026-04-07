@@ -9,7 +9,10 @@ import { useTreeData } from './hooks/useTreeData.js';
 import { useStreamingStore } from './store/streaming.js';
 import { useNodeOperations } from './hooks/useNodeOperations.js';
 import { Sidebar } from './components/graph/Sidebar.js';
+import type { SidebarMode, PinnedNode } from './components/graph/GraphRendererTypes.js';
 import './styles/graph.css';
+
+const PINNED_KEY = 'lineage:pinnedNodes';
 
 type ViewMode = 'graph' | 'linear';
 
@@ -24,7 +27,8 @@ function readSavedMode(): ViewMode {
 export function App() {
   const [mode, setMode] = useState<ViewMode>(readSavedMode);
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarMode, setSidebarMode] = useState<'focus' | 'power' | 'conversations'>('conversations');
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('conversations');
+
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -60,6 +64,39 @@ export function App() {
     }
     setSelectedNodeId(null);
   }, [selectedTreeId]);
+
+  // ── Pinned nodes ───────────────────────────────────────────────────────────
+  const [pinnedNodes, setPinnedNodes] = useState<PinnedNode[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(PINNED_KEY) ?? '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(PINNED_KEY, JSON.stringify(pinnedNodes));
+  }, [pinnedNodes]);
+
+  const handleTogglePin = useCallback(
+    (nodeId: string) => {
+      setPinnedNodes((prev) => {
+        const exists = prev.some((p) => p.nodeId === nodeId);
+        if (exists) return prev.filter((p) => p.nodeId !== nodeId);
+        if (!selectedTreeId) return prev;
+        return [...prev, { nodeId, treeId: selectedTreeId }];
+      });
+    },
+    [selectedTreeId],
+  );
+
+  const handleUnpin = useCallback((nodeId: string) => {
+    setPinnedNodes((prev) => prev.filter((p) => p.nodeId !== nodeId));
+  }, []);
+
+  const handleClearAllPins = useCallback(() => {
+    setPinnedNodes([]);
+  }, []);
 
   // ── Node data ───────────────────────────────────────────────────────────────
   const {
@@ -144,6 +181,10 @@ export function App() {
         onPendingEditHandled: clearPendingEdit,
         sidebarMode,
         onSidebarModeChange: setSidebarMode,
+        pinnedNodes,
+        onTogglePin: handleTogglePin,
+        onUnpin: handleUnpin,
+        onClearAllPins: handleClearAllPins,
       }
     : null;
 

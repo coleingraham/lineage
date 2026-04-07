@@ -36,4 +36,13 @@ export interface GraphRendererProps {
   onEditChange?: (text: string) => void;
   onEditSave?: () => void;
   onEditCancel?: () => void;
+  pinnedNodeIds?: Set<string>;
+  onTogglePin?: (nodeId: string) => void;
+}
+
+export type SidebarMode = 'focus' | 'power' | 'conversations' | 'pins';
+
+export interface PinnedNode {
+  nodeId: string;
+  treeId: string;
 }

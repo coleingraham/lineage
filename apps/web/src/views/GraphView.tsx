@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Node, Tree, NodeRepository } from '@lineage/core';
 import { COLORS } from '../styles/theme.js';
 import { GraphRenderer } from '../components/GraphRenderer.js';
-import type { GraphCallbacks } from '../components/graph/GraphRendererTypes.js';
+import type { GraphCallbacks, SidebarMode, PinnedNode } from '../components/graph/GraphRendererTypes.js';
 import { toGraphNodes } from '../components/graph/convertNodes.js';
 import { Sidebar } from '../components/graph/Sidebar.js';
 import { useStreamingStore } from '../store/streaming.js';
@@ -30,15 +30,21 @@ interface GraphViewProps {
   onRequestEdit: (nodeId: string) => void;
   pendingEditNodeId: string | null;
   onPendingEditHandled: () => void;
-  sidebarMode: 'focus' | 'power' | 'conversations';
-  onSidebarModeChange: (mode: 'focus' | 'power' | 'conversations') => void;
+  sidebarMode: SidebarMode;
+  onSidebarModeChange: (mode: SidebarMode) => void;
   onRootNodeSubmitted: (content: string) => void;
+  pinnedNodes: PinnedNode[];
+  onTogglePin: (nodeId: string) => void;
+  onUnpin: (nodeId: string) => void;
+  onClearAllPins: () => void;
 }
 
-export function GraphView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: GraphViewProps) {
+export function GraphView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted, pinnedNodes, onTogglePin, onUnpin, onClearAllPins }: GraphViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
   const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
   const rootNode = graphNodes.find((n) => n.parentId === null);
+
+  const pinnedNodeIds = useMemo(() => new Set((pinnedNodes ?? []).map((p) => p.nodeId)), [pinnedNodes]);
 
   const streaming = useStreamingStore();
   const { onNodeReply, onNodeRegenerate, onNodeSummarize } = useStreamingCallbacks(treeId);
@@ -119,6 +125,9 @@ export function GraphView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onC
         repo={repo}
         onTreeCreated={onTreeCreated}
         onRequestEdit={onRequestEdit}
+        pinnedNodes={pinnedNodes}
+        onUnpin={onUnpin}
+        onClearAllPins={onClearAllPins}
       />
       <GraphRenderer
         nodes={graphNodes}
@@ -130,6 +139,8 @@ export function GraphView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onC
         onEditChange={setEditText}
         onEditSave={handleEditSave}
         onEditCancel={handleEditCancel}
+        pinnedNodeIds={pinnedNodeIds}
+        onTogglePin={onTogglePin}
       />
     </div>
   );

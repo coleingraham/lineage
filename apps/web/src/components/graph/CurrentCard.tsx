@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { COLORS, FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphCallbacks, GraphNode } from './GraphRendererTypes.js';
-import { ActionBtn, RoleIcon } from './NodeCardShared.js';
+import { ActionBtn, RoleIcon, PinIcon } from './NodeCardShared.js';
 import { Markdown } from '../Markdown.js';
 import { InlineEditor } from '../InlineEditor.js';
 
@@ -14,6 +14,8 @@ export function CurrentCard({
   onEditChange,
   onEditSave,
   onEditCancel,
+  isPinned,
+  onTogglePin,
 }: {
   node: GraphNode;
   isLeaf: boolean;
@@ -23,6 +25,8 @@ export function CurrentCard({
   onEditChange?: (text: string) => void;
   onEditSave?: () => void;
   onEditCancel?: () => void;
+  isPinned?: boolean;
+  onTogglePin?: () => void;
 }) {
   const c = nodeColor(node.type, node.isDeleted);
   const [hover, setHover] = useState(false);
@@ -86,6 +90,7 @@ export function CurrentCard({
               flexShrink: 0,
             }}
           />
+          {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
           <span
             style={{
               fontSize: '10px',
@@ -126,6 +131,7 @@ export function CurrentCard({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
         <RoleIcon role={node.type} size={18} />
+        {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
         <span
           style={{
             fontSize: '9px',

@@ -174,6 +174,51 @@ export function Dot({
   );
 }
 
+export function PinIcon({
+  pinned,
+  size = 12,
+  onClick,
+}: {
+  pinned: boolean;
+  size?: number;
+  onClick: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={pinned ? 'Unpin' : 'Pin'}
+      style={{
+        background: 'none',
+        border: 'none',
+        padding: '2px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pinned ? 1 : hover ? 0.7 : 0.25,
+        transition: 'opacity 0.15s',
+        flexShrink: 0,
+      }}
+    >
+      <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+        <path
+          d="M10.97 2.29a1 1 0 0 1 1.41 0l1.33 1.33a1 1 0 0 1 0 1.41l-1.02 1.03-.45 2.25-2.8 2.8-.7-.71L6.5 12.64l-3.18.04.04-3.18L5.6 7.26l-.71-.7 2.8-2.8 2.25-.45 1.03-1.02Z"
+          fill={pinned ? '#c8b88a' : 'none'}
+          stroke={pinned ? '#c8b88a' : '#888'}
+          strokeWidth="1"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 export function nodeLabel(node: GraphNode): string {
   if (node.isDeleted) return 'DELETED';
   return node.type.toUpperCase();

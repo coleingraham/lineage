@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, type RefCallback } from 'react';
 import type { Node, Tree, NodeRepository } from '@lineage/core';
 import { COLORS } from '../styles/theme.js';
-import type { GraphCallbacks } from '../components/graph/GraphRendererTypes.js';
+import type { GraphCallbacks, SidebarMode, PinnedNode } from '../components/graph/GraphRendererTypes.js';
 import { toGraphNodes } from '../components/graph/convertNodes.js';
 import {
   buildChildrenMap,
@@ -36,9 +36,13 @@ interface LinearViewProps {
   onRequestEdit: (nodeId: string) => void;
   pendingEditNodeId: string | null;
   onPendingEditHandled: () => void;
-  sidebarMode: 'focus' | 'power' | 'conversations';
-  onSidebarModeChange: (mode: 'focus' | 'power' | 'conversations') => void;
+  sidebarMode: SidebarMode;
+  onSidebarModeChange: (mode: SidebarMode) => void;
   onRootNodeSubmitted: (content: string) => void;
+  pinnedNodes: PinnedNode[];
+  onTogglePin: (nodeId: string) => void;
+  onUnpin: (nodeId: string) => void;
+  onClearAllPins: () => void;
 }
 
 // ── Vertical connector between cards ────────────────────────────────────────
@@ -59,8 +63,10 @@ function VerticalConnector() {
 
 // ── LinearView ──────────────────────────────────────────────────────────────
 
-export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted }: LinearViewProps) {
+export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted, pinnedNodes, onTogglePin, onUnpin, onClearAllPins }: LinearViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
+
+  const pinnedNodeIds = useMemo(() => new Set((pinnedNodes ?? []).map((p) => p.nodeId)), [pinnedNodes]);
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
 
@@ -201,6 +207,9 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
         repo={repo}
         onTreeCreated={onTreeCreated}
         onRequestEdit={onRequestEdit}
+        pinnedNodes={pinnedNodes}
+        onUnpin={onUnpin}
+        onClearAllPins={onClearAllPins}
       />
       <div
         style={{
@@ -261,6 +270,8 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
                   onEditChange={setEditText}
                   onEditSave={handleEditSave}
                   onEditCancel={handleEditCancel}
+                  isPinned={pinnedNodeIds.has(node.id)}
+                  onTogglePin={() => onTogglePin(node.id)}
                   onAddHumanReply={handleAddHumanReply}
                 />
               </div>

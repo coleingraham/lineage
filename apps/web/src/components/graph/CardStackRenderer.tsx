@@ -17,6 +17,8 @@ export function CardStackRenderer({
   onEditChange,
   onEditSave,
   onEditCancel,
+  pinnedNodeIds,
+  onTogglePin,
 }: GraphRendererProps) {
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const parentNode = selectedNode?.parentId
@@ -91,6 +93,8 @@ export function CardStackRenderer({
               onEditChange={onEditChange}
               onEditSave={onEditSave}
               onEditCancel={onEditCancel}
+              isPinned={pinnedNodeIds?.has(selectedNode.id) ?? false}
+              onTogglePin={onTogglePin ? () => onTogglePin(selectedNode.id) : undefined}
             />
           )}
 
