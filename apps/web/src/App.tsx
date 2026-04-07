@@ -11,7 +11,7 @@ import { useNodeOperations } from './hooks/useNodeOperations.js';
 import { Sidebar } from './components/graph/Sidebar.js';
 import type { SidebarMode, PinnedNode } from './components/graph/GraphRendererTypes.js';
 import { streamCompletion } from '@lineage/sdk';
-import type { ContextSource } from '@lineage/core';
+import type { ContextSource, Node } from '@lineage/core';
 import './styles/graph.css';
 
 const PINNED_KEY = 'lineage:pinnedNodes';
@@ -117,35 +117,67 @@ export function App() {
     const model = localStorage.getItem('lineage:llmModel') || undefined;
     const thinking = localStorage.getItem('lineage:thinkingEnabled') === 'true';
 
-    // Collect the selected pins
+    // Collect the selected pins in selection order
     const selectedPins = pinnedNodes.filter((p) => selectedPinNodeIds.has(p.nodeId));
 
-    // Summarize each selected node in parallel
-    const contextSources: ContextSource[] = [];
+    // Fetch all nodes per tree (deduplicated) so we can check types and existing summaries
+    const treeNodesCache = new Map<string, Node[]>();
+    const uniqueTreeIds = [...new Set(selectedPins.map((p) => p.treeId))];
+    await Promise.all(
+      uniqueTreeIds.map(async (treeId) => {
+        treeNodesCache.set(treeId, await repo.getNodes(treeId));
+      }),
+    );
+
+    // Resolve each pin: use as-is if summary, reuse existing summary child, or generate
+    const contextSources: ContextSource[] = new Array(selectedPins.length);
     const errors: string[] = [];
 
     await Promise.all(
-      selectedPins.map(
-        (pin) =>
-          new Promise<void>((resolve) => {
-            streamCompletion({
-              serverUrl: url,
-              treeId: pin.treeId,
-              nodeId: pin.nodeId,
-              model,
-              thinking,
-              endpoint: 'summarize',
-              onDone: (summaryNodeId) => {
-                contextSources.push({ treeId: pin.treeId, nodeId: summaryNodeId });
-                resolve();
-              },
-              onError: (err) => {
-                errors.push(`Failed to summarize node ${pin.nodeId}: ${err}`);
-                resolve();
-              },
-            });
-          }),
-      ),
+      selectedPins.map(async (pin, index) => {
+        const treeNodes = treeNodesCache.get(pin.treeId) ?? [];
+        const node = treeNodes.find((n) => n.nodeId === pin.nodeId);
+
+        if (!node) {
+          errors.push(`Node ${pin.nodeId} not found in tree ${pin.treeId}`);
+          return;
+        }
+
+        // Already a summary — use as-is
+        if (node.type === 'summary') {
+          contextSources[index] = { treeId: pin.treeId, nodeId: pin.nodeId };
+          return;
+        }
+
+        // Check for an existing direct summary child (best-effort reuse)
+        const existingSummaryChild = treeNodes.find(
+          (n) => n.parentId === pin.nodeId && n.type === 'summary' && !n.isDeleted,
+        );
+        if (existingSummaryChild) {
+          contextSources[index] = { treeId: pin.treeId, nodeId: existingSummaryChild.nodeId };
+          return;
+        }
+
+        // Generate a new summary
+        await new Promise<void>((resolve) => {
+          streamCompletion({
+            serverUrl: url,
+            treeId: pin.treeId,
+            nodeId: pin.nodeId,
+            model,
+            thinking,
+            endpoint: 'summarize',
+            onDone: (summaryNodeId) => {
+              contextSources[index] = { treeId: pin.treeId, nodeId: summaryNodeId };
+              resolve();
+            },
+            onError: (err) => {
+              errors.push(`Failed to summarize node ${pin.nodeId}: ${err}`);
+              resolve();
+            },
+          });
+        });
+      }),
     );
 
     if (errors.length > 0) {
