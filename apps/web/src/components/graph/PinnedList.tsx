@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Tree } from '@lineage/core';
 import { FONTS, nodeColor } from '../../styles/theme.js';
 import type { GraphNode, PinnedNode } from './GraphRendererTypes.js';
@@ -14,6 +15,7 @@ export function PinnedList({
   trees,
   selectedPinNodeIds,
   onPinSelectionChange,
+  onCreateTreeFromContext,
 }: {
   pinnedNodes: PinnedNode[];
   currentTreeNodes: GraphNode[];
@@ -25,7 +27,10 @@ export function PinnedList({
   trees: Tree[];
   selectedPinNodeIds: Set<string>;
   onPinSelectionChange: (ids: Set<string>) => void;
+  onCreateTreeFromContext: () => Promise<void>;
 }) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const nodeById = new Map(currentTreeNodes.map((n) => [n.id, n]));
   const treeById = new Map(trees.map((t) => [t.treeId, t]));
 
@@ -50,6 +55,18 @@ export function PinnedList({
 
   const clearSelection = () => {
     onPinSelectionChange(new Set());
+  };
+
+  const handleCreateFromContext = async () => {
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      await onCreateTreeFromContext();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : 'Failed to create conversation');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   if (pinnedNodes.length === 0) {
@@ -125,18 +142,53 @@ export function PinnedList({
         </button>
       </div>
 
-      {/* Selection count */}
+      {/* Selection count + create button */}
       {!noneSelected && (
-        <div
-          style={{
-            fontSize: '9px',
-            color: '#c8b88a',
-            fontFamily: FONTS.mono,
-            letterSpacing: '0.06em',
-            padding: '0 2px 4px',
-          }}
-        >
-          {selectedPinNodeIds.size} of {pinnedNodes.length} selected
+        <div style={{ padding: '0 2px 6px' }}>
+          <div
+            style={{
+              fontSize: '9px',
+              color: '#c8b88a',
+              fontFamily: FONTS.mono,
+              letterSpacing: '0.06em',
+              marginBottom: '6px',
+            }}
+          >
+            {selectedPinNodeIds.size} of {pinnedNodes.length} selected
+          </div>
+          <button
+            onClick={handleCreateFromContext}
+            disabled={isCreating}
+            style={{
+              display: 'block',
+              width: '100%',
+              background: isCreating ? 'rgba(200,184,138,0.08)' : 'rgba(200,184,138,0.12)',
+              border: '1px solid rgba(200,184,138,0.25)',
+              borderRadius: '4px',
+              color: isCreating ? '#888' : '#c8b88a',
+              fontSize: '10px',
+              fontFamily: FONTS.mono,
+              letterSpacing: '0.04em',
+              padding: '7px 0',
+              cursor: isCreating ? 'wait' : 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {isCreating ? 'Summarizing...' : 'New conversation from context'}
+          </button>
+          {createError && (
+            <div
+              style={{
+                fontSize: '9px',
+                color: '#e55',
+                fontFamily: FONTS.mono,
+                marginTop: '4px',
+                lineHeight: '1.3',
+              }}
+            >
+              {createError}
+            </div>
+          )}
         </div>
       )}
 

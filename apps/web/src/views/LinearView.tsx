@@ -49,6 +49,7 @@ interface LinearViewProps {
   onClearAllPins: () => void;
   selectedPinNodeIds: Set<string>;
   onPinSelectionChange: (ids: Set<string>) => void;
+  onCreateTreeFromContext: () => Promise<void>;
 }
 
 // ── Vertical connector between cards ────────────────────────────────────────
@@ -98,6 +99,7 @@ export function LinearView({
   onClearAllPins,
   selectedPinNodeIds,
   onPinSelectionChange,
+  onCreateTreeFromContext,
 }: LinearViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
@@ -255,6 +257,7 @@ export function LinearView({
         onClearAllPins={onClearAllPins}
         selectedPinNodeIds={selectedPinNodeIds}
         onPinSelectionChange={onPinSelectionChange}
+        onCreateTreeFromContext={onCreateTreeFromContext}
       />
       <div
         style={{

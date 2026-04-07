@@ -10,6 +10,8 @@ import { useStreamingStore } from './store/streaming.js';
 import { useNodeOperations } from './hooks/useNodeOperations.js';
 import { Sidebar } from './components/graph/Sidebar.js';
 import type { SidebarMode, PinnedNode } from './components/graph/GraphRendererTypes.js';
+import { streamCompletion } from '@lineage/sdk';
+import type { ContextSource } from '@lineage/core';
 import './styles/graph.css';
 
 const PINNED_KEY = 'lineage:pinnedNodes';
@@ -105,6 +107,80 @@ export function App() {
     setSelectedPinNodeIds(ids);
   }, []);
 
+  // ── Create tree from selected pins ─────────────────────────────────────────
+  const handleCreateTreeFromContext = useCallback(async () => {
+    if (!repo || selectedPinNodeIds.size === 0) return;
+
+    const serverUrl = localStorage.getItem('lineage:serverUrl');
+    if (!serverUrl) throw new Error('No server URL configured — set it in Settings');
+    const url = serverUrl.replace(/\/+$/, '');
+    const model = localStorage.getItem('lineage:llmModel') || undefined;
+    const thinking = localStorage.getItem('lineage:thinkingEnabled') === 'true';
+
+    // Collect the selected pins
+    const selectedPins = pinnedNodes.filter((p) => selectedPinNodeIds.has(p.nodeId));
+
+    // Summarize each selected node in parallel
+    const contextSources: ContextSource[] = [];
+    const errors: string[] = [];
+
+    await Promise.all(
+      selectedPins.map(
+        (pin) =>
+          new Promise<void>((resolve) => {
+            streamCompletion({
+              serverUrl: url,
+              treeId: pin.treeId,
+              nodeId: pin.nodeId,
+              model,
+              thinking,
+              endpoint: 'summarize',
+              onDone: (summaryNodeId) => {
+                contextSources.push({ treeId: pin.treeId, nodeId: summaryNodeId });
+                resolve();
+              },
+              onError: (err) => {
+                errors.push(`Failed to summarize node ${pin.nodeId}: ${err}`);
+                resolve();
+              },
+            });
+          }),
+      ),
+    );
+
+    if (errors.length > 0) {
+      throw new Error(errors.join('\n'));
+    }
+
+    // Create the new tree with context_sources
+    const treeId = crypto.randomUUID();
+    const rootNodeId = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    const title = `Seeded conversation`;
+
+    await repo.putTree({ treeId, title, createdAt, rootNodeId, contextSources });
+    await repo.putNode({
+      nodeId: rootNodeId,
+      treeId,
+      parentId: null,
+      type: 'human',
+      content: '',
+      isDeleted: false,
+      createdAt,
+      modelName: null,
+      provider: null,
+      tokenCount: null,
+      embeddingModel: null,
+      metadata: null,
+      author: null,
+    });
+
+    // Clear pin selection and navigate
+    setSelectedPinNodeIds(new Set());
+    refresh();
+    setSelectedTreeId(treeId);
+  }, [repo, selectedPinNodeIds, pinnedNodes, refresh, setSelectedTreeId]);
+
   // ── Node data ───────────────────────────────────────────────────────────────
   const {
     nodes,
@@ -194,6 +270,7 @@ export function App() {
         onClearAllPins: handleClearAllPins,
         selectedPinNodeIds,
         onPinSelectionChange: handlePinSelectionChange,
+        onCreateTreeFromContext: handleCreateTreeFromContext,
       }
     : null;
 

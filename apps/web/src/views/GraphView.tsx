@@ -43,6 +43,7 @@ interface GraphViewProps {
   onClearAllPins: () => void;
   selectedPinNodeIds: Set<string>;
   onPinSelectionChange: (ids: Set<string>) => void;
+  onCreateTreeFromContext: () => Promise<void>;
 }
 
 export function GraphView({
@@ -74,6 +75,7 @@ export function GraphView({
   onClearAllPins,
   selectedPinNodeIds,
   onPinSelectionChange,
+  onCreateTreeFromContext,
 }: GraphViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
   const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
@@ -177,6 +179,7 @@ export function GraphView({
         onClearAllPins={onClearAllPins}
         selectedPinNodeIds={selectedPinNodeIds}
         onPinSelectionChange={onPinSelectionChange}
+        onCreateTreeFromContext={onCreateTreeFromContext}
       />
       <GraphRenderer
         nodes={graphNodes}

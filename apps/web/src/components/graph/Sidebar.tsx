@@ -29,6 +29,7 @@ export function Sidebar({
   onClearAllPins,
   selectedPinNodeIds,
   onPinSelectionChange,
+  onCreateTreeFromContext,
 }: {
   nodes: GraphNode[];
   selectedNodeId: string | null;
@@ -47,6 +48,7 @@ export function Sidebar({
   onClearAllPins?: () => void;
   selectedPinNodeIds?: Set<string>;
   onPinSelectionChange?: (ids: Set<string>) => void;
+  onCreateTreeFromContext?: () => Promise<void>;
 }) {
   const [localMode, setLocalMode] = useState<SidebarMode>('conversations');
   const mode = sidebarMode ?? localMode;
@@ -245,6 +247,7 @@ export function Sidebar({
             trees={trees ?? []}
             selectedPinNodeIds={selectedPinNodeIds ?? new Set()}
             onPinSelectionChange={onPinSelectionChange ?? (() => {})}
+            onCreateTreeFromContext={onCreateTreeFromContext ?? (() => Promise.resolve())}
           />
         )}
       </div>
