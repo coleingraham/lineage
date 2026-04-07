@@ -55,25 +55,32 @@ export function useNodeEditing({
     if (editingNodeId) {
       const nodeId = editingNodeId;
       const node = nodeById.get(nodeId);
+      const isPendingNew = pendingNewNodeId === nodeId;
       setEditingNodeId(null);
       setEditText('');
       setPendingNewNodeId(null);
       if (node?.type === 'human') {
-        const newNodeId = await onCreateSibling(nodeId, editText);
-        if (newNodeId) {
-          setSelectedNodeId(newNodeId);
-          onNodeReply(newNodeId);
-        } else {
+        if (isPendingNew) {
+          // Node was eagerly created (e.g. handleAddHumanNode) — update in place
+          await onEdit(nodeId, editText);
+          onNodeReply(nodeId);
+        } else if (!node.parentId) {
           // Root node — can't create sibling, edit in place
           await onEdit(nodeId, editText);
           onNodeReply(nodeId);
           onRootNodeSubmitted?.(editText);
+        } else {
+          const newNodeId = await onCreateSibling(nodeId, editText);
+          if (newNodeId) {
+            setSelectedNodeId(newNodeId);
+            onNodeReply(newNodeId);
+          }
         }
       } else {
         await onEdit(nodeId, editText);
       }
     }
-  }, [editingNodeId, editText, onEdit, onCreateSibling, nodeById, onNodeReply, onRootNodeSubmitted, setSelectedNodeId]);
+  }, [editingNodeId, editText, pendingNewNodeId, onEdit, onCreateSibling, nodeById, onNodeReply, onRootNodeSubmitted, setSelectedNodeId]);
 
   const handleEditCancel = useCallback(() => {
     if (pendingNewNodeId) {
