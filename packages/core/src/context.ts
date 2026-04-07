@@ -1,5 +1,6 @@
-import type { Node } from './types.js';
+import type { Node, ContextSource } from './types.js';
 import type { Message } from './llm.js';
+import type { NodeRepository } from './repository.js';
 import { stripThinking } from './content.js';
 
 /**
@@ -106,4 +107,52 @@ export function buildContext(
 
 function tokenTotal(nodes: Node[]): number {
   return nodes.reduce((sum, n) => sum + (n.tokenCount ?? 0), 0);
+}
+
+/**
+ * Resolve an ordered list of context sources into a formatted text block
+ * suitable for prepending to the LLM message array as background context.
+ *
+ * Each source is fetched by `(treeId, nodeId)`. Missing or deleted nodes are
+ * skipped with a console warning rather than causing a hard failure.
+ */
+export async function assembleContext(
+  repo: NodeRepository,
+  sources: ContextSource[],
+): Promise<string> {
+  if (sources.length === 0) return '';
+
+  const summaries: string[] = [];
+
+  for (const source of sources) {
+    let node: Node;
+    try {
+      node = await repo.getNode(source.nodeId);
+    } catch {
+      console.warn(
+        `[assembleContext] skipping missing node ${source.nodeId} (tree ${source.treeId})`,
+      );
+      continue;
+    }
+
+    if (node.isDeleted) {
+      console.warn(
+        `[assembleContext] skipping deleted node ${source.nodeId} (tree ${source.treeId})`,
+      );
+      continue;
+    }
+
+    const content = stripThinking(node.content).trim();
+    if (content) {
+      summaries.push(content);
+    }
+  }
+
+  if (summaries.length === 0) return '';
+
+  const header =
+    'The following are summaries from prior conversations provided as background context. ' +
+    'They are not part of the current conversation but may inform your responses.';
+
+  return [header, '', ...summaries.map((s, i) => `[${i + 1}] ${s}`)].join('\n');
 }
