@@ -69,6 +69,7 @@ export function useNodeEditing({
           // Node was eagerly created (e.g. handleAddHumanNode) — update in place
           await onEdit(nodeId, editText);
           onNodeReply(nodeId);
+          if (!node.parentId) onRootNodeSubmitted?.(editText);
         } else if (!node.parentId) {
           // Root node — can't create sibling, edit in place
           await onEdit(nodeId, editText);

@@ -44,6 +44,7 @@ interface GraphViewProps {
   selectedPinNodeIds: Set<string>;
   onPinSelectionChange: (ids: Set<string>) => void;
   onCreateTreeFromContext: () => Promise<void>;
+  onNavigateToNode: (treeId: string, nodeId: string) => void;
 }
 
 export function GraphView({
