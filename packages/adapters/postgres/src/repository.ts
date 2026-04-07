@@ -1,5 +1,5 @@
 import type postgres from 'postgres';
-import type { Node, NodeRepository, Tree } from '@lineage/core';
+import type { ContextSource, Node, NodeRepository, Tree } from '@lineage/core';
 import { runMigrations } from './migrations/index.js';
 
 interface NodeRow {
@@ -23,6 +23,7 @@ interface TreeRow {
   title: string;
   created_at: string;
   root_node_id: string;
+  context_sources: ContextSource[] | null;
 }
 
 function rowToNode(row: NodeRow): Node {
@@ -58,6 +59,7 @@ function rowToTree(row: TreeRow): Tree {
     createdAt:
       typeof row.created_at === 'string' ? row.created_at : new Date(row.created_at).toISOString(),
     rootNodeId: row.root_node_id,
+    contextSources: row.context_sources ?? null,
   };
 }
 
@@ -74,7 +76,7 @@ export class PostgresRepository implements NodeRepository {
 
   async getTree(treeId: string): Promise<Tree> {
     const rows = await this.sql<TreeRow[]>`
-      SELECT tree_id, title, created_at, root_node_id
+      SELECT tree_id, title, created_at, root_node_id, context_sources
       FROM trees
       WHERE tree_id = ${treeId}
     `;
@@ -86,20 +88,22 @@ export class PostgresRepository implements NodeRepository {
 
   async listTrees(): Promise<Tree[]> {
     const rows = await this.sql<TreeRow[]>`
-      SELECT tree_id, title, created_at, root_node_id
+      SELECT tree_id, title, created_at, root_node_id, context_sources
       FROM trees
     `;
     return rows.map(rowToTree);
   }
 
   async putTree(tree: Tree): Promise<void> {
+    const contextSourcesJson = tree.contextSources ? JSON.stringify(tree.contextSources) : null;
     await this.sql`
-      INSERT INTO trees (tree_id, title, created_at, root_node_id)
-      VALUES (${tree.treeId}, ${tree.title}, ${tree.createdAt}, ${tree.rootNodeId})
+      INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
+      VALUES (${tree.treeId}, ${tree.title}, ${tree.createdAt}, ${tree.rootNodeId}, ${contextSourcesJson}::jsonb)
       ON CONFLICT (tree_id) DO UPDATE SET
         title = EXCLUDED.title,
         created_at = EXCLUDED.created_at,
-        root_node_id = EXCLUDED.root_node_id
+        root_node_id = EXCLUDED.root_node_id,
+        context_sources = EXCLUDED.context_sources
     `;
   }
 

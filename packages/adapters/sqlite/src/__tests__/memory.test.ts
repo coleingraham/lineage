@@ -8,6 +8,7 @@ function makeTree(overrides: Partial<Tree> = {}): Tree {
     title: 'Test tree',
     createdAt: '2026-04-03T00:00:00.000Z',
     rootNodeId: 'node-1',
+    contextSources: null,
     ...overrides,
   };
 }

@@ -32,9 +32,15 @@ export interface Node {
   author: string | null;
 }
 
+export interface ContextSource {
+  treeId: string;
+  nodeId: string;
+}
+
 export interface Tree {
   treeId: string;
   title: string;
   createdAt: string;
   rootNodeId: string;
+  contextSources: ContextSource[] | null;
 }

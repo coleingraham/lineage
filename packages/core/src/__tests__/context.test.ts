@@ -54,9 +54,7 @@ describe('buildContext', () => {
     ];
 
     // When targeting the summary itself, only the summary is context
-    expect(buildContext(nodes, 's1')).toEqual([
-      { role: 'ai', content: 'summary text' },
-    ]);
+    expect(buildContext(nodes, 's1')).toEqual([{ role: 'ai', content: 'summary text' }]);
 
     // When targeting a child of the summary, context starts at the summary
     expect(buildContext(nodes, 'h2')).toEqual([

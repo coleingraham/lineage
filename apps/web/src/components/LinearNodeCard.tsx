@@ -202,7 +202,13 @@ export function LinearNodeCard({
           depth {node.depth}
         </span>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: '5px', visibility: hover || isSelected ? 'visible' : 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '5px',
+            visibility: hover || isSelected ? 'visible' : 'hidden',
+          }}
+        >
           {node.type === 'human' && node.parentId !== null && (
             <ActionBtn
               label="Edit"

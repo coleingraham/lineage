@@ -57,12 +57,12 @@ cd apps/server && pnpm dev
 
 The server starts on `http://localhost:3000`. Configure via environment variables:
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3000` | Server port |
-| `STORAGE_PATH` | `./lineage.db` | SQLite database path |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API URL |
-| `OLLAMA_MODEL` | `llama3.2` | Default LLM model |
+| Variable          | Default                  | Description          |
+| ----------------- | ------------------------ | -------------------- |
+| `PORT`            | `3000`                   | Server port          |
+| `STORAGE_PATH`    | `./lineage.db`           | SQLite database path |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API URL       |
+| `OLLAMA_MODEL`    | `llama3.2`               | Default LLM model    |
 
 ### Web App
 
@@ -88,6 +88,7 @@ pnpm --filter @lineage/desktop tauri:build
 ```
 
 The built app is at:
+
 - `apps/desktop/src-tauri/target/release/bundle/macos/Lineage.app`
 - `apps/desktop/src-tauri/target/release/bundle/dmg/Lineage_0.0.0_aarch64.dmg`
 
@@ -95,16 +96,16 @@ The desktop app requires Node.js on the host machine (the bundled server sidecar
 
 ## Available Commands
 
-| Command | Description |
-|---|---|
-| `pnpm build` | Build all packages and apps |
-| `pnpm test` | Run all tests |
-| `pnpm typecheck` | Type-check all packages |
-| `pnpm lint` | Lint all packages |
-| `pnpm format` | Format all files with Prettier |
-| `pnpm format:check` | Check formatting without modifying |
-| `pnpm desktop:dev` | Run the desktop app in development mode |
-| `pnpm --filter @lineage/desktop tauri:build` | Build the desktop app for distribution |
+| Command                                      | Description                             |
+| -------------------------------------------- | --------------------------------------- |
+| `pnpm build`                                 | Build all packages and apps             |
+| `pnpm test`                                  | Run all tests                           |
+| `pnpm typecheck`                             | Type-check all packages                 |
+| `pnpm lint`                                  | Lint all packages                       |
+| `pnpm format`                                | Format all files with Prettier          |
+| `pnpm format:check`                          | Check formatting without modifying      |
+| `pnpm desktop:dev`                           | Run the desktop app in development mode |
+| `pnpm --filter @lineage/desktop tauri:build` | Build the desktop app for distribution  |
 
 ## Turborepo Remote Caching
 

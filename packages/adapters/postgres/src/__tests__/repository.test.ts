@@ -8,6 +8,7 @@ function makeTree(overrides: Partial<Tree> = {}): Tree {
     title: 'Test tree',
     createdAt: '2026-04-03T00:00:00.000Z',
     rootNodeId: '550e8400-e29b-41d4-a716-446655440000',
+    contextSources: null,
     ...overrides,
   };
 }
@@ -182,7 +183,7 @@ describe('PostgresRepository', () => {
       const { sql } = createMockSql();
       const repo = new PostgresRepository(sql as never);
       await repo.migrate();
-      expect(sql.unsafe).toHaveBeenCalledTimes(2);
+      expect(sql.unsafe).toHaveBeenCalledTimes(3);
     });
   });
 });

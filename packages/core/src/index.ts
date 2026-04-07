@@ -1,4 +1,4 @@
-export type { Node, NodeType, Tree } from './types.js';
+export type { ContextSource, Node, NodeType, Tree } from './types.js';
 export { NODE_TYPES } from './types.js';
 export type { NodeRepository } from './repository.js';
 export type { Message, GenerationConfig, StreamChunk, StreamToken, LLMProvider } from './llm.js';

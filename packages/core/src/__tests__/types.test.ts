@@ -54,6 +54,7 @@ describe('Tree type', () => {
       title: 'My conversation',
       createdAt: '2026-04-03T00:00:00.000Z',
       rootNodeId: '550e8400-e29b-41d4-a716-446655440000',
+      contextSources: null,
     };
     expect(tree.treeId).toBe('550e8400-e29b-41d4-a716-446655440001');
   });

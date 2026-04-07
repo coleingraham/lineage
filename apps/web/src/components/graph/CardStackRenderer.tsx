@@ -30,11 +30,12 @@ export function CardStackRenderer({
   );
 
   const isStreamingActive = streaming && streaming.status !== 'idle';
-  const showStreamingChild =
-    isStreamingActive && streaming.parentNodeId === selectedNodeId;
+  const showStreamingChild = isStreamingActive && streaming.parentNodeId === selectedNodeId;
   // Regen case: streaming parent is the selected node's parent (replacing current node)
   const isRegen =
-    isStreamingActive && selectedNode?.parentId != null && streaming.parentNodeId === selectedNode.parentId;
+    isStreamingActive &&
+    selectedNode?.parentId != null &&
+    streaming.parentNodeId === selectedNode.parentId;
 
   // When the selected node is a summary, its ancestors are "superseded"
   const isSelectedSummary = selectedNode?.type === 'summary';
@@ -59,7 +60,6 @@ export function CardStackRenderer({
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
       {/* Card stack */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>

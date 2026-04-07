@@ -185,9 +185,7 @@ export function StreamingCard({
         </p>
       ) : (
         <div style={{ minHeight: isPending ? '24px' : undefined }}>
-          {thinkingContent ? (
-            <CollapsibleThinking content={thinkingContent} />
-          ) : null}
+          {thinkingContent ? <CollapsibleThinking content={thinkingContent} /> : null}
           {content ? <Markdown content={content} /> : null}
           {(isPending || isStreaming) && <BlinkingCursor />}
         </div>

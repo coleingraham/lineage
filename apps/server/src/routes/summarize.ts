@@ -105,9 +105,16 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
       { role: 'human' as const, content: conversationText },
     ];
 
-    const config = { maxTokens, ...(temperature !== undefined && { temperature }), ...(model && { model }), ...(thinking !== undefined && { thinking }) };
+    const config = {
+      maxTokens,
+      ...(temperature !== undefined && { temperature }),
+      ...(model && { model }),
+      ...(thinking !== undefined && { thinking }),
+    };
 
-    console.log(`[summarize] treeId=${treeId} nodeId=${nodeId} context=${contextMessages.length} messages`);
+    console.log(
+      `[summarize] treeId=${treeId} nodeId=${nodeId} context=${contextMessages.length} messages`,
+    );
 
     return streamSSE(c, async (stream) => {
       let thinkingContent = '';
@@ -132,7 +139,9 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
 
         const content = responseContent;
 
-        console.log(`[summarize] stream finished: ${chunkCount} chunks, thinking=${thinkingContent.length} response=${responseContent.length}`);
+        console.log(
+          `[summarize] stream finished: ${chunkCount} chunks, thinking=${thinkingContent.length} response=${responseContent.length}`,
+        );
 
         // Write the summary node to the repository
         const summaryNode: Node = {

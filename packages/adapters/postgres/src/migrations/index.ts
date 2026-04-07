@@ -11,10 +11,11 @@ CREATE TABLE IF NOT EXISTS node_types (
 INSERT INTO node_types (name) VALUES ('human'), ('ai'), ('summary'), ('system'), ('tool_call'), ('tool_result') ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS trees (
-  tree_id      UUID PRIMARY KEY,
-  title        TEXT NOT NULL,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  root_node_id UUID NOT NULL
+  tree_id          UUID PRIMARY KEY,
+  title            TEXT NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  root_node_id     UUID NOT NULL,
+  context_sources  JSONB
 );
 
 CREATE TABLE IF NOT EXISTS nodes (
@@ -43,7 +44,12 @@ ALTER TABLE nodes ADD COLUMN IF NOT EXISTS author TEXT;
 INSERT INTO node_types (name) VALUES ('system'), ('tool_call'), ('tool_result') ON CONFLICT DO NOTHING;
 `;
 
+const MIGRATE_V3 = `
+ALTER TABLE trees ADD COLUMN IF NOT EXISTS context_sources JSONB;
+`;
+
 export async function runMigrations(sql: postgres.Sql): Promise<void> {
   await sql.unsafe(INIT_SQL);
   await sql.unsafe(MIGRATE_V2);
+  await sql.unsafe(MIGRATE_V3);
 }

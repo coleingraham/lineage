@@ -27,6 +27,8 @@ export function Sidebar({
   pinnedNodes,
   onUnpin,
   onClearAllPins,
+  selectedPinNodeIds,
+  onPinSelectionChange,
 }: {
   nodes: GraphNode[];
   selectedNodeId: string | null;
@@ -43,6 +45,8 @@ export function Sidebar({
   pinnedNodes?: PinnedNode[];
   onUnpin?: (nodeId: string) => void;
   onClearAllPins?: () => void;
+  selectedPinNodeIds?: Set<string>;
+  onPinSelectionChange?: (ids: Set<string>) => void;
 }) {
   const [localMode, setLocalMode] = useState<SidebarMode>('conversations');
   const mode = sidebarMode ?? localMode;
@@ -239,61 +243,63 @@ export function Sidebar({
             onUnpin={onUnpin}
             onClearAll={onClearAllPins}
             trees={trees ?? []}
+            selectedPinNodeIds={selectedPinNodeIds ?? new Set()}
+            onPinSelectionChange={onPinSelectionChange ?? (() => {})}
           />
         )}
       </div>
 
       {/* Depth bar */}
       {mode !== 'conversations' && mode !== 'pins' && (
-      <div
-        style={{
-          padding: '8px 12px',
-          borderTop: '1px solid rgba(255,255,255,0.04)',
-          display: 'flex',
-          gap: '3px',
-          alignItems: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <span
+        <div
           style={{
-            fontSize: '9px',
-            color: '#252525',
-            marginRight: '5px',
-            letterSpacing: '0.06em',
-            fontFamily: FONTS.mono,
+            padding: '8px 12px',
+            borderTop: '1px solid rgba(255,255,255,0.04)',
+            display: 'flex',
+            gap: '3px',
+            alignItems: 'center',
+            flexShrink: 0,
           }}
         >
-          DEPTH
-        </span>
-        {Array.from({ length: Math.max(7, maxDepth + 1) }, (_, d) => {
-          const pathNode = pathNodes[d];
-          const c = pathNode ? nodeColor(pathNode.type, pathNode.isDeleted) : undefined;
-          return (
-            <div
-              key={d}
-              style={{
-                width: 16,
-                height: 3,
-                borderRadius: '2px',
-                background: c ?? 'rgba(255,255,255,0.05)',
-                opacity: c ? 1 : 1,
-                transition: 'all 0.2s ease',
-              }}
-            />
-          );
-        })}
-        <span
-          style={{
-            fontSize: '9px',
-            color: '#333',
-            marginLeft: '4px',
-            fontFamily: FONTS.mono,
-          }}
-        >
-          {selectedNode?.depth ?? 0}
-        </span>
-      </div>
+          <span
+            style={{
+              fontSize: '9px',
+              color: '#252525',
+              marginRight: '5px',
+              letterSpacing: '0.06em',
+              fontFamily: FONTS.mono,
+            }}
+          >
+            DEPTH
+          </span>
+          {Array.from({ length: Math.max(7, maxDepth + 1) }, (_, d) => {
+            const pathNode = pathNodes[d];
+            const c = pathNode ? nodeColor(pathNode.type, pathNode.isDeleted) : undefined;
+            return (
+              <div
+                key={d}
+                style={{
+                  width: 16,
+                  height: 3,
+                  borderRadius: '2px',
+                  background: c ?? 'rgba(255,255,255,0.05)',
+                  opacity: c ? 1 : 1,
+                  transition: 'all 0.2s ease',
+                }}
+              />
+            );
+          })}
+          <span
+            style={{
+              fontSize: '9px',
+              color: '#333',
+              marginLeft: '4px',
+              fontFamily: FONTS.mono,
+            }}
+          >
+            {selectedNode?.depth ?? 0}
+          </span>
+        </div>
       )}
     </div>
   );

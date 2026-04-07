@@ -23,6 +23,7 @@ interface TreeRow {
   title: string;
   created_at: string;
   root_node_id: string;
+  context_sources: string | null;
 }
 
 function rowToNode(row: NodeRow): Node {
@@ -49,6 +50,9 @@ function rowToTree(row: TreeRow): Tree {
     title: row.title,
     createdAt: row.created_at,
     rootNodeId: row.root_node_id,
+    contextSources: row.context_sources
+      ? (JSON.parse(row.context_sources) as Tree['contextSources'])
+      : null,
   };
 }
 
@@ -80,14 +84,21 @@ export class SqliteRepository implements NodeRepository {
   async putTree(tree: Tree): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO trees (tree_id, title, created_at, root_node_id)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(tree_id) DO UPDATE SET
            title = excluded.title,
            created_at = excluded.created_at,
-           root_node_id = excluded.root_node_id`,
+           root_node_id = excluded.root_node_id,
+           context_sources = excluded.context_sources`,
       )
-      .run(tree.treeId, tree.title, tree.createdAt, tree.rootNodeId);
+      .run(
+        tree.treeId,
+        tree.title,
+        tree.createdAt,
+        tree.rootNodeId,
+        tree.contextSources ? JSON.stringify(tree.contextSources) : null,
+      );
   }
 
   async getNode(nodeId: string): Promise<Node> {

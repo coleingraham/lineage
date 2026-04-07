@@ -66,7 +66,9 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
 
     console.log(`[complete] context: ${messages.length} messages`);
     for (const msg of messages) {
-      console.log(`  [${msg.role}] ${msg.content.slice(0, 80)}${msg.content.length > 80 ? '...' : ''}`);
+      console.log(
+        `  [${msg.role}] ${msg.content.slice(0, 80)}${msg.content.length > 80 ? '...' : ''}`,
+      );
     }
 
     if (messages.length === 0) {
@@ -74,7 +76,12 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
       return c.json({ error: 'No context available for completion' }, 400);
     }
 
-    const config = { maxTokens, ...(temperature !== undefined && { temperature }), ...(model && { model }), ...(thinking !== undefined && { thinking }) };
+    const config = {
+      maxTokens,
+      ...(temperature !== undefined && { temperature }),
+      ...(model && { model }),
+      ...(thinking !== undefined && { thinking }),
+    };
 
     return streamSSE(c, async (stream) => {
       let thinkingContent = '';
@@ -105,7 +112,9 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
         }
         content += responseContent;
 
-        console.log(`[complete] stream finished: ${chunkCount} chunks, thinking=${thinkingContent.length} response=${responseContent.length}`);
+        console.log(
+          `[complete] stream finished: ${chunkCount} chunks, thinking=${thinkingContent.length} response=${responseContent.length}`,
+        );
 
         // Write the AI node to the repository
         const aiNode: Node = {

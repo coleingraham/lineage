@@ -11,10 +11,11 @@ INSERT OR IGNORE INTO node_types (id, name) VALUES
   (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
 CREATE TABLE IF NOT EXISTS trees (
-  tree_id      TEXT PRIMARY KEY,
-  title        TEXT NOT NULL,
-  created_at   TEXT NOT NULL,
-  root_node_id TEXT NOT NULL
+  tree_id          TEXT PRIMARY KEY,
+  title            TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  root_node_id     TEXT NOT NULL,
+  context_sources  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nodes (
@@ -41,6 +42,10 @@ INSERT OR IGNORE INTO node_types (id, name) VALUES
   (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 `;
 
+const MIGRATE_V3 = `
+ALTER TABLE trees ADD COLUMN context_sources TEXT;
+`;
+
 export function runMigrations(db: Database.Database): void {
   db.exec(INIT_SQL);
 
@@ -50,5 +55,15 @@ export function runMigrations(db: Database.Database): void {
     .get() as { cnt: number };
   if (hasMetadata.cnt === 0) {
     db.exec(MIGRATE_V2);
+  }
+
+  // V3: add context_sources column to trees
+  const hasContextSources = db
+    .prepare(
+      "SELECT COUNT(*) AS cnt FROM pragma_table_info('trees') WHERE name = 'context_sources'",
+    )
+    .get() as { cnt: number };
+  if (hasContextSources.cnt === 0) {
+    db.exec(MIGRATE_V3);
   }
 }

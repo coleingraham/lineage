@@ -11,8 +11,10 @@ interface ComposeInputProps {
   placeholder?: string;
 }
 
-export const ComposeInput = forwardRef<ComposeInputHandle, ComposeInputProps>(
-  function ComposeInput({ onSend, disabled = false, placeholder = 'Type a message...' }, ref) {
+export const ComposeInput = forwardRef<ComposeInputHandle, ComposeInputProps>(function ComposeInput(
+  { onSend, disabled = false, placeholder = 'Type a message...' },
+  ref,
+) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -99,5 +101,4 @@ export const ComposeInput = forwardRef<ComposeInputHandle, ComposeInputProps>(
       </button>
     </div>
   );
-},
-);
+});

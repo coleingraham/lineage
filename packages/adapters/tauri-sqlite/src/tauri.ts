@@ -12,10 +12,11 @@ INSERT OR IGNORE INTO node_types (id, name) VALUES
   (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
 CREATE TABLE IF NOT EXISTS trees (
-  tree_id      TEXT PRIMARY KEY,
-  title        TEXT NOT NULL,
-  created_at   TEXT NOT NULL,
-  root_node_id TEXT NOT NULL
+  tree_id          TEXT PRIMARY KEY,
+  title            TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  root_node_id     TEXT NOT NULL,
+  context_sources  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nodes (
@@ -36,10 +37,12 @@ CREATE TABLE IF NOT EXISTS nodes (
 `;
 
 const MIGRATE_V2_STMTS = [
-  "ALTER TABLE nodes ADD COLUMN metadata TEXT",
-  "ALTER TABLE nodes ADD COLUMN author TEXT",
+  'ALTER TABLE nodes ADD COLUMN metadata TEXT',
+  'ALTER TABLE nodes ADD COLUMN author TEXT',
   "INSERT OR IGNORE INTO node_types (id, name) VALUES (4, 'system'), (5, 'tool_call'), (6, 'tool_result')",
 ];
+
+const MIGRATE_V3_STMTS = ['ALTER TABLE trees ADD COLUMN context_sources TEXT'];
 
 interface NodeRow {
   node_id: string;
@@ -62,6 +65,7 @@ interface TreeRow {
   title: string;
   created_at: string;
   root_node_id: string;
+  context_sources: string | null;
 }
 
 function rowToNode(row: NodeRow): Node {
@@ -88,6 +92,9 @@ function rowToTree(row: TreeRow): Tree {
     title: row.title,
     createdAt: row.created_at,
     rootNodeId: row.root_node_id,
+    contextSources: row.context_sources
+      ? (JSON.parse(row.context_sources) as Tree['contextSources'])
+      : null,
   };
 }
 
@@ -128,6 +135,16 @@ export class TauriSqliteRepository implements NodeRepository {
       }
     }
 
+    // V3: add context_sources column to trees
+    const treeCols = await db.select<{ name: string }[]>(
+      "SELECT name FROM pragma_table_info('trees') WHERE name = 'context_sources'",
+    );
+    if (treeCols.length === 0) {
+      for (const stmt of MIGRATE_V3_STMTS) {
+        await db.execute(stmt);
+      }
+    }
+
     return new TauriSqliteRepository(db);
   }
 
@@ -148,13 +165,20 @@ export class TauriSqliteRepository implements NodeRepository {
 
   async putTree(tree: Tree): Promise<void> {
     await this.db.execute(
-      `INSERT INTO trees (tree_id, title, created_at, root_node_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT(tree_id) DO UPDATE SET
          title = excluded.title,
          created_at = excluded.created_at,
-         root_node_id = excluded.root_node_id`,
-      [tree.treeId, tree.title, tree.createdAt, tree.rootNodeId],
+         root_node_id = excluded.root_node_id,
+         context_sources = excluded.context_sources`,
+      [
+        tree.treeId,
+        tree.title,
+        tree.createdAt,
+        tree.rootNodeId,
+        tree.contextSources ? JSON.stringify(tree.contextSources) : null,
+      ],
     );
   }
 

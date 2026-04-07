@@ -3,15 +3,26 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { NodeRepository, Tree } from '@lineage/core';
 
+const contextSourceSchema = z.object({
+  treeId: z.string(),
+  nodeId: z.string(),
+});
+
 const createTreeBody = z.object({
   title: z.string().min(1),
   treeId: z.string().uuid().optional(),
   rootNodeId: z.string().uuid().optional(),
+  contextSources: z.array(contextSourceSchema).nullable().optional(),
 });
 
-const updateTreeBody = z.object({
-  title: z.string().min(1),
-});
+const updateTreeBody = z
+  .object({
+    title: z.string().min(1).optional(),
+    contextSources: z.array(contextSourceSchema).nullable().optional(),
+  })
+  .refine((data) => data.title !== undefined || data.contextSources !== undefined, {
+    message: 'At least one of title or contextSources must be provided',
+  });
 
 export type Env = {
   Variables: {
@@ -41,7 +52,13 @@ export function treeRoutes(repo: NodeRepository) {
     const rootNodeId = body.rootNodeId ?? crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
-    const tree: Tree = { treeId, title, createdAt, rootNodeId };
+    const tree: Tree = {
+      treeId,
+      title,
+      createdAt,
+      rootNodeId,
+      contextSources: body.contextSources ?? null,
+    };
     await c.var.repo.putTree(tree);
 
     await c.var.repo.putNode({
@@ -74,10 +91,10 @@ export function treeRoutes(repo: NodeRepository) {
     }
   });
 
-  // PATCH /trees/:treeId — update title
+  // PATCH /trees/:treeId — update tree metadata
   app.patch('/:treeId', zValidator('json', updateTreeBody), async (c) => {
     const { treeId } = c.req.param();
-    const { title } = c.req.valid('json');
+    const body = c.req.valid('json');
 
     let existing: Tree;
     try {
@@ -86,7 +103,11 @@ export function treeRoutes(repo: NodeRepository) {
       return c.json({ error: 'Tree not found' }, 404);
     }
 
-    const updated: Tree = { ...existing, title };
+    const updated: Tree = {
+      ...existing,
+      ...(body.title !== undefined && { title: body.title }),
+      ...(body.contextSources !== undefined && { contextSources: body.contextSources }),
+    };
     await c.var.repo.putTree(updated);
     return c.json(updated);
   });

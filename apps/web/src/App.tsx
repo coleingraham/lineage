@@ -98,6 +98,13 @@ export function App() {
     setPinnedNodes([]);
   }, []);
 
+  // ── Pin selection (ephemeral, not persisted) ───────────────────────────────
+  const [selectedPinNodeIds, setSelectedPinNodeIds] = useState<Set<string>>(new Set());
+
+  const handlePinSelectionChange = useCallback((ids: Set<string>) => {
+    setSelectedPinNodeIds(ids);
+  }, []);
+
   // ── Node data ───────────────────────────────────────────────────────────────
   const {
     nodes,
@@ -185,6 +192,8 @@ export function App() {
         onTogglePin: handleTogglePin,
         onUnpin: handleUnpin,
         onClearAllPins: handleClearAllPins,
+        selectedPinNodeIds,
+        onPinSelectionChange: handlePinSelectionChange,
       }
     : null;
 
@@ -192,15 +201,15 @@ export function App() {
     if (repoError) {
       return (
         <div style={statusStyle}>
-          <span style={{ color: '#e55' }}>Failed to initialize storage:</span>{' '}
-          {repoError.message}
+          <span style={{ color: '#e55' }}>Failed to initialize storage:</span> {repoError.message}
         </div>
       );
     }
 
     // Show sidebar + status message for empty/error states when repo is available
     const statusMessage = (() => {
-      if (trees.length === 0 && !isLoading) return 'No conversations yet. Use ☰ in the sidebar to create one.';
+      if (trees.length === 0 && !isLoading)
+        return 'No conversations yet. Use ☰ in the sidebar to create one.';
       if (nodesError && trees.length > 0) return null;
       return null;
     })();
@@ -208,12 +217,7 @@ export function App() {
     if (statusMessage !== null && repo) {
       return (
         <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: COLORS.bg }}>
-          <Sidebar
-            nodes={[]}
-            selectedNodeId={null}
-            onSelect={() => {}}
-            {...treeProps}
-          />
+          <Sidebar nodes={[]} selectedNodeId={null} onSelect={() => {}} {...treeProps} />
           <div style={{ ...statusStyle, flex: 1 }}>{statusMessage}</div>
         </div>
       );
