@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react';
 import type { Tree, NodeRepository } from '@lineage/core';
 import { nodeColor } from '../../styles/theme.js';
-import type { GraphNode } from './GraphRendererTypes.js';
+import type { GraphNode, SidebarMode, PinnedNode } from './GraphRendererTypes.js';
 import { buildFlatList, findRoot, getAncestorIds } from './graphUtils.js';
 import { FONTS } from '../../styles/theme.js';
 import { VerticalMinimap } from './VerticalMinimap.js';
 import { DrilldownSlice } from './DrilldownSlice.js';
 import { SmartCollapse } from './SmartCollapse.js';
 import { ConversationList } from './ConversationList.js';
+import { PinnedList } from './PinnedList.js';
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 export function Sidebar({
@@ -23,12 +24,15 @@ export function Sidebar({
   repo,
   onTreeCreated,
   onRequestEdit,
+  pinnedNodes,
+  onUnpin,
+  onClearAllPins,
 }: {
   nodes: GraphNode[];
   selectedNodeId: string | null;
   onSelect: (id: string) => void;
-  sidebarMode?: 'focus' | 'power' | 'conversations';
-  onSidebarModeChange?: (mode: 'focus' | 'power' | 'conversations') => void;
+  sidebarMode?: SidebarMode;
+  onSidebarModeChange?: (mode: SidebarMode) => void;
   trees?: Tree[];
   selectedTreeId?: string | null;
   onSelectTree?: (treeId: string) => void;
@@ -36,8 +40,11 @@ export function Sidebar({
   repo?: NodeRepository;
   onTreeCreated?: () => void;
   onRequestEdit?: (nodeId: string) => void;
+  pinnedNodes?: PinnedNode[];
+  onUnpin?: (nodeId: string) => void;
+  onClearAllPins?: () => void;
 }) {
-  const [localMode, setLocalMode] = useState<'focus' | 'power' | 'conversations'>('conversations');
+  const [localMode, setLocalMode] = useState<SidebarMode>('conversations');
   const mode = sidebarMode ?? localMode;
   const setMode = onSidebarModeChange ?? setLocalMode;
   const flat = useMemo(() => buildFlatList(nodes), [nodes]);
@@ -117,6 +124,7 @@ export function Sidebar({
               { id: 'conversations', label: '☰' },
               { id: 'focus', label: 'Focus' },
               { id: 'power', label: '⚡' },
+              { id: 'pins', label: 'Pin' },
             ] as const
           ).map((m) => (
             <button
@@ -154,7 +162,9 @@ export function Sidebar({
           ? 'FOCUS VIEW — DRILL DOWN'
           : mode === 'power'
             ? 'POWER VIEW — MAP + TREE'
-            : 'CONVERSATIONS'}
+            : mode === 'pins'
+              ? 'PINNED NODES'
+              : 'CONVERSATIONS'}
       </div>
 
       {/* Content */}
@@ -219,10 +229,22 @@ export function Sidebar({
               onRequestEdit={onRequestEdit}
             />
           )}
+        {mode === 'pins' && pinnedNodes && onUnpin && onClearAllPins && (
+          <PinnedList
+            pinnedNodes={pinnedNodes}
+            currentTreeNodes={nodes}
+            currentTreeId={selectedTreeId ?? null}
+            onSelect={onSelect}
+            onSelectTree={onSelectTree ?? (() => {})}
+            onUnpin={onUnpin}
+            onClearAll={onClearAllPins}
+            trees={trees ?? []}
+          />
+        )}
       </div>
 
       {/* Depth bar */}
-      {mode !== 'conversations' && (
+      {mode !== 'conversations' && mode !== 'pins' && (
       <div
         style={{
           padding: '8px 12px',
