@@ -12,10 +12,11 @@ INSERT OR IGNORE INTO node_types (id, name) VALUES
   (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
 CREATE TABLE IF NOT EXISTS trees (
-  tree_id      TEXT PRIMARY KEY,
-  title        TEXT NOT NULL,
-  created_at   TEXT NOT NULL,
-  root_node_id TEXT NOT NULL
+  tree_id          TEXT PRIMARY KEY,
+  title            TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  root_node_id     TEXT NOT NULL,
+  context_sources  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nodes (
@@ -42,6 +43,10 @@ INSERT OR IGNORE INTO node_types (id, name) VALUES
   (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 `;
 
+const MIGRATE_V3 = `
+ALTER TABLE trees ADD COLUMN context_sources TEXT;
+`;
+
 const IDB_STORE = 'lineage-sqlite';
 
 interface NodeRow {
@@ -65,6 +70,7 @@ interface TreeRow {
   title: string;
   created_at: string;
   root_node_id: string;
+  context_sources: string | null;
 }
 
 function rowToNode(row: NodeRow): Node {
@@ -91,6 +97,9 @@ function rowToTree(row: TreeRow): Tree {
     title: row.title,
     createdAt: row.created_at,
     rootNodeId: row.root_node_id,
+    contextSources: row.context_sources
+      ? (JSON.parse(row.context_sources) as Tree['contextSources'])
+      : null,
   };
 }
 
@@ -162,7 +171,24 @@ export class BrowserSqliteRepository implements NodeRepository {
     const cnt = hasRow ? (checkStmt.getAsObject() as { cnt: number }).cnt : 0;
     checkStmt.free();
     if (cnt === 0) {
-      for (const stmt of MIGRATE_V2.split(';').map((s) => s.trim()).filter(Boolean)) {
+      for (const stmt of MIGRATE_V2.split(';')
+        .map((s) => s.trim())
+        .filter(Boolean)) {
+        db.run(stmt);
+      }
+    }
+
+    // V3: add context_sources column to trees
+    const checkV3 = db.prepare(
+      "SELECT COUNT(*) AS cnt FROM pragma_table_info('trees') WHERE name = 'context_sources'",
+    );
+    const hasV3Row = checkV3.step();
+    const v3cnt = hasV3Row ? (checkV3.getAsObject() as { cnt: number }).cnt : 0;
+    checkV3.free();
+    if (v3cnt === 0) {
+      for (const stmt of MIGRATE_V3.split(';')
+        .map((s) => s.trim())
+        .filter(Boolean)) {
         db.run(stmt);
       }
     }
@@ -215,13 +241,20 @@ export class BrowserSqliteRepository implements NodeRepository {
 
   async putTree(tree: Tree): Promise<void> {
     await this.run(
-      `INSERT INTO trees (tree_id, title, created_at, root_node_id)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(tree_id) DO UPDATE SET
          title = excluded.title,
          created_at = excluded.created_at,
-         root_node_id = excluded.root_node_id`,
-      [tree.treeId, tree.title, tree.createdAt, tree.rootNodeId],
+         root_node_id = excluded.root_node_id,
+         context_sources = excluded.context_sources`,
+      [
+        tree.treeId,
+        tree.title,
+        tree.createdAt,
+        tree.rootNodeId,
+        tree.contextSources ? JSON.stringify(tree.contextSources) : null,
+      ],
     );
   }
 
@@ -292,10 +325,9 @@ export class BrowserSqliteRepository implements NodeRepository {
   }
 
   async softDeleteNode(nodeId: string): Promise<void> {
-    const before = this.get<{ node_id: string }>(
-      'SELECT node_id FROM nodes WHERE node_id = ?',
-      [nodeId],
-    );
+    const before = this.get<{ node_id: string }>('SELECT node_id FROM nodes WHERE node_id = ?', [
+      nodeId,
+    ]);
     if (!before) {
       throw new Error(`Node not found: ${nodeId}`);
     }
@@ -303,10 +335,9 @@ export class BrowserSqliteRepository implements NodeRepository {
   }
 
   async deleteTree(treeId: string): Promise<void> {
-    const tree = this.get<{ tree_id: string }>(
-      'SELECT tree_id FROM trees WHERE tree_id = ?',
-      [treeId],
-    );
+    const tree = this.get<{ tree_id: string }>('SELECT tree_id FROM trees WHERE tree_id = ?', [
+      treeId,
+    ]);
     if (!tree) {
       throw new Error(`Tree not found: ${treeId}`);
     }

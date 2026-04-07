@@ -10,6 +10,8 @@ import { useStreamingStore } from './store/streaming.js';
 import { useNodeOperations } from './hooks/useNodeOperations.js';
 import { Sidebar } from './components/graph/Sidebar.js';
 import type { SidebarMode, PinnedNode } from './components/graph/GraphRendererTypes.js';
+import { streamCompletion } from '@lineage/sdk';
+import type { ContextSource, Node } from '@lineage/core';
 import './styles/graph.css';
 
 const PINNED_KEY = 'lineage:pinnedNodes';
@@ -98,6 +100,148 @@ export function App() {
     setPinnedNodes([]);
   }, []);
 
+  // ── Pin selection (ephemeral, not persisted) ───────────────────────────────
+  const [selectedPinNodeIds, setSelectedPinNodeIds] = useState<Set<string>>(new Set());
+
+  const handlePinSelectionChange = useCallback((ids: Set<string>) => {
+    setSelectedPinNodeIds(ids);
+  }, []);
+
+  // ── Create tree from selected pins ─────────────────────────────────────────
+  const handleCreateTreeFromContext = useCallback(async () => {
+    if (!repo || selectedPinNodeIds.size === 0) return;
+
+    const serverUrl = localStorage.getItem('lineage:serverUrl');
+    if (!serverUrl) throw new Error('No server URL configured — set it in Settings');
+    const url = serverUrl.replace(/\/+$/, '');
+    const model = localStorage.getItem('lineage:llmModel') || undefined;
+    const thinking = localStorage.getItem('lineage:thinkingEnabled') === 'true';
+
+    // Collect the selected pins in selection order
+    const selectedPins = pinnedNodes.filter((p) => selectedPinNodeIds.has(p.nodeId));
+
+    // Fetch all nodes per tree (deduplicated) so we can check types and existing summaries
+    const treeNodesCache = new Map<string, Node[]>();
+    const uniqueTreeIds = [...new Set(selectedPins.map((p) => p.treeId))];
+    await Promise.all(
+      uniqueTreeIds.map(async (treeId) => {
+        treeNodesCache.set(treeId, await repo.getNodes(treeId));
+      }),
+    );
+
+    // Resolve each pin: use as-is if summary, reuse existing summary child, or generate
+    const contextSources: ContextSource[] = new Array(selectedPins.length);
+    const errors: string[] = [];
+
+    await Promise.all(
+      selectedPins.map(async (pin, index) => {
+        const treeNodes = treeNodesCache.get(pin.treeId) ?? [];
+        const node = treeNodes.find((n) => n.nodeId === pin.nodeId);
+
+        if (!node) {
+          errors.push(`Node ${pin.nodeId} not found in tree ${pin.treeId}`);
+          return;
+        }
+
+        // Already a summary — use as-is
+        if (node.type === 'summary') {
+          contextSources[index] = { treeId: pin.treeId, nodeId: pin.nodeId };
+          return;
+        }
+
+        // Check for an existing direct summary child (best-effort reuse)
+        const existingSummaryChild = treeNodes.find(
+          (n) => n.parentId === pin.nodeId && n.type === 'summary' && !n.isDeleted,
+        );
+        if (existingSummaryChild) {
+          contextSources[index] = { treeId: pin.treeId, nodeId: existingSummaryChild.nodeId };
+          return;
+        }
+
+        // Generate a new summary
+        await new Promise<void>((resolve) => {
+          streamCompletion({
+            serverUrl: url,
+            treeId: pin.treeId,
+            nodeId: pin.nodeId,
+            model,
+            thinking,
+            endpoint: 'summarize',
+            onDone: (summaryNodeId) => {
+              contextSources[index] = { treeId: pin.treeId, nodeId: summaryNodeId };
+              resolve();
+            },
+            onError: (err) => {
+              errors.push(`Failed to summarize node ${pin.nodeId}: ${err}`);
+              resolve();
+            },
+          });
+        });
+      }),
+    );
+
+    if (errors.length > 0) {
+      throw new Error(errors.join('\n'));
+    }
+
+    // Create the new tree with context_sources
+    const treeId = crypto.randomUUID();
+    const rootNodeId = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    const title = `Seeded conversation`;
+
+    await repo.putTree({ treeId, title, createdAt, rootNodeId, contextSources });
+    await repo.putNode({
+      nodeId: rootNodeId,
+      treeId,
+      parentId: null,
+      type: 'human',
+      content: '',
+      isDeleted: false,
+      createdAt,
+      modelName: null,
+      provider: null,
+      tokenCount: null,
+      embeddingModel: null,
+      metadata: null,
+      author: null,
+    });
+
+    // Clear pin selection and navigate with root node in edit mode
+    setSelectedPinNodeIds(new Set());
+    refresh();
+    setSelectedTreeId(treeId);
+    setPendingEditNodeId(rootNodeId);
+
+    // Generate title from context summaries in the background
+    const summaryContents = await Promise.all(
+      contextSources.map(async (cs) => {
+        try {
+          const node = await repo.getNode(cs.nodeId);
+          return node.content;
+        } catch {
+          return '';
+        }
+      }),
+    );
+    const combined = summaryContents.filter(Boolean).join('\n\n');
+    if (combined) {
+      fetch(`${url}/trees/${treeId}/generate-title`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: combined, ...(model && { model }) }),
+      })
+        .then((res) => (res.ok ? (res.json() as Promise<{ title?: string }>) : null))
+        .then((data) => {
+          if (data?.title) {
+            repo.putTree({ treeId, title: data.title, createdAt, rootNodeId, contextSources });
+            refresh();
+          }
+        })
+        .catch(() => {});
+    }
+  }, [repo, selectedPinNodeIds, pinnedNodes, refresh, setSelectedTreeId]);
+
   // ── Node data ───────────────────────────────────────────────────────────────
   const {
     nodes,
@@ -185,6 +329,9 @@ export function App() {
         onTogglePin: handleTogglePin,
         onUnpin: handleUnpin,
         onClearAllPins: handleClearAllPins,
+        selectedPinNodeIds,
+        onPinSelectionChange: handlePinSelectionChange,
+        onCreateTreeFromContext: handleCreateTreeFromContext,
       }
     : null;
 
@@ -192,15 +339,15 @@ export function App() {
     if (repoError) {
       return (
         <div style={statusStyle}>
-          <span style={{ color: '#e55' }}>Failed to initialize storage:</span>{' '}
-          {repoError.message}
+          <span style={{ color: '#e55' }}>Failed to initialize storage:</span> {repoError.message}
         </div>
       );
     }
 
     // Show sidebar + status message for empty/error states when repo is available
     const statusMessage = (() => {
-      if (trees.length === 0 && !isLoading) return 'No conversations yet. Use ☰ in the sidebar to create one.';
+      if (trees.length === 0 && !isLoading)
+        return 'No conversations yet. Use ☰ in the sidebar to create one.';
       if (nodesError && trees.length > 0) return null;
       return null;
     })();
@@ -208,12 +355,7 @@ export function App() {
     if (statusMessage !== null && repo) {
       return (
         <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: COLORS.bg }}>
-          <Sidebar
-            nodes={[]}
-            selectedNodeId={null}
-            onSelect={() => {}}
-            {...treeProps}
-          />
+          <Sidebar nodes={[]} selectedNodeId={null} onSelect={() => {}} {...treeProps} />
           <div style={{ ...statusStyle, flex: 1 }}>{statusMessage}</div>
         </div>
       );

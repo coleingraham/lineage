@@ -28,7 +28,7 @@ export function TreeSelector({
       const rootNodeId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
 
-      const tree: Tree = { treeId, title, createdAt, rootNodeId };
+      const tree: Tree = { treeId, title, createdAt, rootNodeId, contextSources: null };
       await repo.putTree(tree);
 
       // putTree + putNode for the root (SDK skips root nodes for REST, but

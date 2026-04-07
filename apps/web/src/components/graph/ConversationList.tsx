@@ -58,7 +58,7 @@ export function ConversationList({
       const rootNodeId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
 
-      await repo.putTree({ treeId, title, createdAt, rootNodeId });
+      await repo.putTree({ treeId, title, createdAt, rootNodeId, contextSources: null });
       await repo.putNode({
         nodeId: rootNodeId,
         treeId,
@@ -117,143 +117,147 @@ export function ConversationList({
         </button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px' }}>
-        {[...trees].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((tree) => {
-          const isSelected = tree.treeId === selectedTreeId;
-          return (
-            <div
-              key={tree.treeId}
-              onClick={() => onSelectTree(tree.treeId)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 10px',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                background: isSelected ? 'rgba(143,184,200,0.07)' : 'transparent',
-                borderLeft: `2px solid ${isSelected ? '#8fb8c8' : 'transparent'}`,
-                transition: 'all 0.12s',
-              }}
-            >
-              {editingTitleId === tree.treeId ? (
-                <input
-                  autoFocus
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleRenameSave();
-                    if (e.key === 'Escape') handleRenameCancel();
-                  }}
-                  onBlur={handleRenameCancel}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    flex: 1,
-                    fontSize: '12px',
-                    fontFamily: FONTS.mono,
-                    color: '#d0d0d0',
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(143,184,200,0.3)',
-                    borderRadius: '3px',
-                    padding: '2px 6px',
-                    outline: 'none',
-                  }}
-                />
-              ) : (
-                <span
-                  style={{
-                    flex: 1,
-                    fontSize: '12px',
-                    fontFamily: FONTS.mono,
-                    color: isSelected ? '#d0d0d0' : '#666',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {tree.title || tree.treeId.slice(0, 8)}
-                </span>
-              )}
-              {confirmingDeleteId === tree.treeId ? (
-                <div
-                  style={{ display: 'flex', gap: '4px', flexShrink: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => confirmDelete(tree.treeId)}
+        {[...trees]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .map((tree) => {
+            const isSelected = tree.treeId === selectedTreeId;
+            return (
+              <div
+                key={tree.treeId}
+                onClick={() => onSelectTree(tree.treeId)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 10px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  background: isSelected ? 'rgba(143,184,200,0.07)' : 'transparent',
+                  borderLeft: `2px solid ${isSelected ? '#8fb8c8' : 'transparent'}`,
+                  transition: 'all 0.12s',
+                }}
+              >
+                {editingTitleId === tree.treeId ? (
+                  <input
+                    autoFocus
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameSave();
+                      if (e.key === 'Escape') handleRenameCancel();
+                    }}
+                    onBlur={handleRenameCancel}
+                    onClick={(e) => e.stopPropagation()}
                     style={{
-                      background: 'rgba(238,85,85,0.15)',
-                      border: '1px solid rgba(238,85,85,0.3)',
+                      flex: 1,
+                      fontSize: '12px',
+                      fontFamily: FONTS.mono,
+                      color: '#d0d0d0',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(143,184,200,0.3)',
                       borderRadius: '3px',
-                      color: '#e55',
-                      cursor: 'pointer',
-                      fontSize: '9px',
                       padding: '2px 6px',
-                      fontFamily: FONTS.mono,
+                      outline: 'none',
                     }}
-                  >
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => setConfirmingDeleteId(null)}
+                  />
+                ) : (
+                  <span
                     style={{
-                      background: 'transparent',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '3px',
-                      color: '#666',
-                      cursor: 'pointer',
-                      fontSize: '9px',
-                      padding: '2px 6px',
+                      flex: 1,
+                      fontSize: '12px',
                       fontFamily: FONTS.mono,
+                      color: isSelected ? '#d0d0d0' : '#666',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    Cancel
-                  </button>
-                </div>
-              ) : editingTitleId !== tree.treeId && (
-                <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRenameStart(tree.treeId, tree.title || '');
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#444',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      padding: '2px 4px',
-                      fontFamily: FONTS.mono,
-                      opacity: 0.6,
-                    }}
-                    title="Rename conversation"
+                    {tree.title || tree.treeId.slice(0, 8)}
+                  </span>
+                )}
+                {confirmingDeleteId === tree.treeId ? (
+                  <div
+                    style={{ display: 'flex', gap: '4px', flexShrink: 0 }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    ✎
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmingDeleteId(tree.treeId);
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#444',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      padding: '2px 4px',
-                      fontFamily: FONTS.mono,
-                      opacity: 0.6,
-                    }}
-                    title="Delete conversation"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    <button
+                      onClick={() => confirmDelete(tree.treeId)}
+                      style={{
+                        background: 'rgba(238,85,85,0.15)',
+                        border: '1px solid rgba(238,85,85,0.3)',
+                        borderRadius: '3px',
+                        color: '#e55',
+                        cursor: 'pointer',
+                        fontSize: '9px',
+                        padding: '2px 6px',
+                        fontFamily: FONTS.mono,
+                      }}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDeleteId(null)}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '3px',
+                        color: '#666',
+                        cursor: 'pointer',
+                        fontSize: '9px',
+                        padding: '2px 6px',
+                        fontFamily: FONTS.mono,
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  editingTitleId !== tree.treeId && (
+                    <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRenameStart(tree.treeId, tree.title || '');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#444',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          padding: '2px 4px',
+                          fontFamily: FONTS.mono,
+                          opacity: 0.6,
+                        }}
+                        title="Rename conversation"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmingDeleteId(tree.treeId);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#444',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          padding: '2px 4px',
+                          fontFamily: FONTS.mono,
+                          opacity: 0.6,
+                        }}
+                        title="Delete conversation"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
+            );
+          })}
       </div>
     </div>
   );

@@ -112,10 +112,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const { state, update: rawUpdate } = useSettings();
   const [saved, setSaved] = useState(false);
 
-  const update = useCallback(<K extends keyof typeof state>(key: K, value: (typeof state)[K]) => {
-    rawUpdate(key, value);
-    setSaved(false);
-  }, [rawUpdate]);
+  const update = useCallback(
+    <K extends keyof typeof state>(key: K, value: (typeof state)[K]) => {
+      rawUpdate(key, value);
+      setSaved(false);
+    },
+    [rawUpdate],
+  );
 
   const handleSave = useCallback(() => {
     saveSettings(state);

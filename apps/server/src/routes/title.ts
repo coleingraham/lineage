@@ -41,7 +41,11 @@ export function titleRoutes(repo: NodeRepository, llm: LLMProvider) {
     try {
       let thinkingContent = '';
       let responseContent = '';
-      for await (const chunk of c.var.llm.stream(messages, { maxTokens: 256, thinking: false, ...(model && { model }) })) {
+      for await (const chunk of c.var.llm.stream(messages, {
+        maxTokens: 256,
+        thinking: false,
+        ...(model && { model }),
+      })) {
         if (typeof chunk === 'string') {
           responseContent += chunk;
         } else if (chunk.thinking) {
@@ -52,8 +56,13 @@ export function titleRoutes(repo: NodeRepository, llm: LLMProvider) {
       }
       // Use response content if available, otherwise strip thinking markup from thinking content
       const raw = responseContent || stripThinking(thinkingContent);
-      const cleaned = raw.replace(/^["']|["']$/g, '').replace(/\.+$/, '').trim();
-      console.log(`[generate-title] response="${responseContent}" thinking="${thinkingContent.slice(0, 80)}" cleaned="${cleaned}"`);
+      const cleaned = raw
+        .replace(/^["']|["']$/g, '')
+        .replace(/\.+$/, '')
+        .trim();
+      console.log(
+        `[generate-title] response="${responseContent}" thinking="${thinkingContent.slice(0, 80)}" cleaned="${cleaned}"`,
+      );
       return c.json({ title: cleaned });
     } catch (e) {
       console.error('[generate-title] failed:', e);

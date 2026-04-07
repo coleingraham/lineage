@@ -17,7 +17,8 @@ interface MarkdownProps {
 }
 
 export function Markdown({ content, fontSize = '15px', color = '#ececec' }: MarkdownProps) {
-  if (!content) return <span style={{ color: '#383838', fontFamily: FONTS.mono }}>{'(empty)'}</span>;
+  if (!content)
+    return <span style={{ color: '#383838', fontFamily: FONTS.mono }}>{'(empty)'}</span>;
 
   const { thinking, rest } = extractThinking(content);
 

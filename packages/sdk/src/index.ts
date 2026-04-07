@@ -33,7 +33,7 @@ export class RestNodeRepository implements NodeRepository {
       const res = await fetch(`${this.baseUrl}/trees/${tree.treeId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: tree.title }),
+        body: JSON.stringify({ title: tree.title, contextSources: tree.contextSources }),
       });
       if (!res.ok) throw new Error(`putTree (update) failed: HTTP ${res.status}`);
     } else {
@@ -44,6 +44,7 @@ export class RestNodeRepository implements NodeRepository {
           title: tree.title,
           treeId: tree.treeId,
           rootNodeId: tree.rootNodeId,
+          contextSources: tree.contextSources,
         }),
       });
       if (!res.ok) throw new Error(`putTree (create) failed: HTTP ${res.status}`);

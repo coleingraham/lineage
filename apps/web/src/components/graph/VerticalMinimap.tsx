@@ -146,8 +146,7 @@ export function VerticalMinimap({
           const childIdx = activePath.indexOf(n.id);
           const isActive = childIdx !== -1 && activePath.includes(n.parentId);
           const isSuperseded = isActive && summaryBreakIdx !== -1 && childIdx <= summaryBreakIdx;
-          const isHover =
-            !isActive && hoverPath.includes(n.id) && hoverPath.includes(n.parentId);
+          const isHover = !isActive && hoverPath.includes(n.id) && hoverPath.includes(n.parentId);
           return (
             <line
               key={n.id + '-e'}

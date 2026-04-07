@@ -35,11 +35,16 @@ export function useNodeEditing({
   onSelectedNodeChange,
   onFocus,
 }: UseNodeEditingOptions) {
-  const [selectedNodeId, _setSelectedNodeId] = useState<string | null>(initialSelectedNodeId ?? null);
-  const setSelectedNodeId = useCallback((id: string | null) => {
-    _setSelectedNodeId(id);
-    if (id) onSelectedNodeChange?.(id);
-  }, [onSelectedNodeChange]);
+  const [selectedNodeId, _setSelectedNodeId] = useState<string | null>(
+    initialSelectedNodeId ?? null,
+  );
+  const setSelectedNodeId = useCallback(
+    (id: string | null) => {
+      _setSelectedNodeId(id);
+      if (id) onSelectedNodeChange?.(id);
+    },
+    [onSelectedNodeChange],
+  );
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   // Tracks nodes created eagerly (e.g. handleAddHumanNode) that should be
@@ -80,7 +85,17 @@ export function useNodeEditing({
         await onEdit(nodeId, editText);
       }
     }
-  }, [editingNodeId, editText, pendingNewNodeId, onEdit, onCreateSibling, nodeById, onNodeReply, onRootNodeSubmitted, setSelectedNodeId]);
+  }, [
+    editingNodeId,
+    editText,
+    pendingNewNodeId,
+    onEdit,
+    onCreateSibling,
+    nodeById,
+    onNodeReply,
+    onRootNodeSubmitted,
+    setSelectedNodeId,
+  ]);
 
   const handleEditCancel = useCallback(() => {
     if (pendingNewNodeId) {

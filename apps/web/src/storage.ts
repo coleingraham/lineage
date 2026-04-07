@@ -24,7 +24,8 @@ export function detectStorageMode(): StorageConfig {
     return { mode: 'remote', serverUrl };
   }
 
-  if (typeof localStorage === 'undefined') return { mode: 'remote', serverUrl: 'http://localhost:3000' };
+  if (typeof localStorage === 'undefined')
+    return { mode: 'remote', serverUrl: 'http://localhost:3000' };
 
   const explicit = localStorage.getItem('lineage:storageMode');
   const serverUrl = localStorage.getItem('lineage:serverUrl');

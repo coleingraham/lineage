@@ -149,7 +149,13 @@ export function CurrentCard({
           depth {node.depth}
         </span>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: '5px', visibility: hover || isLeaf ? 'visible' : 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '5px',
+            visibility: hover || isLeaf ? 'visible' : 'hidden',
+          }}
+        >
           {node.type === 'human' && node.parentId !== null && (
             <ActionBtn
               label="Edit"
@@ -188,8 +194,8 @@ export function CurrentCard({
         />
       ) : (
         <div>
-            <Markdown content={node.content} fontSize="18px" />
-          </div>
+          <Markdown content={node.content} fontSize="18px" />
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { buildContext } from '../context.js';
+import { describe, it, expect, vi } from 'vitest';
+import { buildContext, assembleContext } from '../context.js';
 import type { Node } from '../types.js';
+import type { NodeRepository } from '../repository.js';
 
 function makeNode(overrides: Partial<Node> & Pick<Node, 'nodeId'>): Node {
   return {
@@ -54,9 +55,7 @@ describe('buildContext', () => {
     ];
 
     // When targeting the summary itself, only the summary is context
-    expect(buildContext(nodes, 's1')).toEqual([
-      { role: 'ai', content: 'summary text' },
-    ]);
+    expect(buildContext(nodes, 's1')).toEqual([{ role: 'ai', content: 'summary text' }]);
 
     // When targeting a child of the summary, context starts at the summary
     expect(buildContext(nodes, 'h2')).toEqual([
@@ -137,5 +136,113 @@ describe('buildContext', () => {
       const result = buildContext(nodes, 'h1', { maxContextTokens: 10 });
       expect(result).toEqual([{ role: 'human', content: 'b' }]);
     });
+  });
+});
+
+describe('assembleContext', () => {
+  function makeMockRepo(nodes: Node[]): NodeRepository {
+    const nodesById = new Map(nodes.map((n) => [n.nodeId, n]));
+    return {
+      getNode: vi.fn(async (nodeId: string) => {
+        const node = nodesById.get(nodeId);
+        if (!node) throw new Error(`Node ${nodeId} not found`);
+        return node;
+      }),
+      getTree: vi.fn(),
+      listTrees: vi.fn(),
+      putTree: vi.fn(),
+      getNodes: vi.fn(),
+      putNode: vi.fn(),
+      softDeleteNode: vi.fn(),
+      deleteTree: vi.fn(),
+      updateNodeEmbedding: vi.fn(),
+    };
+  }
+
+  it('returns empty string for empty sources', async () => {
+    const repo = makeMockRepo([]);
+    expect(await assembleContext(repo, [])).toBe('');
+  });
+
+  it('assembles summaries in source order with header', async () => {
+    const repo = makeMockRepo([
+      makeNode({ nodeId: 'n1', content: 'Summary one.', type: 'summary' }),
+      makeNode({ nodeId: 'n2', content: 'Summary two.', type: 'summary' }),
+    ]);
+
+    const result = await assembleContext(repo, [
+      { treeId: 'tree-1', nodeId: 'n1' },
+      { treeId: 'tree-1', nodeId: 'n2' },
+    ]);
+
+    expect(result).toContain('[1] Summary one.');
+    expect(result).toContain('[2] Summary two.');
+    expect(result).toContain('background context');
+  });
+
+  it('skips missing nodes gracefully', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const repo = makeMockRepo([
+      makeNode({ nodeId: 'n1', content: 'Summary one.', type: 'summary' }),
+    ]);
+
+    const result = await assembleContext(repo, [
+      { treeId: 'tree-1', nodeId: 'missing' },
+      { treeId: 'tree-1', nodeId: 'n1' },
+    ]);
+
+    expect(result).toContain('[1] Summary one.');
+    expect(result).not.toContain('[2]');
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('missing'));
+    warnSpy.mockRestore();
+  });
+
+  it('skips deleted nodes gracefully', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const repo = makeMockRepo([
+      makeNode({ nodeId: 'n1', content: 'deleted summary', type: 'summary', isDeleted: true }),
+      makeNode({ nodeId: 'n2', content: 'Good summary.', type: 'summary' }),
+    ]);
+
+    const result = await assembleContext(repo, [
+      { treeId: 'tree-1', nodeId: 'n1' },
+      { treeId: 'tree-1', nodeId: 'n2' },
+    ]);
+
+    expect(result).toContain('[1] Good summary.');
+    expect(result).not.toContain('deleted summary');
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('deleted'));
+    warnSpy.mockRestore();
+  });
+
+  it('returns empty string when all nodes are missing or deleted', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const repo = makeMockRepo([
+      makeNode({ nodeId: 'n1', content: 'x', type: 'summary', isDeleted: true }),
+    ]);
+
+    const result = await assembleContext(repo, [
+      { treeId: 'tree-1', nodeId: 'n1' },
+      { treeId: 'tree-1', nodeId: 'gone' },
+    ]);
+
+    expect(result).toBe('');
+    vi.restoreAllMocks();
+  });
+
+  it('strips thinking blocks from content', async () => {
+    const repo = makeMockRepo([
+      makeNode({
+        nodeId: 'n1',
+        content:
+          '<details>\n<summary>Thinking</summary>\n\nthinking...\n\n</details>\n\nActual summary.',
+        type: 'summary',
+      }),
+    ]);
+
+    const result = await assembleContext(repo, [{ treeId: 'tree-1', nodeId: 'n1' }]);
+
+    expect(result).toContain('Actual summary.');
+    expect(result).not.toContain('thinking...');
   });
 });

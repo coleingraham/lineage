@@ -30,7 +30,10 @@ export function SiblingNav({
       }}
     >
       <button
-        onClick={(e) => { e.stopPropagation(); if (prev) onSelect(prev.id); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (prev) onSelect(prev.id);
+        }}
         disabled={!prev}
         style={{
           background: 'none',
@@ -48,7 +51,10 @@ export function SiblingNav({
         {current} / {total}
       </span>
       <button
-        onClick={(e) => { e.stopPropagation(); if (next) onSelect(next.id); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (next) onSelect(next.id);
+        }}
         disabled={!next}
         style={{
           background: 'none',

@@ -60,6 +60,7 @@ function makeTree(overrides: Partial<Tree> = {}): Tree {
     title: 'Test tree',
     createdAt: '2026-04-03T00:00:00.000Z',
     rootNodeId: 'node-1',
+    contextSources: null,
     ...overrides,
   };
 }
@@ -157,10 +158,13 @@ describe('BrowserSqliteRepository', () => {
     it('putTree calls run with correct parameters', async () => {
       const tree = makeTree();
       await repo.putTree(tree);
-      expect(mockDb.run).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO trees'),
-        [tree.treeId, tree.title, tree.createdAt, tree.rootNodeId],
-      );
+      expect(mockDb.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO trees'), [
+        tree.treeId,
+        tree.title,
+        tree.createdAt,
+        tree.rootNodeId,
+        null,
+      ]);
     });
   });
 
@@ -188,24 +192,21 @@ describe('BrowserSqliteRepository', () => {
     it('putNode calls run with boolean-to-int conversion', async () => {
       const node = makeNode({ isDeleted: true });
       await repo.putNode(node);
-      expect(mockDb.run).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO nodes'),
-        [
-          node.nodeId,
-          node.treeId,
-          node.parentId,
-          node.type,
-          node.content,
-          1, // isDeleted mapped to integer
-          node.createdAt,
-          node.modelName,
-          node.provider,
-          node.tokenCount,
-          node.embeddingModel,
-          null, // metadata (JSON-serialized)
-          node.author,
-        ],
-      );
+      expect(mockDb.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO nodes'), [
+        node.nodeId,
+        node.treeId,
+        node.parentId,
+        node.type,
+        node.content,
+        1, // isDeleted mapped to integer
+        node.createdAt,
+        node.modelName,
+        node.provider,
+        node.tokenCount,
+        node.embeddingModel,
+        null, // metadata (JSON-serialized)
+        node.author,
+      ]);
     });
 
     it('softDeleteNode throws when not found', async () => {
@@ -230,14 +231,12 @@ describe('BrowserSqliteRepository', () => {
     it('deleteTree deletes nodes then tree', async () => {
       enqueueRows([{ tree_id: 'tree-1' }]);
       await repo.deleteTree('tree-1');
-      expect(mockDb.run).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM nodes'),
-        ['tree-1'],
-      );
-      expect(mockDb.run).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM trees'),
-        ['tree-1'],
-      );
+      expect(mockDb.run).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM nodes'), [
+        'tree-1',
+      ]);
+      expect(mockDb.run).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM trees'), [
+        'tree-1',
+      ]);
     });
 
     it('round-trips an ai node with all metadata', async () => {

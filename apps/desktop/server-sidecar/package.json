@@ -1,1 +1,4 @@
-{"name":"lineage-server-sidecar","private":true}
+{
+  "name": "lineage-server-sidecar",
+  "private": true
+}

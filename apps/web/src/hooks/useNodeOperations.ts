@@ -55,7 +55,9 @@ export function useNodeOperations({
     async (treeId: string, content: string) => {
       if (!repo) return;
       // Use SDK generateTitle if available (RestNodeRepository), otherwise skip
-      const sdk = repo as RestNodeRepository & { generateTitle?: (treeId: string, content: string, model?: string) => Promise<string | null> };
+      const sdk = repo as RestNodeRepository & {
+        generateTitle?: (treeId: string, content: string, model?: string) => Promise<string | null>;
+      };
       if (typeof sdk.generateTitle !== 'function') {
         // Fallback: try via localStorage serverUrl
         const serverUrl = localStorage.getItem('lineage:serverUrl');
@@ -112,20 +114,19 @@ export function useNodeOperations({
       if (!repo || !selectedTreeId) return;
       try {
         // Use SDK updateNode if available, otherwise fallback
-        const sdk = repo as RestNodeRepository & { updateNode?: (treeId: string, nodeId: string, content: string) => Promise<Node> };
+        const sdk = repo as RestNodeRepository & {
+          updateNode?: (treeId: string, nodeId: string, content: string) => Promise<Node>;
+        };
         if (typeof sdk.updateNode === 'function') {
           await sdk.updateNode(selectedTreeId, nodeId, content);
         } else {
           const serverUrl = localStorage.getItem('lineage:serverUrl');
           if (serverUrl) {
-            const res = await fetch(
-              `${serverUrl}/trees/${selectedTreeId}/nodes/${nodeId}`,
-              {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content }),
-              },
-            );
+            const res = await fetch(`${serverUrl}/trees/${selectedTreeId}/nodes/${nodeId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content }),
+            });
             if (!res.ok) throw new Error(`PATCH failed: HTTP ${res.status}`);
           } else {
             const existing = await repo.getNode(nodeId);

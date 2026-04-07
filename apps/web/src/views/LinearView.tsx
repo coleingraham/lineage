@@ -1,7 +1,11 @@
 import { useState, useMemo, useCallback, type RefCallback } from 'react';
 import type { Node, Tree, NodeRepository } from '@lineage/core';
 import { COLORS } from '../styles/theme.js';
-import type { GraphCallbacks, SidebarMode, PinnedNode } from '../components/graph/GraphRendererTypes.js';
+import type {
+  GraphCallbacks,
+  SidebarMode,
+  PinnedNode,
+} from '../components/graph/GraphRendererTypes.js';
 import { toGraphNodes } from '../components/graph/convertNodes.js';
 import {
   buildChildrenMap,
@@ -14,6 +18,7 @@ import { StreamingCard } from '../components/StreamingCard.js';
 import { Sidebar } from '../components/graph/Sidebar.js';
 import { useNodeEditing } from '../hooks/useNodeEditing.js';
 import { LinearNodeCard } from '../components/LinearNodeCard.js';
+import { ContextCard } from '../components/ContextCard.js';
 
 interface LinearViewProps {
   nodes: Node[];
@@ -43,6 +48,9 @@ interface LinearViewProps {
   onTogglePin: (nodeId: string) => void;
   onUnpin: (nodeId: string) => void;
   onClearAllPins: () => void;
+  selectedPinNodeIds: Set<string>;
+  onPinSelectionChange: (ids: Set<string>) => void;
+  onCreateTreeFromContext: () => Promise<void>;
 }
 
 // ── Vertical connector between cards ────────────────────────────────────────
@@ -63,10 +71,43 @@ function VerticalConnector() {
 
 // ── LinearView ──────────────────────────────────────────────────────────────
 
-export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, onCreateSibling, selectedNodeId: controlledSelectedNodeId, onSelectedNodeChange, focusNodeId, onFocusHandled, trees, selectedTreeId, onSelectTree, onDeleteTree, repo, onTreeCreated, onRequestEdit, pendingEditNodeId, onPendingEditHandled, sidebarMode, onSidebarModeChange, onRootNodeSubmitted, pinnedNodes, onTogglePin, onUnpin, onClearAllPins }: LinearViewProps) {
+export function LinearView({
+  nodes,
+  treeId,
+  onDelete,
+  onEdit,
+  onAddHumanNode,
+  onCreateSibling,
+  selectedNodeId: controlledSelectedNodeId,
+  onSelectedNodeChange,
+  focusNodeId,
+  onFocusHandled,
+  trees,
+  selectedTreeId,
+  onSelectTree,
+  onDeleteTree,
+  repo,
+  onTreeCreated,
+  onRequestEdit,
+  pendingEditNodeId,
+  onPendingEditHandled,
+  sidebarMode,
+  onSidebarModeChange,
+  onRootNodeSubmitted,
+  pinnedNodes,
+  onTogglePin,
+  onUnpin,
+  onClearAllPins,
+  selectedPinNodeIds,
+  onPinSelectionChange,
+  onCreateTreeFromContext,
+}: LinearViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
-  const pinnedNodeIds = useMemo(() => new Set((pinnedNodes ?? []).map((p) => p.nodeId)), [pinnedNodes]);
+  const pinnedNodeIds = useMemo(
+    () => new Set((pinnedNodes ?? []).map((p) => p.nodeId)),
+    [pinnedNodes],
+  );
 
   const childrenOf = useMemo(() => buildChildrenMap(graphNodes), [graphNodes]);
 
@@ -82,7 +123,9 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
   const streaming = useStreamingStore();
   const { onNodeReply, onNodeRegenerate, onNodeSummarize } = useStreamingCallbacks(treeId);
 
-  const [scrollToNodeId, setScrollToNodeId] = useState<string | null>(controlledSelectedNodeId ?? defaultLeaf);
+  const [scrollToNodeId, setScrollToNodeId] = useState<string | null>(
+    controlledSelectedNodeId ?? defaultLeaf,
+  );
 
   const {
     selectedNodeId,
@@ -148,7 +191,16 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
         onNodeReply(nodeId);
       },
     }),
-    [nodeById, childrenOf, onNodeReply, onNodeRegenerate, onNodeSummarize, onDelete, handleEditStart, setSelectedNodeId],
+    [
+      nodeById,
+      childrenOf,
+      onNodeReply,
+      onNodeRegenerate,
+      onNodeSummarize,
+      onDelete,
+      handleEditStart,
+      setSelectedNodeId,
+    ],
   );
 
   const pathEntries = useMemo(
@@ -159,6 +211,12 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
 
   const lastNodeId = pathEntries.length > 0 ? pathEntries[pathEntries.length - 1].node.id : null;
 
+  const currentTree = useMemo(
+    () => trees?.find((t) => t.treeId === treeId),
+    [trees, treeId],
+  );
+  const contextSources = currentTree?.contextSources;
+
   // Nodes before a summary node on the path are "superseded"
   const summaryIndex = useMemo(
     () => pathEntries.findIndex((e) => e.node.type === 'summary'),
@@ -166,19 +224,13 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
   );
 
   // Streaming card logic
-  const pathNodeIds = useMemo(
-    () => new Set(pathEntries.map((e) => e.node.id)),
-    [pathEntries],
-  );
-  const isStreamingActive =
-    streaming.status !== 'idle' && streaming.parentNodeId != null;
+  const pathNodeIds = useMemo(() => new Set(pathEntries.map((e) => e.node.id)), [pathEntries]);
+  const isStreamingActive = streaming.status !== 'idle' && streaming.parentNodeId != null;
   const streamingParentIdx = isStreamingActive
     ? pathEntries.findIndex((e) => e.node.id === streaming.parentNodeId)
     : -1;
   const isRegen = streamingParentIdx >= 0 && streamingParentIdx < pathEntries.length - 1;
-  const regenReplacedNodeId = isRegen
-    ? pathEntries[streamingParentIdx + 1].node.id
-    : null;
+  const regenReplacedNodeId = isRegen ? pathEntries[streamingParentIdx + 1].node.id : null;
   const showStreamingCard =
     isStreamingActive && pathNodeIds.has(streaming.parentNodeId!) && !isRegen;
 
@@ -210,6 +262,9 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
         pinnedNodes={pinnedNodes}
         onUnpin={onUnpin}
         onClearAllPins={onClearAllPins}
+        selectedPinNodeIds={selectedPinNodeIds}
+        onPinSelectionChange={onPinSelectionChange}
+        onCreateTreeFromContext={onCreateTreeFromContext}
       />
       <div
         style={{
@@ -221,6 +276,17 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
         }}
       >
         <div style={{ width: '100%', maxWidth: '720px' }}>
+          {contextSources && contextSources.length > 0 && (
+            <>
+              <ContextCard
+                contextSources={contextSources}
+                trees={trees}
+                repo={repo}
+                onNavigate={(navTreeId: string) => onSelectTree(navTreeId)}
+              />
+              <VerticalConnector />
+            </>
+          )}
           {pathEntries.map(({ node, siblings }, i) => {
             if (regenReplacedNodeId === node.id) {
               return (
@@ -239,7 +305,10 @@ export function LinearView({ nodes, treeId, onDelete, onEdit, onAddHumanNode, on
                 </div>
               );
             }
-            if (regenReplacedNodeId && i > pathEntries.findIndex((e) => e.node.id === regenReplacedNodeId)) {
+            if (
+              regenReplacedNodeId &&
+              i > pathEntries.findIndex((e) => e.node.id === regenReplacedNodeId)
+            ) {
               return null;
             }
             return (
