@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import type { NodeRepository, LLMProvider, Node } from '@lineage/core';
-import { buildContext } from '@lineage/core';
+import type { NodeRepository, LLMProvider, Node, Tree } from '@lineage/core';
+import { buildContext, assembleContext } from '@lineage/core';
 
 const completionBody = z.object({
   nodeId: z.string().min(1),
@@ -39,8 +39,9 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
     console.log(`[complete] treeId=${treeId} nodeId=${nodeId} maxTokens=${maxTokens}`);
 
     // Validate tree exists
+    let tree: Tree;
     try {
-      await c.var.repo.getTree(treeId);
+      tree = await c.var.repo.getTree(treeId);
     } catch {
       console.log(`[complete] tree not found: ${treeId}`);
       return c.json({ error: 'Tree not found' }, 404);
@@ -63,6 +64,15 @@ export function completionRoutes(repo: NodeRepository, llm: LLMProvider) {
     // Build conversation context
     const nodes = await c.var.repo.getNodes(treeId);
     const messages = buildContext(nodes, nodeId, { maxContextTokens });
+
+    // Inject assembled context from seeded sources as a leading system message
+    if (tree.contextSources && tree.contextSources.length > 0) {
+      const contextBlock = await assembleContext(c.var.repo, tree.contextSources);
+      if (contextBlock) {
+        messages.unshift({ role: 'system', content: contextBlock });
+        console.log(`[complete] injected context from ${tree.contextSources.length} source(s)`);
+      }
+    }
 
     console.log(`[complete] context: ${messages.length} messages`);
     for (const msg of messages) {

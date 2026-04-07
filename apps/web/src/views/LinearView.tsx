@@ -18,6 +18,7 @@ import { StreamingCard } from '../components/StreamingCard.js';
 import { Sidebar } from '../components/graph/Sidebar.js';
 import { useNodeEditing } from '../hooks/useNodeEditing.js';
 import { LinearNodeCard } from '../components/LinearNodeCard.js';
+import { ContextCard } from '../components/ContextCard.js';
 
 interface LinearViewProps {
   nodes: Node[];
@@ -210,6 +211,12 @@ export function LinearView({
 
   const lastNodeId = pathEntries.length > 0 ? pathEntries[pathEntries.length - 1].node.id : null;
 
+  const currentTree = useMemo(
+    () => trees?.find((t) => t.treeId === treeId),
+    [trees, treeId],
+  );
+  const contextSources = currentTree?.contextSources;
+
   // Nodes before a summary node on the path are "superseded"
   const summaryIndex = useMemo(
     () => pathEntries.findIndex((e) => e.node.type === 'summary'),
@@ -269,6 +276,17 @@ export function LinearView({
         }}
       >
         <div style={{ width: '100%', maxWidth: '720px' }}>
+          {contextSources && contextSources.length > 0 && (
+            <>
+              <ContextCard
+                contextSources={contextSources}
+                trees={trees}
+                repo={repo}
+                onNavigate={(navTreeId) => onSelectTree(navTreeId)}
+              />
+              <VerticalConnector />
+            </>
+          )}
           {pathEntries.map(({ node, siblings }, i) => {
             if (regenReplacedNodeId === node.id) {
               return (

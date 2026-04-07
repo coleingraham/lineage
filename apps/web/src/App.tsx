@@ -207,10 +207,39 @@ export function App() {
       author: null,
     });
 
-    // Clear pin selection and navigate
+    // Clear pin selection and navigate with root node in edit mode
     setSelectedPinNodeIds(new Set());
     refresh();
     setSelectedTreeId(treeId);
+    setPendingEditNodeId(rootNodeId);
+
+    // Generate title from context summaries in the background
+    const summaryContents = await Promise.all(
+      contextSources.map(async (cs) => {
+        try {
+          const node = await repo.getNode(cs.nodeId);
+          return node.content;
+        } catch {
+          return '';
+        }
+      }),
+    );
+    const combined = summaryContents.filter(Boolean).join('\n\n');
+    if (combined) {
+      fetch(`${url}/trees/${treeId}/generate-title`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: combined, ...(model && { model }) }),
+      })
+        .then((res) => (res.ok ? (res.json() as Promise<{ title?: string }>) : null))
+        .then((data) => {
+          if (data?.title) {
+            repo.putTree({ treeId, title: data.title, createdAt, rootNodeId, contextSources });
+            refresh();
+          }
+        })
+        .catch(() => {});
+    }
   }, [repo, selectedPinNodeIds, pinnedNodes, refresh, setSelectedTreeId]);
 
   // ── Node data ───────────────────────────────────────────────────────────────

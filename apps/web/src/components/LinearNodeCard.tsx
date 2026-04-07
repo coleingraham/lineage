@@ -209,7 +209,7 @@ export function LinearNodeCard({
             visibility: hover || isSelected ? 'visible' : 'hidden',
           }}
         >
-          {node.type === 'human' && node.parentId !== null && (
+          {node.type === 'human' && (
             <ActionBtn
               label="Edit"
               color={COLORS.human}
