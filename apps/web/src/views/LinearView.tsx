@@ -282,7 +282,7 @@ export function LinearView({
                 contextSources={contextSources}
                 trees={trees}
                 repo={repo}
-                onNavigate={(navTreeId) => onSelectTree(navTreeId)}
+                onNavigate={(navTreeId: string) => onSelectTree(navTreeId)}
               />
               <VerticalConnector />
             </>
