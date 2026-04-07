@@ -1,9 +1,1 @@
-{
-  "main-capability": {
-    "identifier": "main-capability",
-    "description": "Main capability for the Lineage desktop app",
-    "local": true,
-    "windows": ["main"],
-    "permissions": ["sql:default", "sql:allow-execute", "sql:allow-select", "shell:allow-open"]
-  }
-}
+{"main-capability":{"identifier":"main-capability","description":"Main capability for the Lineage desktop app","local":true,"windows":["main"],"permissions":["sql:default","sql:allow-execute","sql:allow-select","shell:allow-open"]}}

@@ -130,23 +130,18 @@ export function App() {
     );
 
     // Resolve each pin: use as-is if summary, reuse existing summary child, or generate
-    const contextSources: ContextSource[] = new Array(selectedPins.length);
-    const errors: string[] = [];
-
-    await Promise.all(
-      selectedPins.map(async (pin, index) => {
+    const resolved = await Promise.all(
+      selectedPins.map(async (pin): Promise<ContextSource | null> => {
         const treeNodes = treeNodesCache.get(pin.treeId) ?? [];
         const node = treeNodes.find((n) => n.nodeId === pin.nodeId);
 
         if (!node) {
-          errors.push(`Node ${pin.nodeId} not found in tree ${pin.treeId}`);
-          return;
+          throw new Error(`Node ${pin.nodeId} not found in tree ${pin.treeId}`);
         }
 
         // Already a summary — use as-is
         if (node.type === 'summary') {
-          contextSources[index] = { treeId: pin.treeId, nodeId: pin.nodeId };
-          return;
+          return { treeId: pin.treeId, nodeId: pin.nodeId };
         }
 
         // Check for an existing direct summary child (best-effort reuse)
@@ -154,12 +149,11 @@ export function App() {
           (n) => n.parentId === pin.nodeId && n.type === 'summary' && !n.isDeleted,
         );
         if (existingSummaryChild) {
-          contextSources[index] = { treeId: pin.treeId, nodeId: existingSummaryChild.nodeId };
-          return;
+          return { treeId: pin.treeId, nodeId: existingSummaryChild.nodeId };
         }
 
         // Generate a new summary
-        await new Promise<void>((resolve) => {
+        return new Promise<ContextSource>((resolve, reject) => {
           streamCompletion({
             serverUrl: url,
             treeId: pin.treeId,
@@ -168,20 +162,20 @@ export function App() {
             thinking,
             endpoint: 'summarize',
             onDone: (summaryNodeId) => {
-              contextSources[index] = { treeId: pin.treeId, nodeId: summaryNodeId };
-              resolve();
+              resolve({ treeId: pin.treeId, nodeId: summaryNodeId });
             },
             onError: (err) => {
-              errors.push(`Failed to summarize node ${pin.nodeId}: ${err}`);
-              resolve();
+              reject(new Error(`Failed to summarize node ${pin.nodeId}: ${err}`));
             },
           });
         });
       }),
     );
 
-    if (errors.length > 0) {
-      throw new Error(errors.join('\n'));
+    const contextSources = resolved.filter((cs): cs is ContextSource => cs !== null);
+
+    if (contextSources.length === 0) {
+      throw new Error('No context sources could be resolved');
     }
 
     // Create the new tree with context_sources
@@ -212,34 +206,6 @@ export function App() {
     refresh();
     setSelectedTreeId(treeId);
     setPendingEditNodeId(rootNodeId);
-
-    // Generate title from context summaries in the background
-    const summaryContents = await Promise.all(
-      contextSources.map(async (cs) => {
-        try {
-          const node = await repo.getNode(cs.nodeId);
-          return node.content;
-        } catch {
-          return '';
-        }
-      }),
-    );
-    const combined = summaryContents.filter(Boolean).join('\n\n');
-    if (combined) {
-      fetch(`${url}/trees/${treeId}/generate-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: combined, ...(model && { model }) }),
-      })
-        .then((res) => (res.ok ? (res.json() as Promise<{ title?: string }>) : null))
-        .then((data) => {
-          if (data?.title) {
-            repo.putTree({ treeId, title: data.title, createdAt, rootNodeId, contextSources });
-            refresh();
-          }
-        })
-        .catch(() => {});
-    }
   }, [repo, selectedPinNodeIds, pinnedNodes, refresh, setSelectedTreeId]);
 
   // ── Node data ───────────────────────────────────────────────────────────────
@@ -309,6 +275,18 @@ export function App() {
     [selectedTreeId, refresh],
   );
 
+  const handleNavigateToNode = useCallback(
+    (treeId: string, nodeId: string) => {
+      if (treeId === selectedTreeId) {
+        setFocusNodeId(nodeId);
+      } else {
+        setSelectedTreeId(treeId);
+        setFocusNodeId(nodeId);
+      }
+    },
+    [selectedTreeId],
+  );
+
   // ── Loading / error states ──────────────────────────────────────────────────
   const isLoading = repoLoading || treesLoading || nodesLoading;
 
@@ -332,6 +310,7 @@ export function App() {
         selectedPinNodeIds,
         onPinSelectionChange: handlePinSelectionChange,
         onCreateTreeFromContext: handleCreateTreeFromContext,
+        onNavigateToNode: handleNavigateToNode,
       }
     : null;
 
