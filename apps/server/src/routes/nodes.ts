@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { NodeRepository, Node } from '@lineage/core';
 
 const createNodeBody = z.object({
-  type: z.enum(['human', 'summary']),
+  type: z.string().min(1),
   content: z.string(),
   parentId: z.string().min(1),
   nodeId: z.string().uuid().optional(),
@@ -72,6 +72,8 @@ export function nodeRoutes(repo: NodeRepository) {
       provider: null,
       tokenCount: null,
       embeddingModel: null,
+      metadata: null,
+      author: null,
     };
 
     await c.var.repo.putNode(node);

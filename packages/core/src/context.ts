@@ -1,5 +1,6 @@
 import type { Node } from './types.js';
 import type { Message } from './llm.js';
+import { stripThinking } from './content.js';
 
 /**
  * Walk from the given node to the root, collecting the path in root-first order.
@@ -29,24 +30,19 @@ function walkToRoot(nodeId: string, nodesById: Map<string, Node>): Node[] {
 
 /**
  * Convert a node's type to the corresponding Message role.
- * Summary nodes act as AI messages in the conversation.
+ * Summary and AI nodes map to 'ai'; system nodes map to 'system';
+ * all other types (human, tool_call, tool_result, custom) map to 'human'.
  */
 function nodeTypeToRole(type: Node['type']): Message['role'] {
   switch (type) {
-    case 'human':
-      return 'human';
     case 'ai':
     case 'summary':
       return 'ai';
+    case 'system':
+      return 'system';
+    default:
+      return 'human';
   }
-}
-
-/** Strip thinking blocks from saved node content (both <details> and blockquote formats). */
-function stripThinking(content: string): string {
-  return content
-    .replace(/<details>\s*<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*/g, '')
-    .replace(/^> \*Thinking:\*\n(?:>.*\n)*\n?/, '')
-    .trim();
 }
 
 export interface BuildContextOptions {

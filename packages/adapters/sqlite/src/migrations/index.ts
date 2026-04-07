@@ -6,7 +6,9 @@ CREATE TABLE IF NOT EXISTS node_types (
   name TEXT NOT NULL UNIQUE
 );
 
-INSERT OR IGNORE INTO node_types (id, name) VALUES (1, 'human'), (2, 'ai'), (3, 'summary');
+INSERT OR IGNORE INTO node_types (id, name) VALUES
+  (1, 'human'), (2, 'ai'), (3, 'summary'),
+  (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
 CREATE TABLE IF NOT EXISTS trees (
   tree_id      TEXT PRIMARY KEY,
@@ -26,10 +28,27 @@ CREATE TABLE IF NOT EXISTS nodes (
   model_name      TEXT,
   provider        TEXT,
   token_count     INTEGER,
-  embedding_model TEXT
+  embedding_model TEXT,
+  metadata        TEXT,
+  author          TEXT
 );
+`;
+
+const MIGRATE_V2 = `
+ALTER TABLE nodes ADD COLUMN metadata TEXT;
+ALTER TABLE nodes ADD COLUMN author TEXT;
+INSERT OR IGNORE INTO node_types (id, name) VALUES
+  (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 `;
 
 export function runMigrations(db: Database.Database): void {
   db.exec(INIT_SQL);
+
+  // V2: add metadata, author columns and new node types (safe on existing DBs)
+  const hasMetadata = db
+    .prepare("SELECT COUNT(*) AS cnt FROM pragma_table_info('nodes') WHERE name = 'metadata'")
+    .get() as { cnt: number };
+  if (hasMetadata.cnt === 0) {
+    db.exec(MIGRATE_V2);
+  }
 }

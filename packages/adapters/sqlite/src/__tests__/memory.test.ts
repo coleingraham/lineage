@@ -25,6 +25,8 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     provider: null,
     tokenCount: null,
     embeddingModel: null,
+    metadata: null,
+    author: null,
     ...overrides,
   };
 }

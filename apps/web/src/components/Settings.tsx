@@ -1,39 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { COLORS, FONTS } from '../styles/theme.js';
-
-/* ── localStorage keys ─────────────────────────────────────────────── */
-
-const KEYS = {
-  storageMode: 'lineage:storageMode',
-  serverUrl: 'lineage:serverUrl',
-  llmProvider: 'lineage:llmProvider',
-  llmApiKey: 'lineage:llmApiKey',
-  llmModel: 'lineage:llmModel',
-  thinkingEnabled: 'lineage:thinkingEnabled',
-  ollamaBaseUrl: 'lineage:ollamaBaseUrl',
-  embeddingEnabled: 'lineage:embeddingEnabled',
-  embeddingProvider: 'lineage:embeddingProvider',
-  embeddingModel: 'lineage:embeddingModel',
-} as const;
-
-/* ── Types ─────────────────────────────────────────────────────────── */
-
-type StorageMode = 'local' | 'remote';
-type LLMProvider = 'anthropic' | 'openai' | 'bedrock' | 'ollama';
-type EmbeddingProvider = 'anthropic' | 'openai' | 'ollama';
-
-interface SettingsState {
-  storageMode: StorageMode;
-  serverUrl: string;
-  llmProvider: LLMProvider;
-  llmModel: string;
-  llmApiKey: string;
-  thinkingEnabled: boolean;
-  ollamaBaseUrl: string;
-  embeddingEnabled: boolean;
-  embeddingProvider: EmbeddingProvider;
-  embeddingModel: string;
-}
+import {
+  useSettings,
+  saveSettings,
+  type StorageMode,
+  type LLMProvider,
+  type EmbeddingProvider,
+} from '../hooks/useSettings.js';
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
@@ -49,63 +22,6 @@ const EMBEDDING_PROVIDERS: { value: EmbeddingProvider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'ollama', label: 'Ollama' },
 ];
-
-function loadSettings(): SettingsState {
-  return {
-    storageMode: (localStorage.getItem(KEYS.storageMode) as StorageMode) ?? 'remote',
-    serverUrl: localStorage.getItem(KEYS.serverUrl) ?? 'http://localhost:3000',
-    llmProvider: (localStorage.getItem(KEYS.llmProvider) as LLMProvider) ?? 'anthropic',
-    llmModel: localStorage.getItem(KEYS.llmModel) ?? '',
-    llmApiKey: localStorage.getItem(KEYS.llmApiKey) ?? '',
-    thinkingEnabled: localStorage.getItem(KEYS.thinkingEnabled) === 'true',
-    ollamaBaseUrl: localStorage.getItem(KEYS.ollamaBaseUrl) ?? 'http://localhost:11434',
-    embeddingEnabled: localStorage.getItem(KEYS.embeddingEnabled) === 'true',
-    embeddingProvider:
-      (localStorage.getItem(KEYS.embeddingProvider) as EmbeddingProvider) ?? 'openai',
-    embeddingModel: localStorage.getItem(KEYS.embeddingModel) ?? '',
-  };
-}
-
-function saveSettings(state: SettingsState) {
-  localStorage.setItem(KEYS.storageMode, state.storageMode);
-
-  if (state.storageMode === 'remote' && state.serverUrl) {
-    localStorage.setItem(KEYS.serverUrl, state.serverUrl);
-  } else {
-    localStorage.removeItem(KEYS.serverUrl);
-  }
-
-  localStorage.setItem(KEYS.llmProvider, state.llmProvider);
-
-  if (state.llmModel) {
-    localStorage.setItem(KEYS.llmModel, state.llmModel);
-  } else {
-    localStorage.removeItem(KEYS.llmModel);
-  }
-
-  // Only persist API key in local-first mode
-  if (state.storageMode === 'local' && state.llmApiKey) {
-    localStorage.setItem(KEYS.llmApiKey, state.llmApiKey);
-  } else {
-    localStorage.removeItem(KEYS.llmApiKey);
-  }
-
-  localStorage.setItem(KEYS.thinkingEnabled, String(state.thinkingEnabled));
-
-  if (state.llmProvider === 'ollama' && state.ollamaBaseUrl) {
-    localStorage.setItem(KEYS.ollamaBaseUrl, state.ollamaBaseUrl);
-  } else {
-    localStorage.removeItem(KEYS.ollamaBaseUrl);
-  }
-
-  localStorage.setItem(KEYS.embeddingEnabled, String(state.embeddingEnabled));
-  localStorage.setItem(KEYS.embeddingProvider, state.embeddingProvider);
-  if (state.embeddingModel) {
-    localStorage.setItem(KEYS.embeddingModel, state.embeddingModel);
-  } else {
-    localStorage.removeItem(KEYS.embeddingModel);
-  }
-}
 
 /* ── Styles ────────────────────────────────────────────────────────── */
 
@@ -193,13 +109,13 @@ const btnBase: React.CSSProperties = {
 /* ── Component ─────────────────────────────────────────────────────── */
 
 export function Settings({ onClose }: { onClose: () => void }) {
-  const [state, setState] = useState<SettingsState>(loadSettings);
+  const { state, update: rawUpdate } = useSettings();
   const [saved, setSaved] = useState(false);
 
-  const update = useCallback(<K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
-    setState((prev) => ({ ...prev, [key]: value }));
+  const update = useCallback(<K extends keyof typeof state>(key: K, value: (typeof state)[K]) => {
+    rawUpdate(key, value);
     setSaved(false);
-  }, []);
+  }, [rawUpdate]);
 
   const handleSave = useCallback(() => {
     saveSettings(state);

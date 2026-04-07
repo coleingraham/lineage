@@ -14,6 +14,8 @@ interface NodeRow {
   provider: string | null;
   token_count: number | null;
   embedding_model: string | null;
+  metadata: string | Record<string, unknown> | null;
+  author: string | null;
 }
 
 interface TreeRow {
@@ -24,6 +26,13 @@ interface TreeRow {
 }
 
 function rowToNode(row: NodeRow): Node {
+  let metadata: Record<string, unknown> | null = null;
+  if (row.metadata) {
+    metadata =
+      typeof row.metadata === 'string'
+        ? (JSON.parse(row.metadata) as Record<string, unknown>)
+        : row.metadata;
+  }
   return {
     nodeId: row.node_id,
     treeId: row.tree_id,
@@ -37,6 +46,8 @@ function rowToNode(row: NodeRow): Node {
     provider: row.provider,
     tokenCount: row.token_count,
     embeddingModel: row.embedding_model,
+    metadata,
+    author: row.author,
   };
 }
 
@@ -96,7 +107,8 @@ export class PostgresRepository implements NodeRepository {
     const rows = await this.sql<NodeRow[]>`
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
-             n.provider, n.token_count, n.embedding_model
+             n.provider, n.token_count, n.embedding_model,
+             n.metadata, n.author
       FROM nodes n
       JOIN node_types nt ON nt.id = n.node_type_id
       WHERE n.node_id = ${nodeId}
@@ -111,7 +123,8 @@ export class PostgresRepository implements NodeRepository {
     const rows = await this.sql<NodeRow[]>`
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
-             n.provider, n.token_count, n.embedding_model
+             n.provider, n.token_count, n.embedding_model,
+             n.metadata, n.author
       FROM nodes n
       JOIN node_types nt ON nt.id = n.node_type_id
       WHERE n.tree_id = ${treeId}
@@ -120,14 +133,16 @@ export class PostgresRepository implements NodeRepository {
   }
 
   async putNode(node: Node): Promise<void> {
+    const metadataJson = node.metadata ? JSON.stringify(node.metadata) : null;
     await this.sql`
       INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted,
-                         created_at, model_name, provider, token_count, embedding_model)
+                         created_at, model_name, provider, token_count, embedding_model,
+                         metadata, author)
       VALUES (${node.nodeId}, ${node.treeId}, ${node.parentId},
               (SELECT id FROM node_types WHERE name = ${node.type}),
               ${node.content}, ${node.isDeleted}, ${node.createdAt},
               ${node.modelName}, ${node.provider}, ${node.tokenCount},
-              ${node.embeddingModel})
+              ${node.embeddingModel}, ${metadataJson}::jsonb, ${node.author})
       ON CONFLICT (node_id) DO UPDATE SET
         tree_id = EXCLUDED.tree_id,
         parent_id = EXCLUDED.parent_id,
@@ -138,7 +153,9 @@ export class PostgresRepository implements NodeRepository {
         model_name = EXCLUDED.model_name,
         provider = EXCLUDED.provider,
         token_count = EXCLUDED.token_count,
-        embedding_model = EXCLUDED.embedding_model
+        embedding_model = EXCLUDED.embedding_model,
+        metadata = EXCLUDED.metadata,
+        author = EXCLUDED.author
     `;
   }
 

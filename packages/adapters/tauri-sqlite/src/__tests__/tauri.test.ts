@@ -49,6 +49,8 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     provider: null,
     tokenCount: null,
     embeddingModel: null,
+    metadata: null,
+    author: null,
     ...overrides,
   };
 }
@@ -75,6 +77,8 @@ function nodeToRow(node: Node) {
     provider: node.provider,
     token_count: node.tokenCount,
     embedding_model: node.embeddingModel,
+    metadata: node.metadata ? JSON.stringify(node.metadata) : null,
+    author: node.author,
   };
 }
 
@@ -183,6 +187,8 @@ describe('TauriSqliteRepository', () => {
           node.provider,
           node.tokenCount,
           node.embeddingModel,
+          null, // metadata (JSON-serialized)
+          node.author,
         ],
       );
     });

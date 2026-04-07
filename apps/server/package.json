@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -b",
     "start": "tsx src/serve.ts",
-    "dev": "tsx --watch src/serve.ts",
+    "dev": "turbo build --filter=@lineage/server^... && tsx --watch src/serve.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests"

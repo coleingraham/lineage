@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { stripThinking } from '@lineage/core';
 import type { NodeRepository, LLMProvider, Node, Message } from '@lineage/core';
 
 const summarizeBody = z.object({
@@ -19,14 +20,6 @@ export type Env = {
     llm: LLMProvider;
   };
 };
-
-/** Strip thinking blocks from saved node content (both <details> and blockquote formats). */
-function stripThinking(content: string): string {
-  return content
-    .replace(/<details>\s*<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*/g, '')
-    .replace(/^> \*Thinking:\*\n(?:>.*\n)*\n?/, '')
-    .trim();
-}
 
 const SUMMARIZE_SYSTEM_PROMPT = `You are a precise summarizer. The user will provide a conversation thread. Your task is to produce a concise summary that captures:
 - The key decisions and conclusions reached
@@ -154,6 +147,8 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
           provider: null,
           tokenCount: null,
           embeddingModel: null,
+          metadata: null,
+          author: null,
         };
 
         await c.var.repo.putNode(summaryNode);

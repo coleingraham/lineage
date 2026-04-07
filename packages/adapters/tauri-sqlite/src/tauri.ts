@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS node_types (
   name TEXT NOT NULL UNIQUE
 );
 
-INSERT OR IGNORE INTO node_types (id, name) VALUES (1, 'human'), (2, 'ai'), (3, 'summary');
+INSERT OR IGNORE INTO node_types (id, name) VALUES
+  (1, 'human'), (2, 'ai'), (3, 'summary'),
+  (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
 CREATE TABLE IF NOT EXISTS trees (
   tree_id      TEXT PRIMARY KEY,
@@ -27,9 +29,17 @@ CREATE TABLE IF NOT EXISTS nodes (
   model_name      TEXT,
   provider        TEXT,
   token_count     INTEGER,
-  embedding_model TEXT
+  embedding_model TEXT,
+  metadata        TEXT,
+  author          TEXT
 );
 `;
+
+const MIGRATE_V2_STMTS = [
+  "ALTER TABLE nodes ADD COLUMN metadata TEXT",
+  "ALTER TABLE nodes ADD COLUMN author TEXT",
+  "INSERT OR IGNORE INTO node_types (id, name) VALUES (4, 'system'), (5, 'tool_call'), (6, 'tool_result')",
+];
 
 interface NodeRow {
   node_id: string;
@@ -43,6 +53,8 @@ interface NodeRow {
   provider: string | null;
   token_count: number | null;
   embedding_model: string | null;
+  metadata: string | null;
+  author: string | null;
 }
 
 interface TreeRow {
@@ -65,6 +77,8 @@ function rowToNode(row: NodeRow): Node {
     provider: row.provider,
     tokenCount: row.token_count,
     embeddingModel: row.embedding_model,
+    metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : null,
+    author: row.author,
   };
 }
 
@@ -104,6 +118,16 @@ export class TauriSqliteRepository implements NodeRepository {
       await db.execute(stmt);
     }
 
+    // V2: add metadata, author columns and new node types
+    const cols = await db.select<{ name: string }[]>(
+      "SELECT name FROM pragma_table_info('nodes') WHERE name = 'metadata'",
+    );
+    if (cols.length === 0) {
+      for (const stmt of MIGRATE_V2_STMTS) {
+        await db.execute(stmt);
+      }
+    }
+
     return new TauriSqliteRepository(db);
   }
 
@@ -138,7 +162,8 @@ export class TauriSqliteRepository implements NodeRepository {
     const rows = await this.db.select<NodeRow[]>(
       `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
               n.content, n.is_deleted, n.created_at, n.model_name,
-              n.provider, n.token_count, n.embedding_model
+              n.provider, n.token_count, n.embedding_model,
+              n.metadata, n.author
        FROM nodes n
        JOIN node_types nt ON nt.id = n.node_type_id
        WHERE n.node_id = $1`,
@@ -154,7 +179,8 @@ export class TauriSqliteRepository implements NodeRepository {
     const rows = await this.db.select<NodeRow[]>(
       `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
               n.content, n.is_deleted, n.created_at, n.model_name,
-              n.provider, n.token_count, n.embedding_model
+              n.provider, n.token_count, n.embedding_model,
+              n.metadata, n.author
        FROM nodes n
        JOIN node_types nt ON nt.id = n.node_type_id
        WHERE n.tree_id = $1`,
@@ -165,8 +191,8 @@ export class TauriSqliteRepository implements NodeRepository {
 
   async putNode(node: Node): Promise<void> {
     await this.db.execute(
-      `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model)
-       VALUES ($1, $2, $3, (SELECT id FROM node_types WHERE name = $4), $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model, metadata, author)
+       VALUES ($1, $2, $3, (SELECT id FROM node_types WHERE name = $4), $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT(node_id) DO UPDATE SET
          tree_id = excluded.tree_id,
          parent_id = excluded.parent_id,
@@ -177,7 +203,9 @@ export class TauriSqliteRepository implements NodeRepository {
          model_name = excluded.model_name,
          provider = excluded.provider,
          token_count = excluded.token_count,
-         embedding_model = excluded.embedding_model`,
+         embedding_model = excluded.embedding_model,
+         metadata = excluded.metadata,
+         author = excluded.author`,
       [
         node.nodeId,
         node.treeId,
@@ -190,6 +218,8 @@ export class TauriSqliteRepository implements NodeRepository {
         node.provider,
         node.tokenCount,
         node.embeddingModel,
+        node.metadata ? JSON.stringify(node.metadata) : null,
+        node.author,
       ],
     );
   }

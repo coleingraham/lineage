@@ -1,16 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { stripThinking } from '@lineage/core';
 import type { NodeRepository, LLMProvider } from '@lineage/core';
-
-/** Strip thinking blocks from LLM output. */
-function stripThinking(content: string): string {
-  return content
-    .replace(/<details>\s*\n?<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*\n*/g, '')
-    .replace(/^> \*Thinking:\*\n((?:>.*\n)*)\n?/g, '')
-    .replace(/<think>[\s\S]*?<\/think>\s*/g, '')
-    .trim();
-}
 
 const titleBody = z.object({
   content: z.string().min(1),

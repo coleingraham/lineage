@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "turbo build --filter=@lineage/web^... && vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
