@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Node, NodeRepository, Tree } from '@lineage/core';
 import { createNode } from '@lineage/core';
 import type { RestNodeRepository } from '@lineage/sdk';
@@ -22,8 +22,16 @@ export function useNodeOperations({
   setSelectedTreeId,
   setPendingEditNodeId,
 }: UseNodeOperationsOptions) {
+  const [draftNode, setDraftNode] = useState<Node | null>(null);
+  const draftNodeRef = useRef<Node | null>(null);
+
   const handleDelete = useCallback(
     async (nodeId: string) => {
+      if (draftNodeRef.current?.nodeId === nodeId) {
+        draftNodeRef.current = null;
+        setDraftNode(null);
+        return;
+      }
       if (!repo) return;
       try {
         await repo.softDeleteNode(nodeId);
@@ -113,6 +121,15 @@ export function useNodeOperations({
     async (nodeId: string, content: string) => {
       if (!repo || !selectedTreeId) return;
       try {
+        const draft = draftNodeRef.current;
+        if (draft?.nodeId === nodeId) {
+          // Draft node — persist for the first time with actual content
+          await repo.putNode({ ...draft, content });
+          draftNodeRef.current = null;
+          setDraftNode(null);
+          refresh();
+          return;
+        }
         // Use SDK updateNode if available, otherwise fallback
         const sdk = repo as RestNodeRepository & {
           updateNode?: (treeId: string, nodeId: string, content: string) => Promise<Node>;
@@ -185,25 +202,22 @@ export function useNodeOperations({
 
   const handleAddHumanNode = useCallback(
     async (parentNodeId: string) => {
-      if (!repo || !selectedTreeId) return;
-      try {
-        const node = createNode({
-          treeId: selectedTreeId,
-          parentId: parentNodeId,
-          type: 'human',
-          content: '',
-        });
-        await repo.putNode(node);
-        refresh();
-        setPendingEditNodeId(node.nodeId);
-      } catch (e) {
-        console.error('[App] add human node failed', e);
-      }
+      if (!selectedTreeId) return;
+      const node = createNode({
+        treeId: selectedTreeId,
+        parentId: parentNodeId,
+        type: 'human',
+        content: '',
+      });
+      draftNodeRef.current = node;
+      setDraftNode(node);
+      setPendingEditNodeId(node.nodeId);
     },
-    [repo, selectedTreeId, refresh, setPendingEditNodeId],
+    [selectedTreeId, setPendingEditNodeId],
   );
 
   return {
+    draftNode,
     handleDelete,
     handleDeleteTree,
     handleEdit,

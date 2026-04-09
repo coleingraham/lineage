@@ -100,12 +100,14 @@ export function useNodeEditing({
 
   const handleEditCancel = useCallback(() => {
     if (pendingNewNodeId) {
+      const parentId = nodeById.get(pendingNewNodeId)?.parentId ?? null;
       onDelete(pendingNewNodeId);
       setPendingNewNodeId(null);
+      if (parentId) setSelectedNodeId(parentId);
     }
     setEditingNodeId(null);
     setEditText('');
-  }, [pendingNewNodeId, onDelete]);
+  }, [pendingNewNodeId, onDelete, nodeById, setSelectedNodeId]);
 
   // Sync internal selection when parent changes it (e.g. tree switch)
   useEffect(() => {

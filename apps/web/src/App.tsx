@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { GraphView } from './views/GraphView.js';
 import { LinearView } from './views/LinearView.js';
 import { Settings } from './components/Settings.js';
@@ -240,6 +240,7 @@ export function App() {
 
   // ── Node operations ─────────────────────────────────────────────────────────
   const {
+    draftNode,
     handleDelete,
     handleDeleteTree,
     handleEdit,
@@ -256,6 +257,12 @@ export function App() {
     setSelectedTreeId,
     setPendingEditNodeId,
   });
+
+  // ── Merge draft node into the node list so it appears in the UI ─────────────
+  const effectiveNodes = useMemo(
+    () => (draftNode ? [...nodes, draftNode] : nodes),
+    [nodes, draftNode],
+  );
 
   // ── Settings close handler ──────────────────────────────────────────────────
   const handleSettingsClose = useCallback(() => {
@@ -348,7 +355,7 @@ export function App() {
     if (mode === 'graph') {
       return (
         <GraphView
-          nodes={nodes}
+          nodes={effectiveNodes}
           treeId={treeId}
           onDelete={handleDelete}
           onEdit={handleEdit}
@@ -366,7 +373,7 @@ export function App() {
     }
     return (
       <LinearView
-        nodes={nodes}
+        nodes={effectiveNodes}
         treeId={treeId}
         onDelete={handleDelete}
         onEdit={handleEdit}
