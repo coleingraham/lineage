@@ -1,6 +1,6 @@
 import type { NodeRepository } from '@lineage/core';
 
-export type StorageMode = 'local' | 'remote' | 'tauri';
+export type StorageMode = 'remote' | 'tauri';
 
 export interface StorageConfig {
   mode: StorageMode;
@@ -30,26 +30,20 @@ export function detectStorageMode(): StorageConfig {
   const explicit = localStorage.getItem('lineage:storageMode');
   const serverUrl = localStorage.getItem('lineage:serverUrl');
 
-  if (explicit === 'local') return { mode: 'local' };
+  if (explicit === 'tauri') return { mode: 'tauri' };
   return { mode: 'remote', serverUrl: serverUrl || 'http://localhost:3000' };
 }
 
 /**
  * Create a `NodeRepository` for the requested storage mode.
  *
- * - **local** — uses `BrowserSqliteRepository` (wa-sqlite + OPFS) for fully
- *   offline, local-first operation.
- * - **remote** — intended to use the `@lineage/sdk` REST client once
- *   implemented.
+ * - **remote** — uses the `@lineage/sdk` REST client against a running server.
+ * - **tauri** — uses the Tauri SQLite plugin for desktop apps.
  */
 export async function createStorage(config?: StorageConfig): Promise<NodeRepository> {
   const resolved = config ?? detectStorageMode();
 
   switch (resolved.mode) {
-    case 'local': {
-      const { BrowserSqliteRepository } = await import('@lineage/adapter-sqlite/browser');
-      return BrowserSqliteRepository.create();
-    }
     case 'remote': {
       const { RestNodeRepository } = await import('@lineage/sdk');
       return new RestNodeRepository({ baseUrl: resolved.serverUrl! });

@@ -40,9 +40,9 @@ var __toESM = (mod, isNodeMode, target) => (
   )
 );
 
-// ../../node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist/sql-wasm.js
+// node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist/sql-wasm.js
 var require_sql_wasm = __commonJS({
-  '../../node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist/sql-wasm.js'(exports2, module2) {
+  'node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist/sql-wasm.js'(exports2, module2) {
     var initSqlJsPromise = void 0;
     var initSqlJs2 = function (moduleConfig) {
       if (initSqlJsPromise) {
@@ -2606,7 +2606,7 @@ var require_sql_wasm = __commonJS({
   },
 });
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/compose.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -2650,7 +2650,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/http-exception.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/http-exception.js
 var HTTPException = class extends Error {
   res;
   status;
@@ -2683,10 +2683,10 @@ var HTTPException = class extends Error {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/request/constants.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = /* @__PURE__ */ Symbol();
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/body.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/body.js
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
   const { all = false, dot = false } = options;
   const headers = request instanceof HonoRequest ? request.raw.headers : request.headers;
@@ -2765,7 +2765,7 @@ var handleParsingNestedValues = (form, key, value) => {
   });
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/url.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split('/');
   if (paths[0] === '') {
@@ -2978,7 +2978,7 @@ var getQueryParams = (url2, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/request.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/request.js
 var tryDecodeURIComponent = (str) => tryDecode(str, decodeURIComponent_);
 var HonoRequest = class {
   /**
@@ -3246,7 +3246,7 @@ var HonoRequest = class {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/html.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -3288,7 +3288,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/context.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/context.js
 var TEXT_PLAIN = 'text/plain; charset=UTF-8';
 var setDefaultContentType = (contentType, headers) => {
   return {
@@ -3698,17 +3698,17 @@ var Context = class {
   };
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router.js
 var METHOD_NAME_ALL = 'ALL';
 var METHOD_NAME_ALL_LOWERCASE = 'all';
 var METHODS = ['get', 'post', 'put', 'delete', 'options', 'patch'];
 var MESSAGE_MATCHER_IS_ALREADY_BUILT = 'Can not add a route since the matcher is already built.';
 var UnsupportedPathError = class extends Error {};
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/constants.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = '__COMPOSED_HANDLER';
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/hono-base.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text('404 Not Found', 404);
 };
@@ -4084,7 +4084,7 @@ var Hono = class _Hono {
   };
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/matcher.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -4105,7 +4105,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/node.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = '[^/]+';
 var ONLY_WILDCARD_REG_EXP_STR = '.*';
 var TAIL_WILDCARD_REG_EXP_STR = '(?:|/.*)';
@@ -4231,7 +4231,7 @@ var Node = class _Node {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/trie.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -4287,7 +4287,7 @@ var Trie = class {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/router.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/reg-exp-router/router.js
 var nullMatcher = [/^$/, [], /* @__PURE__ */ Object.create(null)];
 var wildcardRegExpCache = /* @__PURE__ */ Object.create(null);
 function buildWildcardRegExp(path) {
@@ -4481,7 +4481,7 @@ var RegExpRouter = class {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/smart-router/router.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = 'SmartRouter';
   #routers = [];
@@ -4536,7 +4536,7 @@ var SmartRouter = class {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/trie-router/node.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = /* @__PURE__ */ Object.create(null);
 var hasChildren = (children) => {
   for (const _ in children) {
@@ -4712,7 +4712,7 @@ var Node2 = class _Node2 {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/trie-router/router.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = 'TrieRouter';
   #node;
@@ -4734,7 +4734,7 @@ var TrieRouter = class {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/hono.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/hono.js
 var Hono2 = class extends Hono {
   /**
    * Creates an instance of the Hono class.
@@ -4751,7 +4751,7 @@ var Hono2 = class extends Hono {
   }
 };
 
-// ../../node_modules/.pnpm/@hono+node-server@1.19.12_hono@4.12.10/node_modules/@hono/node-server/dist/index.mjs
+// node_modules/.pnpm/@hono+node-server@1.19.12_hono@4.12.10/node_modules/@hono/node-server/dist/index.mjs
 var import_http = require('http');
 var import_http2 = require('http2');
 var import_http22 = require('http2');
@@ -5371,7 +5371,7 @@ var serve = (options, listeningListener) => {
   return server;
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/middleware/cors/index.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/middleware/cors/index.js
 var cors = (options) => {
   const defaults = {
     origin: '*',
@@ -5459,23 +5459,26 @@ var cors = (options) => {
   };
 };
 
-// ../server/src/serve.ts
+// apps/server/src/serve.ts
 var import_better_sqlite3 = __toESM(require('better-sqlite3'), 1);
 
-// ../../packages/adapters/sqlite/dist/migrations/index.js
+// packages/adapters/sqlite/dist/migrations/index.js
 var INIT_SQL = `
 CREATE TABLE IF NOT EXISTS node_types (
   id   INTEGER PRIMARY KEY,
   name TEXT NOT NULL UNIQUE
 );
 
-INSERT OR IGNORE INTO node_types (id, name) VALUES (1, 'human'), (2, 'ai'), (3, 'summary');
+INSERT OR IGNORE INTO node_types (id, name) VALUES
+  (1, 'human'), (2, 'ai'), (3, 'summary'),
+  (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
 CREATE TABLE IF NOT EXISTS trees (
-  tree_id      TEXT PRIMARY KEY,
-  title        TEXT NOT NULL,
-  created_at   TEXT NOT NULL,
-  root_node_id TEXT NOT NULL
+  tree_id          TEXT PRIMARY KEY,
+  title            TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  root_node_id     TEXT NOT NULL,
+  context_sources  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nodes (
@@ -5489,14 +5492,39 @@ CREATE TABLE IF NOT EXISTS nodes (
   model_name      TEXT,
   provider        TEXT,
   token_count     INTEGER,
-  embedding_model TEXT
+  embedding_model TEXT,
+  metadata        TEXT,
+  author          TEXT
 );
+`;
+var MIGRATE_V2 = `
+ALTER TABLE nodes ADD COLUMN metadata TEXT;
+ALTER TABLE nodes ADD COLUMN author TEXT;
+INSERT OR IGNORE INTO node_types (id, name) VALUES
+  (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
+`;
+var MIGRATE_V3 = `
+ALTER TABLE trees ADD COLUMN context_sources TEXT;
 `;
 function runMigrations(db2) {
   db2.exec(INIT_SQL);
+  const hasMetadata = db2
+    .prepare("SELECT COUNT(*) AS cnt FROM pragma_table_info('nodes') WHERE name = 'metadata'")
+    .get();
+  if (hasMetadata.cnt === 0) {
+    db2.exec(MIGRATE_V2);
+  }
+  const hasContextSources = db2
+    .prepare(
+      "SELECT COUNT(*) AS cnt FROM pragma_table_info('trees') WHERE name = 'context_sources'",
+    )
+    .get();
+  if (hasContextSources.cnt === 0) {
+    db2.exec(MIGRATE_V3);
+  }
 }
 
-// ../../packages/adapters/sqlite/dist/server.js
+// packages/adapters/sqlite/dist/server.js
 function rowToNode(row) {
   return {
     nodeId: row.node_id,
@@ -5510,6 +5538,8 @@ function rowToNode(row) {
     provider: row.provider,
     tokenCount: row.token_count,
     embeddingModel: row.embedding_model,
+    metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    author: row.author,
   };
 }
 function rowToTree(row) {
@@ -5518,6 +5548,7 @@ function rowToTree(row) {
     title: row.title,
     createdAt: row.created_at,
     rootNodeId: row.root_node_id,
+    contextSources: row.context_sources ? JSON.parse(row.context_sources) : null,
   };
 }
 var SqliteRepository = class {
@@ -5542,21 +5573,29 @@ var SqliteRepository = class {
   async putTree(tree) {
     this.db
       .prepare(
-        `INSERT INTO trees (tree_id, title, created_at, root_node_id)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(tree_id) DO UPDATE SET
            title = excluded.title,
            created_at = excluded.created_at,
-           root_node_id = excluded.root_node_id`,
+           root_node_id = excluded.root_node_id,
+           context_sources = excluded.context_sources`,
       )
-      .run(tree.treeId, tree.title, tree.createdAt, tree.rootNodeId);
+      .run(
+        tree.treeId,
+        tree.title,
+        tree.createdAt,
+        tree.rootNodeId,
+        tree.contextSources ? JSON.stringify(tree.contextSources) : null,
+      );
   }
   async getNode(nodeId) {
     const row = this.db
       .prepare(
         `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                 n.content, n.is_deleted, n.created_at, n.model_name,
-                n.provider, n.token_count, n.embedding_model
+                n.provider, n.token_count, n.embedding_model,
+                n.metadata, n.author
          FROM nodes n
          JOIN node_types nt ON nt.id = n.node_type_id
          WHERE n.node_id = ?`,
@@ -5572,7 +5611,8 @@ var SqliteRepository = class {
       .prepare(
         `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                 n.content, n.is_deleted, n.created_at, n.model_name,
-                n.provider, n.token_count, n.embedding_model
+                n.provider, n.token_count, n.embedding_model,
+                n.metadata, n.author
          FROM nodes n
          JOIN node_types nt ON nt.id = n.node_type_id
          WHERE n.tree_id = ?`,
@@ -5583,8 +5623,8 @@ var SqliteRepository = class {
   async putNode(node) {
     this.db
       .prepare(
-        `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model)
-         VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model, metadata, author)
+         VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(node_id) DO UPDATE SET
            tree_id = excluded.tree_id,
            parent_id = excluded.parent_id,
@@ -5595,7 +5635,9 @@ var SqliteRepository = class {
            model_name = excluded.model_name,
            provider = excluded.provider,
            token_count = excluded.token_count,
-           embedding_model = excluded.embedding_model`,
+           embedding_model = excluded.embedding_model,
+           metadata = excluded.metadata,
+           author = excluded.author`,
       )
       .run(
         node.nodeId,
@@ -5609,6 +5651,8 @@ var SqliteRepository = class {
         node.provider,
         node.tokenCount,
         node.embeddingModel,
+        node.metadata ? JSON.stringify(node.metadata) : null,
+        node.author,
       );
   }
   async softDeleteNode(nodeId) {
@@ -5626,12 +5670,47 @@ var SqliteRepository = class {
   }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateNodeEmbedding(nodeId, embedding, model2) {}
+  async searchNodes(options) {
+    const conditions = ["n.content LIKE '%' || ? || '%' COLLATE NOCASE"];
+    const params = [options.query];
+    if (!options.includeDeleted) {
+      conditions.push('n.is_deleted = 0');
+    }
+    if (options.treeId) {
+      conditions.push('n.tree_id = ?');
+      params.push(options.treeId);
+    }
+    if (options.nodeTypes && options.nodeTypes.length > 0) {
+      const placeholders = options.nodeTypes.map(() => '?').join(', ');
+      conditions.push(`nt.name IN (${placeholders})`);
+      params.push(...options.nodeTypes);
+    }
+    const sql = `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+                        n.content, n.is_deleted, n.created_at, n.model_name,
+                        n.provider, n.token_count, n.embedding_model,
+                        n.metadata, n.author, t.title AS tree_title
+                 FROM nodes n
+                 JOIN node_types nt ON nt.id = n.node_type_id
+                 JOIN trees t ON t.tree_id = n.tree_id
+                 WHERE ${conditions.join(' AND ')}
+                 ORDER BY n.created_at DESC`;
+    const rows = this.db.prepare(sql).all(...params);
+    return rows.map((row) => ({ node: rowToNode(row), treeTitle: row.tree_title }));
+  }
+  async searchTrees(query) {
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM trees WHERE title LIKE '%' || ? || '%' COLLATE NOCASE ORDER BY created_at DESC",
+      )
+      .all(query);
+    return rows.map(rowToTree);
+  }
 };
 
-// ../../packages/adapters/sqlite/dist/browser.js
+// packages/adapters/sqlite/dist/browser.js
 var import_sql = __toESM(require_sql_wasm(), 1);
 
-// ../../packages/adapters/ollama/dist/provider.js
+// packages/adapters/ollama/dist/provider.js
 var ROLE_MAP = {
   human: 'user',
   ai: 'assistant',
@@ -5749,7 +5828,7 @@ var OllamaProvider = class {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/cookie.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/cookie.js
 var validCookieNameRegEx = /^[\w!#$%&'*.^`|~+-]+$/;
 var validCookieValueRegEx = /^[ !#-:<-[\]-~]*$/;
 var parse = (cookie, name) => {
@@ -5783,7 +5862,7 @@ var parse = (cookie, name) => {
   return parsedCookie;
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/helper/cookie/index.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/helper/cookie/index.js
 var getCookie = (c, key, prefix) => {
   const cookie = c.req.raw.headers.get('Cookie');
   if (typeof key === 'string') {
@@ -5806,7 +5885,7 @@ var getCookie = (c, key, prefix) => {
   return obj;
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/buffer.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType) => {
   const response = new Response(arrayBuffer, {
     headers: {
@@ -5816,7 +5895,7 @@ var bufferToFormData = (arrayBuffer, contentType) => {
   return response.formData();
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/validator/validator.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/validator/validator.js
 var jsonRegex = /^application\/([a-z-\.]+\+)?json(;\s*[a-zA-Z0-9\-]+\=([^;]+))*$/;
 var multipartRegex = /^multipart\/form-data(;\s?boundary=[a-zA-Z0-9'"()+_,\-./:=?]+)?$/;
 var urlencodedRegex = /^application\/x-www-form-urlencoded(;\s*[a-zA-Z0-9\-]+\=([^;]+))*$/;
@@ -5898,7 +5977,7 @@ var validator = (target, validationFunc) => {
   };
 };
 
-// ../../node_modules/.pnpm/@hono+zod-validator@0.7.6_hono@4.12.10_zod@4.3.6/node_modules/@hono/zod-validator/dist/index.js
+// node_modules/.pnpm/@hono+zod-validator@0.7.6_hono@4.12.10_zod@4.3.6/node_modules/@hono/zod-validator/dist/index.js
 function zValidatorFunction(target, schema, hook, options) {
   return validator(target, async (value, c) => {
     let validatorValue = value;
@@ -5935,7 +6014,7 @@ function zValidatorFunction(target, schema, hook, options) {
 }
 var zValidator = zValidatorFunction;
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
   $brand: () => $brand,
@@ -6176,7 +6255,7 @@ __export(external_exports, {
   xor: () => xor,
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/index.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/index.js
 var core_exports2 = {};
 __export(core_exports2, {
   $ZodAny: () => $ZodAny,
@@ -6454,7 +6533,7 @@ __export(core_exports2, {
   version: () => version,
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/core.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/core.js
 var NEVER = Object.freeze({
   status: 'aborted',
 });
@@ -6526,7 +6605,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/util.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -7222,7 +7301,7 @@ var Class = class {
   constructor(..._args) {}
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/errors.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/errors.js
 var initializer = (inst, def) => {
   inst.name = '$ZodError';
   Object.defineProperty(inst, '_zod', {
@@ -7353,7 +7432,7 @@ function prettifyError(error48) {
   return lines.join('\n');
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/parse.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -7449,7 +7528,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/regexes.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/regexes.js
 var regexes_exports = {};
 __export(regexes_exports, {
   base64: () => base64,
@@ -7626,7 +7705,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, '==');
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/checks.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor('$ZodCheck', (inst, def) => {
   var _a2;
   inst._zod ?? (inst._zod = {});
@@ -8169,7 +8248,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor('$ZodCheckOverwrite', (ins
   };
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/doc.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = []) {
     this.content = [];
@@ -8206,14 +8285,14 @@ var Doc = class {
   }
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/versions.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 3,
   patch: 6,
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/schemas.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor('$ZodType', (inst, def) => {
   var _a2;
   inst ?? (inst = {});
@@ -10190,7 +10269,7 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/index.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/index.js
 var locales_exports = {};
 __export(locales_exports, {
   ar: () => ar_default,
@@ -10244,7 +10323,7 @@ __export(locales_exports, {
   zhTW: () => zh_TW_default,
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ar.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: '\u062D\u0631\u0641', verb: '\u0623\u0646 \u064A\u062D\u0648\u064A' },
@@ -10354,7 +10433,7 @@ function ar_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/az.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: 'simvol', verb: 'olmal\u0131d\u0131r' },
@@ -10460,7 +10539,7 @@ function az_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/be.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -10629,7 +10708,7 @@ function be_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/bg.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/bg.js
 var error4 = () => {
   const Sizable = {
     string: {
@@ -10763,7 +10842,7 @@ function bg_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ca.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ca.js
 var error5 = () => {
   const Sizable = {
     string: { unit: 'car\xE0cters', verb: 'contenir' },
@@ -10872,7 +10951,7 @@ function ca_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/cs.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/cs.js
 var error6 = () => {
   const Sizable = {
     string: { unit: 'znak\u016F', verb: 'm\xEDt' },
@@ -10984,7 +11063,7 @@ function cs_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/da.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/da.js
 var error7 = () => {
   const Sizable = {
     string: { unit: 'tegn', verb: 'havde' },
@@ -11100,7 +11179,7 @@ function da_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/de.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/de.js
 var error8 = () => {
   const Sizable = {
     string: { unit: 'Zeichen', verb: 'zu haben' },
@@ -11209,7 +11288,7 @@ function de_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/en.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/en.js
 var error9 = () => {
   const Sizable = {
     string: { unit: 'characters', verb: 'to have' },
@@ -11318,7 +11397,7 @@ function en_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/eo.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/eo.js
 var error10 = () => {
   const Sizable = {
     string: { unit: 'karaktrojn', verb: 'havi' },
@@ -11428,7 +11507,7 @@ function eo_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/es.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/es.js
 var error11 = () => {
   const Sizable = {
     string: { unit: 'caracteres', verb: 'tener' },
@@ -11561,7 +11640,7 @@ function es_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fa.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fa.js
 var error12 = () => {
   const Sizable = {
     string: {
@@ -11689,7 +11768,7 @@ function fa_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fi.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fi.js
 var error13 = () => {
   const Sizable = {
     string: { unit: 'merkki\xE4', subject: 'merkkijonon' },
@@ -11802,7 +11881,7 @@ function fi_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr.js
 var error14 = () => {
   const Sizable = {
     string: { unit: 'caract\xE8res', verb: 'avoir' },
@@ -11911,7 +11990,7 @@ function fr_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr-CA.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/fr-CA.js
 var error15 = () => {
   const Sizable = {
     string: { unit: 'caract\xE8res', verb: 'avoir' },
@@ -12019,7 +12098,7 @@ function fr_CA_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/he.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/he.js
 var error16 = () => {
   const TypeNames = {
     string: { label: '\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA', gender: 'f' },
@@ -12261,7 +12340,7 @@ function he_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hu.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hu.js
 var error17 = () => {
   const Sizable = {
     string: { unit: 'karakter', verb: 'legyen' },
@@ -12370,7 +12449,7 @@ function hu_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hy.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/hy.js
 function getArmenianPlural(count, one, many) {
   return Math.abs(count) === 1 ? one : many;
 }
@@ -12517,7 +12596,7 @@ function hy_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/id.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/id.js
 var error19 = () => {
   const Sizable = {
     string: { unit: 'karakter', verb: 'memiliki' },
@@ -12624,7 +12703,7 @@ function id_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/is.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/is.js
 var error20 = () => {
   const Sizable = {
     string: { unit: 'stafi', verb: 'a\xF0 hafa' },
@@ -12734,7 +12813,7 @@ function is_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/it.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/it.js
 var error21 = () => {
   const Sizable = {
     string: { unit: 'caratteri', verb: 'avere' },
@@ -12843,7 +12922,7 @@ function it_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ja.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ja.js
 var error22 = () => {
   const Sizable = {
     string: { unit: '\u6587\u5B57', verb: '\u3067\u3042\u308B' },
@@ -12955,7 +13034,7 @@ function ja_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ka.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ka.js
 var error23 = () => {
   const Sizable = {
     string: {
@@ -13083,7 +13162,7 @@ function ka_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/km.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/km.js
 var error24 = () => {
   const Sizable = {
     string: {
@@ -13202,12 +13281,12 @@ function km_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/kh.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ko.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ko.js
 var error25 = () => {
   const Sizable = {
     string: { unit: '\uBB38\uC790', verb: 'to have' },
@@ -13325,7 +13404,7 @@ function ko_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/lt.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/lt.js
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
@@ -13535,7 +13614,7 @@ function lt_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/mk.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/mk.js
 var error27 = () => {
   const Sizable = {
     string: {
@@ -13660,7 +13739,7 @@ function mk_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ms.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ms.js
 var error28 = () => {
   const Sizable = {
     string: { unit: 'aksara', verb: 'mempunyai' },
@@ -13768,7 +13847,7 @@ function ms_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/nl.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/nl.js
 var error29 = () => {
   const Sizable = {
     string: { unit: 'tekens', verb: 'heeft' },
@@ -13881,7 +13960,7 @@ function nl_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/no.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/no.js
 var error30 = () => {
   const Sizable = {
     string: { unit: 'tegn', verb: '\xE5 ha' },
@@ -13990,7 +14069,7 @@ function no_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ota.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ota.js
 var error31 = () => {
   const Sizable = {
     string: { unit: 'harf', verb: 'olmal\u0131d\u0131r' },
@@ -14099,7 +14178,7 @@ function ota_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ps.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ps.js
 var error32 = () => {
   const Sizable = {
     string: { unit: '\u062A\u0648\u06A9\u064A', verb: '\u0648\u0644\u0631\u064A' },
@@ -14214,7 +14293,7 @@ function ps_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pl.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pl.js
 var error33 = () => {
   const Sizable = {
     string: { unit: 'znak\xF3w', verb: 'mie\u0107' },
@@ -14324,7 +14403,7 @@ function pl_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pt.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/pt.js
 var error34 = () => {
   const Sizable = {
     string: { unit: 'caracteres', verb: 'ter' },
@@ -14433,7 +14512,7 @@ function pt_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ru.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -14602,7 +14681,7 @@ function ru_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sl.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sl.js
 var error36 = () => {
   const Sizable = {
     string: { unit: 'znakov', verb: 'imeti' },
@@ -14712,7 +14791,7 @@ function sl_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sv.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/sv.js
 var error37 = () => {
   const Sizable = {
     string: { unit: 'tecken', verb: 'att ha' },
@@ -14823,7 +14902,7 @@ function sv_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ta.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ta.js
 var error38 = () => {
   const Sizable = {
     string: {
@@ -14947,7 +15026,7 @@ function ta_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/th.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/th.js
 var error39 = () => {
   const Sizable = {
     string: {
@@ -15067,7 +15146,7 @@ function th_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/tr.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/tr.js
 var error40 = () => {
   const Sizable = {
     string: { unit: 'karakter', verb: 'olmal\u0131' },
@@ -15173,7 +15252,7 @@ function tr_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uk.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uk.js
 var error41 = () => {
   const Sizable = {
     string: {
@@ -15297,12 +15376,12 @@ function uk_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ua.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ur.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/ur.js
 var error42 = () => {
   const Sizable = {
     string: { unit: '\u062D\u0631\u0648\u0641', verb: '\u06C1\u0648\u0646\u0627' },
@@ -15417,7 +15496,7 @@ function ur_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uz.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/uz.js
 var error43 = () => {
   const Sizable = {
     string: { unit: 'belgi', verb: 'bo\u2018lishi kerak' },
@@ -15527,7 +15606,7 @@ function uz_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/vi.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/vi.js
 var error44 = () => {
   const Sizable = {
     string: { unit: 'k\xFD t\u1EF1', verb: 'c\xF3' },
@@ -15636,7 +15715,7 @@ function vi_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-CN.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-CN.js
 var error45 = () => {
   const Sizable = {
     string: { unit: '\u5B57\u7B26', verb: '\u5305\u542B' },
@@ -15746,7 +15825,7 @@ function zh_CN_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-TW.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/zh-TW.js
 var error46 = () => {
   const Sizable = {
     string: { unit: '\u5B57\u5143', verb: '\u64C1\u6709' },
@@ -15854,7 +15933,7 @@ function zh_TW_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/yo.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/locales/yo.js
 var error47 = () => {
   const Sizable = {
     string: { unit: '\xE0mi', verb: 'n\xED' },
@@ -15962,7 +16041,7 @@ function yo_default() {
   };
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/registries.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/registries.js
 var _a;
 var $output = /* @__PURE__ */ Symbol('ZodOutput');
 var $input = /* @__PURE__ */ Symbol('ZodInput');
@@ -16012,7 +16091,7 @@ function registry() {
 (_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/api.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/api.js
 // @__NO_SIDE_EFFECTS__
 function _string(Class2, params) {
   return new Class2({
@@ -17047,7 +17126,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   return inst;
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/to-json-schema.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/to-json-schema.js
 function initializeContext(params) {
   let target = params?.target ?? 'draft-2020-12';
   if (target === 'draft-4') target = 'draft-04';
@@ -17400,7 +17479,7 @@ var createStandardJSONSchemaMethod =
     return finalize(ctx, schema);
   };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-processors.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-processors.js
 var formatMap = {
   guid: 'uuid',
   url: 'uri',
@@ -17945,7 +18024,7 @@ function toJSONSchema(input, params) {
   return finalize(ctx, input);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-generator.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema-generator.js
 var JSONSchemaGenerator = class {
   /** @deprecated Access via ctx instead */
   get metadataRegistry() {
@@ -18015,10 +18094,10 @@ var JSONSchemaGenerator = class {
   }
 };
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/core/json-schema.js
 var json_schema_exports = {};
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
 var schemas_exports2 = {};
 __export(schemas_exports2, {
   ZodAny: () => ZodAny,
@@ -18187,7 +18266,7 @@ __export(schemas_exports2, {
   xor: () => xor,
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/checks.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/checks.js
 var checks_exports2 = {};
 __export(checks_exports2, {
   endsWith: () => _endsWith,
@@ -18221,7 +18300,7 @@ __export(checks_exports2, {
   uppercase: () => _uppercase,
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/iso.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -18262,7 +18341,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/errors.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = 'ZodError';
@@ -18302,7 +18381,7 @@ var ZodRealError = $constructor('ZodError', initializer2, {
   Parent: Error,
 });
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/parse.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/parse.js
 var parse3 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -18316,7 +18395,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/schemas.js
 var ZodType = /* @__PURE__ */ $constructor('ZodType', (inst, def) => {
   $ZodType.init(inst, def);
   Object.assign(inst['~standard'], {
@@ -19432,7 +19511,7 @@ function preprocess(fn, schema) {
   return pipe(transform(fn), schema);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/compat.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: 'invalid_type',
   too_big: 'too_big',
@@ -19459,7 +19538,7 @@ var ZodFirstPartyTypeKind;
   ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}),
 );
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/from-json-schema.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/from-json-schema.js
 var z = {
   ...schemas_exports2,
   ...checks_exports2,
@@ -19955,7 +20034,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(schema, ctx);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/coerce.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/coerce.js
 var coerce_exports = {};
 __export(coerce_exports, {
   bigint: () => bigint3,
@@ -19980,18 +20059,28 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// ../../node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
+// node_modules/.pnpm/zod@4.3.6/node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// ../server/src/routes/trees.ts
+// apps/server/src/routes/trees.ts
+var contextSourceSchema = external_exports.object({
+  treeId: external_exports.string(),
+  nodeId: external_exports.string(),
+});
 var createTreeBody = external_exports.object({
   title: external_exports.string().min(1),
   treeId: external_exports.string().uuid().optional(),
   rootNodeId: external_exports.string().uuid().optional(),
+  contextSources: external_exports.array(contextSourceSchema).nullable().optional(),
 });
-var updateTreeBody = external_exports.object({
-  title: external_exports.string().min(1),
-});
+var updateTreeBody = external_exports
+  .object({
+    title: external_exports.string().min(1).optional(),
+    contextSources: external_exports.array(contextSourceSchema).nullable().optional(),
+  })
+  .refine((data) => data.title !== void 0 || data.contextSources !== void 0, {
+    message: 'At least one of title or contextSources must be provided',
+  });
 function treeRoutes(repo2) {
   const app2 = new Hono2();
   app2.use('*', async (c, next) => {
@@ -20008,7 +20097,13 @@ function treeRoutes(repo2) {
     const treeId = body.treeId ?? crypto.randomUUID();
     const rootNodeId = body.rootNodeId ?? crypto.randomUUID();
     const createdAt = /* @__PURE__ */ new Date().toISOString();
-    const tree = { treeId, title, createdAt, rootNodeId };
+    const tree = {
+      treeId,
+      title,
+      createdAt,
+      rootNodeId,
+      contextSources: body.contextSources ?? null,
+    };
     await c.var.repo.putTree(tree);
     await c.var.repo.putNode({
       nodeId: rootNodeId,
@@ -20022,6 +20117,8 @@ function treeRoutes(repo2) {
       provider: null,
       tokenCount: null,
       embeddingModel: null,
+      metadata: null,
+      author: null,
     });
     return c.json(tree, 201);
   });
@@ -20036,14 +20133,18 @@ function treeRoutes(repo2) {
   });
   app2.patch('/:treeId', zValidator('json', updateTreeBody), async (c) => {
     const { treeId } = c.req.param();
-    const { title } = c.req.valid('json');
+    const body = c.req.valid('json');
     let existing;
     try {
       existing = await c.var.repo.getTree(treeId);
     } catch {
       return c.json({ error: 'Tree not found' }, 404);
     }
-    const updated = { ...existing, title };
+    const updated = {
+      ...existing,
+      ...(body.title !== void 0 && { title: body.title }),
+      ...(body.contextSources !== void 0 && { contextSources: body.contextSources }),
+    };
     await c.var.repo.putTree(updated);
     return c.json(updated);
   });
@@ -20059,9 +20160,9 @@ function treeRoutes(repo2) {
   return app2;
 }
 
-// ../server/src/routes/nodes.ts
+// apps/server/src/routes/nodes.ts
 var createNodeBody = external_exports.object({
-  type: external_exports.enum(['human', 'summary']),
+  type: external_exports.string().min(1),
   content: external_exports.string(),
   parentId: external_exports.string().min(1),
   nodeId: external_exports.string().uuid().optional(),
@@ -20111,6 +20212,8 @@ function nodeRoutes(repo2) {
       provider: null,
       tokenCount: null,
       embeddingModel: null,
+      metadata: null,
+      author: null,
     };
     await c.var.repo.putNode(node);
     return c.json(node, 201);
@@ -20179,7 +20282,7 @@ function nodeRoutes(repo2) {
   return app2;
 }
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/stream.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/utils/stream.js
 var StreamingApi = class {
   writer;
   encoder;
@@ -20254,7 +20357,7 @@ var StreamingApi = class {
   }
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/helper/streaming/utils.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/helper/streaming/utils.js
 var isOldBunVersion = () => {
   const version2 = typeof Bun !== 'undefined' ? Bun.version : void 0;
   if (version2 === void 0) {
@@ -20266,7 +20369,7 @@ var isOldBunVersion = () => {
   return result;
 };
 
-// ../../node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/helper/streaming/sse.js
+// node_modules/.pnpm/hono@4.12.10/node_modules/hono/dist/helper/streaming/sse.js
 var SSEStreamingApi = class extends StreamingApi {
   constructor(writable, readable) {
     super(writable, readable);
@@ -20333,7 +20436,16 @@ var streamSSE = (c, cb, onError) => {
   return c.newResponse(stream2.responseReadable);
 };
 
-// ../../packages/core/dist/context.js
+// packages/core/dist/content.js
+function stripThinking(content) {
+  return content
+    .replace(/<details>\s*\n?<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*\n*/g, '')
+    .replace(/^> \*Thinking:\*\n(?:>.*\n)*\n?/g, '')
+    .replace(/<think>[\s\S]*?<\/think>\s*/g, '')
+    .trim();
+}
+
+// packages/core/dist/context.js
 function walkToRoot(nodeId, nodesById) {
   const path = [];
   let current = nodesById.get(nodeId);
@@ -20348,18 +20460,14 @@ function walkToRoot(nodeId, nodesById) {
 }
 function nodeTypeToRole(type) {
   switch (type) {
-    case 'human':
-      return 'human';
     case 'ai':
     case 'summary':
       return 'ai';
+    case 'system':
+      return 'system';
+    default:
+      return 'human';
   }
-}
-function stripThinking(content) {
-  return content
-    .replace(/<details>\s*<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*/g, '')
-    .replace(/^> \*Thinking:\*\n(?:>.*\n)*\n?/, '')
-    .trim();
 }
 function buildContext(nodes, targetNodeId, options = {}) {
   const nodesById = new Map(nodes.map((n) => [n.nodeId, n]));
@@ -20389,8 +20497,37 @@ function buildContext(nodes, targetNodeId, options = {}) {
 function tokenTotal(nodes) {
   return nodes.reduce((sum, n) => sum + (n.tokenCount ?? 0), 0);
 }
+async function assembleContext(repo2, sources) {
+  if (sources.length === 0) return '';
+  const summaries = [];
+  for (const source of sources) {
+    let node;
+    try {
+      node = await repo2.getNode(source.nodeId);
+    } catch {
+      console.warn(
+        `[assembleContext] skipping missing node ${source.nodeId} (tree ${source.treeId})`,
+      );
+      continue;
+    }
+    if (node.isDeleted) {
+      console.warn(
+        `[assembleContext] skipping deleted node ${source.nodeId} (tree ${source.treeId})`,
+      );
+      continue;
+    }
+    const content = stripThinking(node.content).trim();
+    if (content) {
+      summaries.push(content);
+    }
+  }
+  if (summaries.length === 0) return '';
+  const header =
+    'The following are summaries from prior conversations provided as background context. They are not part of the current conversation but may inform your responses.';
+  return [header, '', ...summaries.map((s, i) => `[${i + 1}] ${s}`)].join('\n');
+}
 
-// ../server/src/routes/completion.ts
+// apps/server/src/routes/completion.ts
 var completionBody = external_exports.object({
   nodeId: external_exports.string().min(1),
   maxTokens: external_exports.number().int().positive(),
@@ -20417,8 +20554,9 @@ function completionRoutes(repo2, llm2) {
       thinking,
     } = c.req.valid('json');
     console.log(`[complete] treeId=${treeId} nodeId=${nodeId} maxTokens=${maxTokens}`);
+    let tree;
     try {
-      await c.var.repo.getTree(treeId);
+      tree = await c.var.repo.getTree(treeId);
     } catch {
       console.log(`[complete] tree not found: ${treeId}`);
       return c.json({ error: 'Tree not found' }, 404);
@@ -20436,6 +20574,13 @@ function completionRoutes(repo2, llm2) {
     }
     const nodes = await c.var.repo.getNodes(treeId);
     const messages = buildContext(nodes, nodeId, { maxContextTokens });
+    if (tree.contextSources && tree.contextSources.length > 0) {
+      const contextBlock = await assembleContext(c.var.repo, tree.contextSources);
+      if (contextBlock) {
+        messages.unshift({ role: 'system', content: contextBlock });
+        console.log(`[complete] injected context from ${tree.contextSources.length} source(s)`);
+      }
+    }
     console.log(`[complete] context: ${messages.length} messages`);
     for (const msg of messages) {
       console.log(
@@ -20498,6 +20643,8 @@ ${thinkingContent.trim()}
           provider: null,
           tokenCount: null,
           embeddingModel: null,
+          metadata: null,
+          author: null,
         };
         await c.var.repo.putNode(aiNode);
         console.log(`[complete] saved AI node ${aiNode.nodeId}`);
@@ -20514,7 +20661,7 @@ ${thinkingContent.trim()}
   return app2;
 }
 
-// ../server/src/routes/summarize.ts
+// apps/server/src/routes/summarize.ts
 var summarizeBody = external_exports.object({
   nodeId: external_exports.string().min(1),
   maxTokens: external_exports.number().int().positive(),
@@ -20523,12 +20670,6 @@ var summarizeBody = external_exports.object({
   model: external_exports.string().min(1).optional(),
   thinking: external_exports.boolean().optional(),
 });
-function stripThinking2(content) {
-  return content
-    .replace(/<details>\s*<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*/g, '')
-    .replace(/^> \*Thinking:\*\n(?:>.*\n)*\n?/, '')
-    .trim();
-}
 var SUMMARIZE_SYSTEM_PROMPT = `You are a precise summarizer. The user will provide a conversation thread. Your task is to produce a concise summary that captures:
 - The key decisions and conclusions reached
 - Important constraints or requirements mentioned
@@ -20577,7 +20718,7 @@ function summarizeRoutes(repo2, llm2) {
     }
     const contextMessages = filtered.map((n) => ({
       role: nodeTypeToRole2(n.type),
-      content: stripThinking2(n.content),
+      content: stripThinking(n.content),
     }));
     if (contextMessages.length === 0) {
       return c.json({ error: 'No context available for summarization' }, 400);
@@ -20633,6 +20774,8 @@ function summarizeRoutes(repo2, llm2) {
           provider: null,
           tokenCount: null,
           embeddingModel: null,
+          metadata: null,
+          author: null,
         };
         await c.var.repo.putNode(summaryNode);
         console.log(`[summarize] saved summary node ${summaryNode.nodeId}`);
@@ -20652,14 +20795,7 @@ function summarizeRoutes(repo2, llm2) {
   return app2;
 }
 
-// ../server/src/routes/title.ts
-function stripThinking3(content) {
-  return content
-    .replace(/<details>\s*\n?<summary>Thinking<\/summary>[\s\S]*?<\/details>\s*\n*/g, '')
-    .replace(/^> \*Thinking:\*\n((?:>.*\n)*)\n?/g, '')
-    .replace(/<think>[\s\S]*?<\/think>\s*/g, '')
-    .trim();
-}
+// apps/server/src/routes/title.ts
 var titleBody = external_exports.object({
   content: external_exports.string().min(1),
   model: external_exports.string().min(1).optional(),
@@ -20697,7 +20833,7 @@ function titleRoutes(repo2, llm2) {
           responseContent += chunk.content;
         }
       }
-      const raw2 = responseContent || stripThinking3(thinkingContent);
+      const raw2 = responseContent || stripThinking(thinkingContent);
       const cleaned = raw2
         .replace(/^["']|["']$/g, '')
         .replace(/\.+$/, '')
@@ -20714,7 +20850,27 @@ function titleRoutes(repo2, llm2) {
   return app2;
 }
 
-// ../server/src/index.ts
+// apps/server/src/routes/search.ts
+var searchQuery = external_exports.object({
+  q: external_exports.string().min(1),
+  types: external_exports.string().optional(),
+  treeId: external_exports.string().optional(),
+});
+function searchRoutes(repo2) {
+  const app2 = new Hono2();
+  app2.get('/', zValidator('query', searchQuery), async (c) => {
+    const { q, types, treeId } = c.req.valid('query');
+    const nodeTypes = types ? types.split(',').filter(Boolean) : void 0;
+    const [trees, nodes] = await Promise.all([
+      repo2.searchTrees(q),
+      repo2.searchNodes({ query: q, nodeTypes, treeId }),
+    ]);
+    return c.json({ trees, nodes });
+  });
+  return app2;
+}
+
+// apps/server/src/index.ts
 function createApp(repoOrOptions, llm2) {
   let repo2;
   let provider;
@@ -20729,6 +20885,7 @@ function createApp(repoOrOptions, llm2) {
   const app2 = new Hono2();
   app2.route('/trees', treeRoutes(repo2));
   app2.route('/trees/:treeId/nodes', nodeRoutes(repo2));
+  app2.route('/search', searchRoutes(repo2));
   if (provider) {
     app2.route('/trees/:treeId/nodes', completionRoutes(repo2, provider));
     app2.route('/trees/:treeId/nodes', summarizeRoutes(repo2, provider));
@@ -20737,7 +20894,7 @@ function createApp(repoOrOptions, llm2) {
   return app2;
 }
 
-// ../server/src/serve.ts
+// apps/server/src/serve.ts
 var model = process.env.OLLAMA_MODEL ?? 'llama3.2';
 var baseURL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
 var storagePath = process.env.STORAGE_PATH ?? './lineage.db';

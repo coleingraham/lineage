@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { GraphView } from './views/GraphView.js';
 import { LinearView } from './views/LinearView.js';
 import { Settings } from './components/Settings.js';
+import { TopBar } from './components/TopBar.js';
 import { COLORS, FONTS } from './styles/theme.js';
 import { useRepository } from './hooks/useRepository.js';
 import { useTreeList } from './hooks/useTreeList.js';
 import { useTreeData } from './hooks/useTreeData.js';
 import { useStreamingStore } from './store/streaming.js';
 import { useNodeOperations } from './hooks/useNodeOperations.js';
+import { SETTINGS_KEYS } from './hooks/useSettings.js';
 import { Sidebar } from './components/graph/Sidebar.js';
 import type { SidebarMode, PinnedNode } from './components/graph/GraphRendererTypes.js';
 import { streamCompletion } from '@lineage/sdk';
@@ -30,6 +32,17 @@ export function App() {
   const [mode, setMode] = useState<ViewMode>(readSavedMode);
   const [showSettings, setShowSettings] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('conversations');
+  const [autoAiReply, setAutoAiReply] = useState(
+    () => localStorage.getItem(SETTINGS_KEYS.autoAiReply) !== 'false',
+  );
+
+  const handleAutoAiReplyToggle = useCallback(() => {
+    setAutoAiReply((prev) => {
+      const next = !prev;
+      localStorage.setItem(SETTINGS_KEYS.autoAiReply, String(next));
+      return next;
+    });
+  }, []);
 
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -360,6 +373,7 @@ export function App() {
           focusNodeId={focusNodeId}
           onFocusHandled={handleFocusHandled}
           onRootNodeSubmitted={handleRootNodeSubmitted}
+          autoAiReply={autoAiReply}
           {...treeProps!}
         />
       );
@@ -378,6 +392,7 @@ export function App() {
         focusNodeId={focusNodeId}
         onFocusHandled={handleFocusHandled}
         onRootNodeSubmitted={handleRootNodeSubmitted}
+        autoAiReply={autoAiReply}
         {...treeProps!}
       />
     );
@@ -385,81 +400,13 @@ export function App() {
 
   return (
     <div style={{ height: '100vh', overflow: 'hidden', background: COLORS.bg, color: COLORS.text }}>
-      {/* Top bar */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '12px',
-          right: '16px',
-          zIndex: 100,
-          display: 'flex',
-          gap: '8px',
-          alignItems: 'center',
-        }}
-      >
-        {/* View toggle */}
-        <div
-          style={{
-            display: 'flex',
-            background: COLORS.surface,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: '6px',
-            overflow: 'hidden',
-            fontFamily: FONTS.mono,
-            fontSize: '10px',
-            letterSpacing: '0.06em',
-          }}
-        >
-          <button
-            onClick={() => setMode('graph')}
-            style={{
-              background: mode === 'graph' ? 'rgba(255,255,255,0.08)' : 'transparent',
-              color: mode === 'graph' ? COLORS.text : COLORS.textSecondary,
-              border: 'none',
-              padding: '6px 14px',
-              cursor: 'pointer',
-              fontFamily: FONTS.mono,
-              fontSize: '10px',
-              letterSpacing: '0.06em',
-            }}
-          >
-            Graph
-          </button>
-          <button
-            onClick={() => setMode('linear')}
-            style={{
-              background: mode === 'linear' ? 'rgba(255,255,255,0.08)' : 'transparent',
-              color: mode === 'linear' ? COLORS.text : COLORS.textSecondary,
-              border: 'none',
-              padding: '6px 14px',
-              cursor: 'pointer',
-              fontFamily: FONTS.mono,
-              fontSize: '10px',
-              letterSpacing: '0.06em',
-            }}
-          >
-            Linear
-          </button>
-        </div>
-
-        {/* Settings gear */}
-        <button
-          onClick={() => setShowSettings(true)}
-          style={{
-            background: COLORS.surface,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: '6px',
-            padding: '5px 10px',
-            cursor: 'pointer',
-            fontFamily: FONTS.mono,
-            fontSize: '12px',
-            color: COLORS.textSecondary,
-          }}
-          title="Settings"
-        >
-          &#9881;
-        </button>
-      </div>
+      <TopBar
+        mode={mode}
+        onModeChange={setMode}
+        autoAiReply={autoAiReply}
+        onAutoAiReplyToggle={handleAutoAiReplyToggle}
+        onSettingsOpen={() => setShowSettings(true)}
+      />
 
       {renderContent()}
 

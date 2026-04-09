@@ -5,10 +5,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
  */
 
 const KEYS = {
-  storageMode: 'lineage:storageMode',
   serverUrl: 'lineage:serverUrl',
   llmProvider: 'lineage:llmProvider',
-  llmApiKey: 'lineage:llmApiKey',
   ollamaBaseUrl: 'lineage:ollamaBaseUrl',
   embeddingEnabled: 'lineage:embeddingEnabled',
   embeddingProvider: 'lineage:embeddingProvider',
@@ -51,13 +49,9 @@ describe('Settings localStorage contract', () => {
     });
   });
 
-  it('defaults to local storage mode when nothing is stored', () => {
-    expect(localStorage.getItem(KEYS.storageMode)).toBeNull();
-  });
-
-  it('persists and retrieves storage mode', () => {
-    localStorage.setItem(KEYS.storageMode, 'remote');
-    expect(localStorage.getItem(KEYS.storageMode)).toBe('remote');
+  it('persists server URL', () => {
+    localStorage.setItem(KEYS.serverUrl, 'http://localhost:3000');
+    expect(localStorage.getItem(KEYS.serverUrl)).toBe('http://localhost:3000');
   });
 
   it('persists LLM provider selection', () => {
@@ -68,15 +62,6 @@ describe('Settings localStorage contract', () => {
   it('persists embedding toggle as string boolean', () => {
     localStorage.setItem(KEYS.embeddingEnabled, 'true');
     expect(localStorage.getItem(KEYS.embeddingEnabled) === 'true').toBe(true);
-  });
-
-  it('clears API key when switching to remote mode', () => {
-    localStorage.setItem(KEYS.llmApiKey, 'sk-test-key');
-    expect(localStorage.getItem(KEYS.llmApiKey)).toBe('sk-test-key');
-
-    // Simulates the save logic: remote mode removes the API key
-    localStorage.removeItem(KEYS.llmApiKey);
-    expect(localStorage.getItem(KEYS.llmApiKey)).toBeNull();
   });
 
   it('clears Ollama base URL when provider is not Ollama', () => {
@@ -94,12 +79,5 @@ describe('Settings localStorage contract', () => {
 
     expect(localStorage.getItem(KEYS.embeddingProvider)).toBe('openai');
     expect(localStorage.getItem(KEYS.embeddingModel)).toBe('text-embedding-3-small');
-  });
-
-  it('removes serverUrl from localStorage when mode is local', () => {
-    localStorage.setItem(KEYS.serverUrl, 'http://localhost:3000');
-    // Simulates save logic for local mode
-    localStorage.removeItem(KEYS.serverUrl);
-    expect(localStorage.getItem(KEYS.serverUrl)).toBeNull();
   });
 });

@@ -1,0 +1,39 @@
+{
+  "name": "@lineage/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "lineage-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@lineage/adapter-sqlite": "workspace:*",
+    "@lineage/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "better-sqlite3": "^12.8.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@lineage/eslint-config": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "eslint": "^10.1.0",
+    "tsx": "^4.19.4",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}

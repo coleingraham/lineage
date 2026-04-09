@@ -1,4 +1,4 @@
-import type { Node, NodeRepository, Tree } from '@lineage/core';
+import type { Node, NodeRepository, Tree, SearchOptions, SearchResult } from '@lineage/core';
 
 export class InMemoryRepository implements NodeRepository {
   private trees = new Map<string, Tree>();
@@ -60,5 +60,29 @@ export class InMemoryRepository implements NodeRepository {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
     // No-op: in-memory backend does not support embeddings
+  }
+
+  async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
+    const q = options.query.toLowerCase();
+    const results: SearchResult[] = [];
+    for (const node of this.nodes.values()) {
+      if (!options.includeDeleted && node.isDeleted) continue;
+      if (options.treeId && node.treeId !== options.treeId) continue;
+      if (
+        options.nodeTypes &&
+        options.nodeTypes.length > 0 &&
+        !options.nodeTypes.includes(node.type)
+      )
+        continue;
+      if (!node.content.toLowerCase().includes(q)) continue;
+      const tree = this.trees.get(node.treeId);
+      results.push({ node, treeTitle: tree?.title ?? '' });
+    }
+    return results;
+  }
+
+  async searchTrees(query: string): Promise<Tree[]> {
+    const q = query.toLowerCase();
+    return [...this.trees.values()].filter((t) => t.title.toLowerCase().includes(q));
   }
 }
