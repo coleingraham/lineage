@@ -45,6 +45,7 @@ interface GraphViewProps {
   onPinSelectionChange: (ids: Set<string>) => void;
   onCreateTreeFromContext: () => Promise<void>;
   onNavigateToNode: (treeId: string, nodeId: string) => void;
+  autoAiReply?: boolean;
 }
 
 export function GraphView({
@@ -77,6 +78,7 @@ export function GraphView({
   selectedPinNodeIds,
   onPinSelectionChange,
   onCreateTreeFromContext,
+  autoAiReply,
 }: GraphViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
   const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
@@ -114,6 +116,7 @@ export function GraphView({
     onFocusHandled,
     initialSelectedNodeId: controlledSelectedNodeId ?? rootNode?.id ?? null,
     onSelectedNodeChange,
+    autoAiReply,
   });
 
   const callbacks: GraphCallbacks = useMemo(
@@ -140,6 +143,9 @@ export function GraphView({
         } else {
           onNodeReply(nodeId);
         }
+      },
+      onAddHumanReply: (nodeId: string) => {
+        onAddHumanNode(nodeId);
       },
     }),
     [

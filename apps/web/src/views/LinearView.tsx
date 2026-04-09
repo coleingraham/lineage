@@ -52,6 +52,7 @@ interface LinearViewProps {
   onPinSelectionChange: (ids: Set<string>) => void;
   onCreateTreeFromContext: () => Promise<void>;
   onNavigateToNode: (treeId: string, nodeId: string) => void;
+  autoAiReply?: boolean;
 }
 
 // ── Vertical connector between cards ────────────────────────────────────────
@@ -103,6 +104,7 @@ export function LinearView({
   onPinSelectionChange,
   onCreateTreeFromContext,
   onNavigateToNode,
+  autoAiReply,
 }: LinearViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
@@ -154,6 +156,7 @@ export function LinearView({
     initialSelectedNodeId: controlledSelectedNodeId ?? defaultLeaf,
     onSelectedNodeChange,
     onFocus: (nodeId) => setScrollToNodeId(nodeId),
+    autoAiReply,
   });
 
   const handleAddHumanReply = useCallback(
@@ -194,6 +197,9 @@ export function LinearView({
       onNodeReply: (nodeId: string) => {
         onNodeReply(nodeId);
       },
+      onAddHumanReply: (nodeId: string) => {
+        handleAddHumanReply(nodeId);
+      },
     }),
     [
       nodeById,
@@ -203,6 +209,7 @@ export function LinearView({
       onNodeSummarize,
       onDelete,
       handleEditStart,
+      handleAddHumanReply,
       setSelectedNodeId,
     ],
   );
@@ -215,10 +222,7 @@ export function LinearView({
 
   const lastNodeId = pathEntries.length > 0 ? pathEntries[pathEntries.length - 1].node.id : null;
 
-  const currentTree = useMemo(
-    () => trees?.find((t) => t.treeId === treeId),
-    [trees, treeId],
-  );
+  const currentTree = useMemo(() => trees?.find((t) => t.treeId === treeId), [trees, treeId]);
   const contextSources = currentTree?.contextSources;
 
   // Nodes before a summary node on the path are "superseded"

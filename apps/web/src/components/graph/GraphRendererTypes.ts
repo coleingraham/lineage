@@ -24,6 +24,7 @@ export interface GraphCallbacks {
   onNodeSummarize: (nodeId: string) => void;
   onNodeDelete: (nodeId: string) => void;
   onNodeReply: (nodeId: string) => void;
+  onAddHumanReply: (nodeId: string) => void;
 }
 
 export interface GraphRendererProps {

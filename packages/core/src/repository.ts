@@ -1,4 +1,4 @@
-import type { Node, Tree } from './types.js';
+import type { Node, Tree, SearchOptions, SearchResult } from './types.js';
 
 export interface NodeRepository {
   getTree(treeId: string): Promise<Tree>;
@@ -10,4 +10,6 @@ export interface NodeRepository {
   softDeleteNode(nodeId: string): Promise<void>;
   deleteTree(treeId: string): Promise<void>;
   updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void>;
+  searchNodes(options: SearchOptions): Promise<SearchResult[]>;
+  searchTrees(query: string): Promise<Tree[]>;
 }

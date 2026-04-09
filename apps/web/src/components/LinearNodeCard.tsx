@@ -223,19 +223,17 @@ export function LinearNodeCard({
               onClick={() => callbacks.onNodeRegenerate(node.id)}
             />
           )}
-          {node.type === 'human' ? (
+          <ActionBtn
+            label="Add reply ↓"
+            color={c}
+            onClick={() => onAddHumanReply(node.id)}
+            primary
+          />
+          {node.type === 'human' && (
             <ActionBtn
-              label="Generate reply ↓"
-              color={c}
+              label="AI reply ↓"
+              color={COLORS.ai}
               onClick={() => callbacks.onNodeReply(node.id)}
-              primary
-            />
-          ) : (
-            <ActionBtn
-              label="Add reply ↓"
-              color={c}
-              onClick={() => onAddHumanReply(node.id)}
-              primary
             />
           )}
           {node.parentId !== null && (

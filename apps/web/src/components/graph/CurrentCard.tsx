@@ -108,7 +108,7 @@ export function CurrentCard({
           <ActionBtn
             label="Add reply ↓"
             color={COLORS.summary}
-            onClick={() => callbacks.onNodeReply(node.id)}
+            onClick={() => callbacks.onAddHumanReply(node.id)}
             primary
           />
         </div>
@@ -171,11 +171,18 @@ export function CurrentCard({
             />
           )}
           <ActionBtn
-            label={node.type === 'human' ? 'Generate reply ↓' : 'Add reply ↓'}
+            label="Add reply ↓"
             color={c}
-            onClick={() => callbacks.onNodeReply(node.id)}
+            onClick={() => callbacks.onAddHumanReply(node.id)}
             primary
           />
+          {node.type === 'human' && (
+            <ActionBtn
+              label="AI reply ↓"
+              color={COLORS.ai}
+              onClick={() => callbacks.onNodeReply(node.id)}
+            />
+          )}
           {node.parentId !== null && (
             <ActionBtn
               label="∑ Summarize"

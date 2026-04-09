@@ -1,5 +1,12 @@
 import type postgres from 'postgres';
-import type { ContextSource, Node, NodeRepository, Tree } from '@lineage/core';
+import type {
+  ContextSource,
+  Node,
+  NodeRepository,
+  Tree,
+  SearchOptions,
+  SearchResult,
+} from '@lineage/core';
 import { runMigrations } from './migrations/index.js';
 
 interface NodeRow {
@@ -188,5 +195,39 @@ export class PostgresRepository implements NodeRepository {
           embedding_model = ${model}
       WHERE node_id = ${nodeId}
     `;
+  }
+
+  async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
+    const pattern = `%${options.query}%`;
+    const includeDeleted = options.includeDeleted ?? false;
+    const nodeTypes = options.nodeTypes ?? [];
+    const treeId = options.treeId ?? null;
+
+    const rows = await this.sql<(NodeRow & { tree_title: string })[]>`
+      SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+             n.content, n.is_deleted, n.created_at, n.model_name,
+             n.provider, n.token_count, n.embedding_model,
+             n.metadata, n.author, t.title AS tree_title
+      FROM nodes n
+      JOIN node_types nt ON nt.id = n.node_type_id
+      JOIN trees t ON t.tree_id = n.tree_id
+      WHERE n.content ILIKE ${pattern}
+        AND (${includeDeleted} OR n.is_deleted = FALSE)
+        AND (${treeId} IS NULL OR n.tree_id = ${treeId})
+        AND (${nodeTypes.length === 0} OR nt.name = ANY(${nodeTypes}))
+      ORDER BY n.created_at DESC
+    `;
+    return rows.map((row) => ({ node: rowToNode(row), treeTitle: row.tree_title }));
+  }
+
+  async searchTrees(query: string): Promise<Tree[]> {
+    const pattern = `%${query}%`;
+    const rows = await this.sql<TreeRow[]>`
+      SELECT tree_id, title, created_at, root_node_id, context_sources
+      FROM trees
+      WHERE title ILIKE ${pattern}
+      ORDER BY created_at DESC
+    `;
+    return rows.map(rowToTree);
   }
 }

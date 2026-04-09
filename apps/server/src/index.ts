@@ -5,6 +5,7 @@ import { nodeRoutes } from './routes/nodes.js';
 import { completionRoutes } from './routes/completion.js';
 import { summarizeRoutes } from './routes/summarize.js';
 import { titleRoutes } from './routes/title.js';
+import { searchRoutes } from './routes/search.js';
 
 export interface CreateAppOptions {
   repo: NodeRepository;
@@ -29,6 +30,7 @@ export function createApp(repoOrOptions: NodeRepository | CreateAppOptions, llm?
   const app = new Hono();
   app.route('/trees', treeRoutes(repo));
   app.route('/trees/:treeId/nodes', nodeRoutes(repo));
+  app.route('/search', searchRoutes(repo));
 
   if (provider) {
     app.route('/trees/:treeId/nodes', completionRoutes(repo, provider));
@@ -44,3 +46,4 @@ export { nodeRoutes } from './routes/nodes.js';
 export { completionRoutes } from './routes/completion.js';
 export { summarizeRoutes } from './routes/summarize.js';
 export { titleRoutes } from './routes/title.js';
+export { searchRoutes } from './routes/search.js';

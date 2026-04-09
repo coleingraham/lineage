@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Node, NodeRepository, Tree } from '@lineage/core';
+import type { Node, NodeRepository, Tree, SearchOptions, SearchResult } from '@lineage/core';
 import { runMigrations } from './migrations/index.js';
 
 interface NodeRow {
@@ -188,5 +188,46 @@ export class SqliteRepository implements NodeRepository {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
     // No-op: SQLite backend does not support embeddings
+  }
+
+  async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
+    const conditions = ["n.content LIKE '%' || ? || '%' COLLATE NOCASE"];
+    const params: unknown[] = [options.query];
+
+    if (!options.includeDeleted) {
+      conditions.push('n.is_deleted = 0');
+    }
+    if (options.treeId) {
+      conditions.push('n.tree_id = ?');
+      params.push(options.treeId);
+    }
+    if (options.nodeTypes && options.nodeTypes.length > 0) {
+      const placeholders = options.nodeTypes.map(() => '?').join(', ');
+      conditions.push(`nt.name IN (${placeholders})`);
+      params.push(...options.nodeTypes);
+    }
+
+    const sql = `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+                        n.content, n.is_deleted, n.created_at, n.model_name,
+                        n.provider, n.token_count, n.embedding_model,
+                        n.metadata, n.author, t.title AS tree_title
+                 FROM nodes n
+                 JOIN node_types nt ON nt.id = n.node_type_id
+                 JOIN trees t ON t.tree_id = n.tree_id
+                 WHERE ${conditions.join(' AND ')}
+                 ORDER BY n.created_at DESC`;
+
+    const rows = this.db.prepare(sql).all(...params) as (NodeRow & { tree_title: string })[];
+    return rows.map((row) => ({ node: rowToNode(row), treeTitle: row.tree_title }));
+  }
+
+  async searchTrees(query: string): Promise<Tree[]> {
+    const rows = this.db
+      .prepare<
+        [string],
+        TreeRow
+      >("SELECT * FROM trees WHERE title LIKE '%' || ? || '%' COLLATE NOCASE ORDER BY created_at DESC")
+      .all(query);
+    return rows.map(rowToTree);
   }
 }
