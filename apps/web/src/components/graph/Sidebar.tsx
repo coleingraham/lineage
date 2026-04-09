@@ -63,11 +63,13 @@ export function Sidebar({
     nodes: SearchResult[];
   } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback(
     (q: string) => {
       setSearchQuery(q);
+      setSearchError(null);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (!q.trim()) {
         setSearchResults(null);
@@ -76,15 +78,33 @@ export function Sidebar({
       }
       setIsSearching(true);
       debounceRef.current = setTimeout(async () => {
-        if (!repo) return;
         try {
-          const [trees, nodes] = await Promise.all([
-            repo.searchTrees(q.trim()),
-            repo.searchNodes({ query: q.trim() }),
-          ]);
-          setSearchResults({ trees, nodes });
+          // Prefer direct fetch to the server search endpoint (remote mode)
+          const serverUrl = localStorage.getItem('lineage:serverUrl');
+          if (serverUrl) {
+            const url = serverUrl.replace(/\/+$/, '');
+            const params = new URLSearchParams({ q: q.trim() });
+            const res = await fetch(`${url}/search?${params}`);
+            if (!res.ok) throw new Error(`Search failed: HTTP ${res.status}`);
+            const data = (await res.json()) as {
+              trees: Tree[];
+              nodes: SearchResult[];
+            };
+            setSearchResults(data);
+          } else if (repo) {
+            // Local mode — use repo methods directly
+            const [trees, nodes] = await Promise.all([
+              repo.searchTrees(q.trim()),
+              repo.searchNodes({ query: q.trim() }),
+            ]);
+            setSearchResults({ trees, nodes });
+          } else {
+            setSearchError('No search available');
+          }
         } catch (e) {
           console.error('[search]', e);
+          setSearchError(e instanceof Error ? e.message : 'Search failed');
+          setSearchResults(null);
         } finally {
           setIsSearching(false);
         }
@@ -268,6 +288,18 @@ export function Sidebar({
                 }}
               >
                 Searching...
+              </div>
+            )}
+            {searchError && !isSearching && (
+              <div
+                style={{
+                  fontSize: '10px',
+                  color: '#e55',
+                  fontFamily: FONTS.mono,
+                  padding: '8px 4px',
+                }}
+              >
+                {searchError}
               </div>
             )}
             {searchResults && !isSearching && (
