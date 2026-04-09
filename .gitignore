@@ -11,5 +11,6 @@ dist/
 *.db*
 
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/server-sidecar/
 apps/web/public/sql-wasm.wasm
