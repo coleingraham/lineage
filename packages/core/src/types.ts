@@ -44,3 +44,15 @@ export interface Tree {
   rootNodeId: string;
   contextSources: ContextSource[] | null;
 }
+
+export interface SearchOptions {
+  query: string;
+  nodeTypes?: string[];
+  treeId?: string;
+  includeDeleted?: boolean;
+}
+
+export interface SearchResult {
+  node: Node;
+  treeTitle: string;
+}

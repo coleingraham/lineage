@@ -18,6 +18,8 @@ interface UseNodeEditingOptions {
   onSelectedNodeChange?: (nodeId: string) => void;
   /** Called when a node is focused, before onFocusHandled. */
   onFocus?: (nodeId: string) => void;
+  /** Whether saving a human node edit should auto-trigger AI reply. */
+  autoAiReply?: boolean;
 }
 
 export function useNodeEditing({
@@ -34,6 +36,7 @@ export function useNodeEditing({
   initialSelectedNodeId,
   onSelectedNodeChange,
   onFocus,
+  autoAiReply = true,
 }: UseNodeEditingOptions) {
   const [selectedNodeId, _setSelectedNodeId] = useState<string | null>(
     initialSelectedNodeId ?? null,
@@ -68,18 +71,18 @@ export function useNodeEditing({
         if (isPendingNew) {
           // Node was eagerly created (e.g. handleAddHumanNode) — update in place
           await onEdit(nodeId, editText);
-          onNodeReply(nodeId);
+          if (autoAiReply) onNodeReply(nodeId);
           if (!node.parentId) onRootNodeSubmitted?.(editText);
         } else if (!node.parentId) {
           // Root node — can't create sibling, edit in place
           await onEdit(nodeId, editText);
-          onNodeReply(nodeId);
+          if (autoAiReply) onNodeReply(nodeId);
           onRootNodeSubmitted?.(editText);
         } else {
           const newNodeId = await onCreateSibling(nodeId, editText);
           if (newNodeId) {
             setSelectedNodeId(newNodeId);
-            onNodeReply(newNodeId);
+            if (autoAiReply) onNodeReply(newNodeId);
           }
         }
       } else {
@@ -96,6 +99,7 @@ export function useNodeEditing({
     onNodeReply,
     onRootNodeSubmitted,
     setSelectedNodeId,
+    autoAiReply,
   ]);
 
   const handleEditCancel = useCallback(() => {

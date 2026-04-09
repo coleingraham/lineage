@@ -8,6 +8,7 @@ import { useTreeList } from './hooks/useTreeList.js';
 import { useTreeData } from './hooks/useTreeData.js';
 import { useStreamingStore } from './store/streaming.js';
 import { useNodeOperations } from './hooks/useNodeOperations.js';
+import { SETTINGS_KEYS } from './hooks/useSettings.js';
 import { Sidebar } from './components/graph/Sidebar.js';
 import type { SidebarMode, PinnedNode } from './components/graph/GraphRendererTypes.js';
 import { streamCompletion } from '@lineage/sdk';
@@ -30,6 +31,17 @@ export function App() {
   const [mode, setMode] = useState<ViewMode>(readSavedMode);
   const [showSettings, setShowSettings] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('conversations');
+  const [autoAiReply, setAutoAiReply] = useState(
+    () => localStorage.getItem(SETTINGS_KEYS.autoAiReply) !== 'false',
+  );
+
+  const handleAutoAiReplyToggle = useCallback(() => {
+    setAutoAiReply((prev) => {
+      const next = !prev;
+      localStorage.setItem(SETTINGS_KEYS.autoAiReply, String(next));
+      return next;
+    });
+  }, []);
 
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -360,6 +372,7 @@ export function App() {
           focusNodeId={focusNodeId}
           onFocusHandled={handleFocusHandled}
           onRootNodeSubmitted={handleRootNodeSubmitted}
+          autoAiReply={autoAiReply}
           {...treeProps!}
         />
       );
@@ -378,6 +391,7 @@ export function App() {
         focusNodeId={focusNodeId}
         onFocusHandled={handleFocusHandled}
         onRootNodeSubmitted={handleRootNodeSubmitted}
+        autoAiReply={autoAiReply}
         {...treeProps!}
       />
     );
@@ -441,6 +455,30 @@ export function App() {
             Linear
           </button>
         </div>
+
+        {/* Auto AI reply toggle */}
+        <button
+          onClick={handleAutoAiReplyToggle}
+          style={{
+            background: autoAiReply ? 'rgba(255,255,255,0.08)' : 'transparent',
+            border: `1px solid ${autoAiReply ? COLORS.ai + '44' : COLORS.border}`,
+            borderRadius: '6px',
+            padding: '5px 10px',
+            cursor: 'pointer',
+            fontFamily: FONTS.mono,
+            fontSize: '10px',
+            letterSpacing: '0.06em',
+            color: autoAiReply ? COLORS.ai : COLORS.textSecondary,
+            transition: 'all 0.15s',
+          }}
+          title={
+            autoAiReply
+              ? 'Auto AI reply is ON — click to disable'
+              : 'Auto AI reply is OFF — click to enable'
+          }
+        >
+          {autoAiReply ? 'Auto AI ✓' : 'Auto AI ✗'}
+        </button>
 
         {/* Settings gear */}
         <button

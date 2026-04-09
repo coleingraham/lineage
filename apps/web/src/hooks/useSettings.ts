@@ -11,6 +11,7 @@ export const SETTINGS_KEYS = {
   embeddingEnabled: 'lineage:embeddingEnabled',
   embeddingProvider: 'lineage:embeddingProvider',
   embeddingModel: 'lineage:embeddingModel',
+  autoAiReply: 'lineage:autoAiReply',
 } as const;
 
 export type StorageMode = 'local' | 'remote';
@@ -28,6 +29,7 @@ export interface SettingsState {
   embeddingEnabled: boolean;
   embeddingProvider: EmbeddingProvider;
   embeddingModel: string;
+  autoAiReply: boolean;
 }
 
 export function loadSettings(): SettingsState {
@@ -43,6 +45,7 @@ export function loadSettings(): SettingsState {
     embeddingProvider:
       (localStorage.getItem(SETTINGS_KEYS.embeddingProvider) as EmbeddingProvider) ?? 'openai',
     embeddingModel: localStorage.getItem(SETTINGS_KEYS.embeddingModel) ?? '',
+    autoAiReply: localStorage.getItem(SETTINGS_KEYS.autoAiReply) !== 'false',
   };
 }
 
@@ -84,6 +87,8 @@ export function saveSettings(state: SettingsState): void {
   } else {
     localStorage.removeItem(SETTINGS_KEYS.embeddingModel);
   }
+
+  localStorage.setItem(SETTINGS_KEYS.autoAiReply, String(state.autoAiReply));
 }
 
 export function useSettings() {

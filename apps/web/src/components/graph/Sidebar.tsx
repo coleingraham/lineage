@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import type { Tree, NodeRepository } from '@lineage/core';
-import { nodeColor } from '../../styles/theme.js';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import type { Tree, NodeRepository, SearchResult } from '@lineage/core';
+import { nodeColor, COLORS } from '../../styles/theme.js';
 import type { GraphNode, SidebarMode, PinnedNode } from './GraphRendererTypes.js';
 import { buildFlatList, findRoot, getAncestorIds } from './graphUtils.js';
 import { FONTS } from '../../styles/theme.js';
@@ -30,6 +30,7 @@ export function Sidebar({
   selectedPinNodeIds,
   onPinSelectionChange,
   onCreateTreeFromContext,
+  onNavigateToNode,
 }: {
   nodes: GraphNode[];
   selectedNodeId: string | null;
@@ -49,10 +50,57 @@ export function Sidebar({
   selectedPinNodeIds?: Set<string>;
   onPinSelectionChange?: (ids: Set<string>) => void;
   onCreateTreeFromContext?: () => Promise<void>;
+  onNavigateToNode?: (treeId: string, nodeId: string) => void;
 }) {
   const [localMode, setLocalMode] = useState<SidebarMode>('conversations');
   const mode = sidebarMode ?? localMode;
   const setMode = onSidebarModeChange ?? setLocalMode;
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{
+    trees: Tree[];
+    nodes: SearchResult[];
+  } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = useCallback(
+    (q: string) => {
+      setSearchQuery(q);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (!q.trim()) {
+        setSearchResults(null);
+        setIsSearching(false);
+        return;
+      }
+      setIsSearching(true);
+      debounceRef.current = setTimeout(async () => {
+        if (!repo) return;
+        try {
+          const [trees, nodes] = await Promise.all([
+            repo.searchTrees(q.trim()),
+            repo.searchNodes({ query: q.trim() }),
+          ]);
+          setSearchResults({ trees, nodes });
+        } catch (e) {
+          console.error('[search]', e);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 300);
+    },
+    [repo],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const isSearchActive = searchQuery.trim().length > 0;
+
   const flat = useMemo(() => buildFlatList(nodes), [nodes]);
   const rootNode = useMemo(() => {
     const root = findRoot(nodes);
@@ -153,25 +201,49 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Mode label */}
-      <div
-        style={{
-          padding: '6px 14px 4px',
-          fontSize: '9px',
-          color: '#252525',
-          letterSpacing: '0.1em',
-          fontFamily: FONTS.mono,
-          flexShrink: 0,
-        }}
-      >
-        {mode === 'focus'
-          ? 'FOCUS VIEW — DRILL DOWN'
-          : mode === 'power'
-            ? 'POWER VIEW — MAP + TREE'
-            : mode === 'pins'
-              ? 'PINNED NODES'
-              : 'CONVERSATIONS'}
+      {/* Search input */}
+      <div style={{ padding: '8px 14px 4px', flexShrink: 0 }}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search..."
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.04)',
+            border: `1px solid ${isSearchActive ? 'rgba(143,184,200,0.3)' : 'rgba(255,255,255,0.07)'}`,
+            borderRadius: '5px',
+            padding: '5px 10px',
+            fontSize: '11px',
+            color: COLORS.text,
+            fontFamily: FONTS.mono,
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
       </div>
+
+      {/* Mode label */}
+      {!isSearchActive && (
+        <div
+          style={{
+            padding: '6px 14px 4px',
+            fontSize: '9px',
+            color: '#252525',
+            letterSpacing: '0.1em',
+            fontFamily: FONTS.mono,
+            flexShrink: 0,
+          }}
+        >
+          {mode === 'focus'
+            ? 'FOCUS VIEW — DRILL DOWN'
+            : mode === 'power'
+              ? 'POWER VIEW — MAP + TREE'
+              : mode === 'pins'
+                ? 'PINNED NODES'
+                : 'CONVERSATIONS'}
+        </div>
+      )}
 
       {/* Content */}
       <div
@@ -184,71 +256,207 @@ export function Sidebar({
           paddingTop: '2px',
         }}
       >
-        {mode === 'focus' && (
-          <DrilldownSlice flat={flat} selected={selectedNodeId} onSelect={onSelect} />
-        )}
-        {mode === 'power' && (
+        {isSearchActive ? (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 10px' }}>
+            {isSearching && (
+              <div
+                style={{
+                  fontSize: '10px',
+                  color: '#555',
+                  fontFamily: FONTS.mono,
+                  padding: '8px 4px',
+                }}
+              >
+                Searching...
+              </div>
+            )}
+            {searchResults && !isSearching && (
+              <>
+                {searchResults.trees.length === 0 && searchResults.nodes.length === 0 && (
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      color: '#333',
+                      fontFamily: FONTS.mono,
+                      padding: '8px 4px',
+                    }}
+                  >
+                    No results
+                  </div>
+                )}
+                {searchResults.trees.length > 0 && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: '9px',
+                        color: '#444',
+                        letterSpacing: '0.1em',
+                        fontFamily: FONTS.mono,
+                        padding: '4px 4px 2px',
+                      }}
+                    >
+                      CONVERSATIONS
+                    </div>
+                    {searchResults.trees.map((tree) => (
+                      <div
+                        key={tree.treeId}
+                        onClick={() => onSelectTree?.(tree.treeId)}
+                        style={{
+                          padding: '6px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          color: COLORS.text,
+                          fontFamily: FONTS.serif,
+                          background:
+                            tree.treeId === selectedTreeId
+                              ? 'rgba(143,184,200,0.1)'
+                              : 'transparent',
+                        }}
+                      >
+                        {tree.title}
+                      </div>
+                    ))}
+                  </>
+                )}
+                {searchResults.nodes.length > 0 && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: '9px',
+                        color: '#444',
+                        letterSpacing: '0.1em',
+                        fontFamily: FONTS.mono,
+                        padding: '8px 4px 2px',
+                      }}
+                    >
+                      NODES
+                    </div>
+                    {searchResults.nodes.slice(0, 50).map((result) => (
+                      <div
+                        key={result.node.nodeId}
+                        onClick={() => {
+                          if (onNavigateToNode) {
+                            onNavigateToNode(result.node.treeId, result.node.nodeId);
+                          } else {
+                            onSelectTree?.(result.node.treeId);
+                          }
+                        }}
+                        style={{
+                          padding: '6px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          borderLeft: `2px solid ${nodeColor(result.node.type, false)}`,
+                          marginBottom: '2px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: '9px',
+                            color: '#444',
+                            fontFamily: FONTS.mono,
+                            marginBottom: '2px',
+                          }}
+                        >
+                          <span
+                            style={{
+                              color: nodeColor(result.node.type, false),
+                              letterSpacing: '0.06em',
+                            }}
+                          >
+                            {result.node.type.toUpperCase()}
+                          </span>
+                          {' · '}
+                          {result.treeTitle}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: '#888',
+                            fontFamily: FONTS.serif,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {result.node.content.slice(0, 100)}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
           <>
-            <VerticalMinimap flat={flat} selected={selectedNodeId} onSelect={onSelect} />
-            <div
-              style={{
-                height: '1px',
-                background: 'rgba(255,255,255,0.04)',
-                margin: '0 8px',
-                flexShrink: 0,
-              }}
-            />
-            <div
-              style={{
-                fontSize: '9px',
-                color: '#252525',
-                letterSpacing: '0.1em',
-                padding: '0 14px 2px',
-                fontFamily: FONTS.mono,
-                flexShrink: 0,
-              }}
-            >
-              TREE
-            </div>
-            <SmartCollapse
-              flat={flat}
-              rootNode={rootNode}
-              selected={selectedNodeId}
-              onSelect={onSelect}
-            />
+            {mode === 'focus' && (
+              <DrilldownSlice flat={flat} selected={selectedNodeId} onSelect={onSelect} />
+            )}
+            {mode === 'power' && (
+              <>
+                <VerticalMinimap flat={flat} selected={selectedNodeId} onSelect={onSelect} />
+                <div
+                  style={{
+                    height: '1px',
+                    background: 'rgba(255,255,255,0.04)',
+                    margin: '0 8px',
+                    flexShrink: 0,
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: '9px',
+                    color: '#252525',
+                    letterSpacing: '0.1em',
+                    padding: '0 14px 2px',
+                    fontFamily: FONTS.mono,
+                    flexShrink: 0,
+                  }}
+                >
+                  TREE
+                </div>
+                <SmartCollapse
+                  flat={flat}
+                  rootNode={rootNode}
+                  selected={selectedNodeId}
+                  onSelect={onSelect}
+                />
+              </>
+            )}
+            {mode === 'conversations' &&
+              trees &&
+              onSelectTree &&
+              onDeleteTree &&
+              repo &&
+              onTreeCreated &&
+              onRequestEdit && (
+                <ConversationList
+                  trees={trees}
+                  selectedTreeId={selectedTreeId ?? null}
+                  onSelectTree={onSelectTree}
+                  onDeleteTree={onDeleteTree}
+                  repo={repo}
+                  onTreeCreated={onTreeCreated}
+                  onRequestEdit={onRequestEdit}
+                />
+              )}
+            {mode === 'pins' && pinnedNodes && onUnpin && onClearAllPins && (
+              <PinnedList
+                pinnedNodes={pinnedNodes}
+                currentTreeNodes={nodes}
+                currentTreeId={selectedTreeId ?? null}
+                onSelect={onSelect}
+                onSelectTree={onSelectTree ?? (() => {})}
+                onUnpin={onUnpin}
+                onClearAll={onClearAllPins}
+                trees={trees ?? []}
+                selectedPinNodeIds={selectedPinNodeIds ?? new Set()}
+                onPinSelectionChange={onPinSelectionChange ?? (() => {})}
+                onCreateTreeFromContext={onCreateTreeFromContext ?? (() => Promise.resolve())}
+              />
+            )}
           </>
-        )}
-        {mode === 'conversations' &&
-          trees &&
-          onSelectTree &&
-          onDeleteTree &&
-          repo &&
-          onTreeCreated &&
-          onRequestEdit && (
-            <ConversationList
-              trees={trees}
-              selectedTreeId={selectedTreeId ?? null}
-              onSelectTree={onSelectTree}
-              onDeleteTree={onDeleteTree}
-              repo={repo}
-              onTreeCreated={onTreeCreated}
-              onRequestEdit={onRequestEdit}
-            />
-          )}
-        {mode === 'pins' && pinnedNodes && onUnpin && onClearAllPins && (
-          <PinnedList
-            pinnedNodes={pinnedNodes}
-            currentTreeNodes={nodes}
-            currentTreeId={selectedTreeId ?? null}
-            onSelect={onSelect}
-            onSelectTree={onSelectTree ?? (() => {})}
-            onUnpin={onUnpin}
-            onClearAll={onClearAllPins}
-            trees={trees ?? []}
-            selectedPinNodeIds={selectedPinNodeIds ?? new Set()}
-            onPinSelectionChange={onPinSelectionChange ?? (() => {})}
-            onCreateTreeFromContext={onCreateTreeFromContext ?? (() => Promise.resolve())}
-          />
         )}
       </div>
 

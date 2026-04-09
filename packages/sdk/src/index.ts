@@ -1,4 +1,4 @@
-import type { Node, Tree, NodeRepository } from '@lineage/core';
+import type { Node, Tree, NodeRepository, SearchOptions, SearchResult } from '@lineage/core';
 
 export { streamCompletion } from './streaming.js';
 export type { StreamCompletionOptions } from './streaming.js';
@@ -132,5 +132,27 @@ export class RestNodeRepository implements NodeRepository {
 
   async updateNodeEmbedding(): Promise<void> {
     // Not supported via REST yet
+  }
+
+  async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
+    const params = new URLSearchParams({ q: options.query });
+    if (options.nodeTypes && options.nodeTypes.length > 0) {
+      params.set('types', options.nodeTypes.join(','));
+    }
+    if (options.treeId) {
+      params.set('treeId', options.treeId);
+    }
+    const res = await fetch(`${this.baseUrl}/search?${params}`);
+    if (!res.ok) throw new Error(`searchNodes failed: HTTP ${res.status}`);
+    const data = (await res.json()) as { nodes: SearchResult[] };
+    return data.nodes;
+  }
+
+  async searchTrees(query: string): Promise<Tree[]> {
+    const params = new URLSearchParams({ q: query });
+    const res = await fetch(`${this.baseUrl}/search?${params}`);
+    if (!res.ok) throw new Error(`searchTrees failed: HTTP ${res.status}`);
+    const data = (await res.json()) as { trees: Tree[] };
+    return data.trees;
   }
 }
