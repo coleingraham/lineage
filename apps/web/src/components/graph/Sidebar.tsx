@@ -222,7 +222,7 @@ export function Sidebar({
       </div>
 
       {/* Search input */}
-      <div style={{ padding: '8px 14px 4px', flexShrink: 0 }}>
+      <div style={{ padding: '8px 14px 4px', flexShrink: 0, position: 'relative' }}>
         <input
           type="text"
           value={searchQuery}
@@ -233,7 +233,7 @@ export function Sidebar({
             background: 'rgba(255,255,255,0.04)',
             border: `1px solid ${isSearchActive ? 'rgba(143,184,200,0.3)' : 'rgba(255,255,255,0.07)'}`,
             borderRadius: '5px',
-            padding: '5px 10px',
+            padding: '5px 24px 5px 10px',
             fontSize: '11px',
             color: COLORS.text,
             fontFamily: FONTS.mono,
@@ -241,6 +241,26 @@ export function Sidebar({
             boxSizing: 'border-box',
           }}
         />
+        {isSearchActive && (
+          <button
+            onClick={() => handleSearchChange('')}
+            style={{
+              position: 'absolute',
+              right: '20px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              color: '#555',
+              cursor: 'pointer',
+              fontSize: '13px',
+              padding: '0 2px',
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {/* Mode label */}
