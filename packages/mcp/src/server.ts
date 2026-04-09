@@ -1,14 +1,70 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { NodeRepository, Node } from '@lineage/core';
-import { buildContext, createNode } from '@lineage/core';
+import type { NodeRepository, Node, LLMProvider, Message } from '@lineage/core';
+import { buildContext, createNode, stripThinking } from '@lineage/core';
 
 const contextSourceSchema = z.object({
   treeId: z.string(),
   nodeId: z.string(),
 });
 
-export function createMcpServer(repo: NodeRepository): McpServer {
+const SUMMARIZE_SYSTEM_PROMPT = `You are a precise summarizer. The user will provide a conversation thread. Your task is to produce a concise summary that captures:
+- The key decisions and conclusions reached
+- Important constraints or requirements mentioned
+- Any open questions or unresolved points
+
+Write the summary as a single, dense paragraph. Do not use bullet points or headings. Do not begin with "This conversation" or "The discussion" — start directly with the substance.`;
+
+export interface McpServerOptions {
+  llm?: LLMProvider;
+}
+
+/**
+ * Summarize a conversation path using the configured LLM provider.
+ * Walks from the target node to root (stopping at summary boundaries),
+ * then sends the conversation to the LLM for summarization.
+ */
+async function llmSummarize(
+  repo: NodeRepository,
+  llm: LLMProvider,
+  treeId: string,
+  nodeId: string,
+): Promise<string> {
+  const allNodes = await repo.getNodes(treeId);
+  const nodesById = new Map(allNodes.map((n) => [n.nodeId, n]));
+
+  // Walk from target to root, stopping at summary boundaries
+  const path: Node[] = [];
+  let cur: Node | undefined = nodesById.get(nodeId);
+  while (cur) {
+    if (cur.isDeleted) break;
+    path.push(cur);
+    if (cur.type === 'summary' && cur.nodeId !== nodeId) break;
+    cur = cur.parentId ? nodesById.get(cur.parentId) : undefined;
+  }
+  path.reverse();
+
+  const filtered = path.filter((n) => !(n.parentId === null && n.content === ''));
+  if (filtered.length === 0) return '';
+
+  const conversationText = filtered
+    .map((n) => {
+      const role = n.type === 'human' ? 'Human' : 'Assistant';
+      return `${role}: ${stripThinking(n.content)}`;
+    })
+    .join('\n\n');
+
+  const messages: Message[] = [
+    { role: 'system', content: SUMMARIZE_SYSTEM_PROMPT },
+    { role: 'human', content: conversationText },
+  ];
+
+  return llm.complete(messages, { maxTokens: 1024 });
+}
+
+export function createMcpServer(repo: NodeRepository, options: McpServerOptions = {}): McpServer {
+  const llm = options.llm ?? null;
+
   const server = new McpServer({
     name: 'lineage',
     version: '0.1.0',
@@ -622,7 +678,8 @@ export function createMcpServer(repo: NodeRepository): McpServer {
 
   server.tool(
     'end_session',
-    'End a coding session. Optionally updates the title and creates a summary node for future reference.',
+    'End a coding session. Optionally updates the title and creates a summary node for future reference. ' +
+      'When an LLM is configured and no explicit summary is provided, generates one automatically.',
     {
       treeId: z.string().describe('The session tree ID'),
       title: z.string().optional().describe('Override the tree title'),
@@ -649,19 +706,27 @@ export function createMcpServer(repo: NodeRepository): McpServer {
       const parentIds = new Set(activeNodes.map((n) => n.parentId).filter(Boolean));
       const leaves = activeNodes.filter((n) => !parentIds.has(n.nodeId));
       const leafNode = leaves[leaves.length - 1] ?? activeNodes[activeNodes.length - 1];
+      const leafNodeId = leafNode?.nodeId ?? tree.rootNodeId;
 
-      const summaryContent = summary
-        ? summary
-        : activeNodes
-            .slice(0, 20)
-            .map(
-              (n) => `[${n.type}] ${n.content.slice(0, 100)}${n.content.length > 100 ? '...' : ''}`,
-            )
-            .join('\n');
+      let summaryContent: string;
+      if (summary) {
+        summaryContent = summary;
+      } else if (llm) {
+        // Auto-summarize using the configured LLM
+        summaryContent = await llmSummarize(repo, llm, treeId, leafNodeId);
+      } else {
+        // Fallback: basic recap from node contents
+        summaryContent = activeNodes
+          .slice(0, 20)
+          .map(
+            (n) => `[${n.type}] ${n.content.slice(0, 100)}${n.content.length > 100 ? '...' : ''}`,
+          )
+          .join('\n');
+      }
 
       const summaryNode = createNode({
         treeId,
-        parentId: leafNode?.nodeId ?? tree.rootNodeId,
+        parentId: leafNodeId,
         type: 'summary',
         content: summaryContent,
       });
@@ -701,7 +766,8 @@ export function createMcpServer(repo: NodeRepository): McpServer {
     'Create a new conversation tree seeded with context from selected nodes across multiple trees. ' +
       'Equivalent to the web app\'s "New conversation from context" pinned-nodes workflow. ' +
       'Summary nodes are used directly; non-summary nodes are checked for summary children; ' +
-      'nodes without summaries are used as-is.',
+      'when an LLM is configured, non-summary nodes without existing summaries are auto-summarized; ' +
+      'otherwise they are used as-is.',
     {
       title: z
         .string()
@@ -738,8 +804,19 @@ export function createMcpServer(repo: NodeRepository): McpServer {
           );
           if (summaryChild) {
             resolvedSources.push({ treeId: source.treeId, nodeId: summaryChild.nodeId });
+          } else if (llm) {
+            // Auto-summarize using the configured LLM, save as a summary child node
+            const summaryText = await llmSummarize(repo, llm, node.treeId, node.nodeId);
+            const newSummary = createNode({
+              treeId: node.treeId,
+              parentId: node.nodeId,
+              type: 'summary',
+              content: summaryText,
+            });
+            await repo.putNode(newSummary);
+            resolvedSources.push({ treeId: source.treeId, nodeId: newSummary.nodeId });
           } else {
-            // Use the node itself as-is
+            // No LLM available — use the node itself as-is
             resolvedSources.push({ treeId: source.treeId, nodeId: node.nodeId });
           }
         }

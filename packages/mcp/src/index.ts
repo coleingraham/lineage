@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { NodeRepository } from '@lineage/core';
+import type { NodeRepository, LLMProvider } from '@lineage/core';
 import { createMcpServer } from './server.js';
 
 function getArg(name: string): string | undefined {
@@ -8,28 +8,30 @@ function getArg(name: string): string | undefined {
   return idx !== -1 ? process.argv[idx + 1] : undefined;
 }
 
-async function createRepo(): Promise<NodeRepository> {
+async function init(): Promise<{ repo: NodeRepository; llm?: LLMProvider }> {
   const configPath = getArg('--config');
 
   if (configPath) {
-    // Config-based backend: supports sqlite, postgres, memory
+    // Config-based backend: supports sqlite, postgres, memory + optional LLM
     const { readFileSync } = await import('node:fs');
-    const { parseConfig, createRepository } = await import('@lineage/core');
+    const { parseConfig, createRepository, createLlmProvider } = await import('@lineage/core');
     const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
     const config = parseConfig(raw);
-    return createRepository(config);
+    const repo = await createRepository(config);
+    const llm = await createLlmProvider(config);
+    return { repo, llm };
   }
 
-  // Default: SQLite via --db flag or env var
+  // Default: SQLite via --db flag or env var, no LLM
   const dbPath = getArg('--db') ?? process.env.LINEAGE_DB ?? './lineage.db';
   const { default: Database } = await import('better-sqlite3');
   const { SqliteRepository } = await import('@lineage/adapter-sqlite');
   const db = new Database(dbPath);
-  return new SqliteRepository(db);
+  return { repo: new SqliteRepository(db) };
 }
 
-const repo = await createRepo();
-const server = createMcpServer(repo);
+const { repo, llm } = await init();
+const server = createMcpServer(repo, { llm });
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

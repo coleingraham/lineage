@@ -1,4 +1,5 @@
 import type { Config } from './config.js';
+import type { LLMProvider } from './llm.js';
 import type { NodeRepository } from './repository.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,6 +35,50 @@ export async function createRepository(config: Config): Promise<NodeRepository> 
       const repo = new PostgresRepository(sql);
       await repo.migrate();
       return repo;
+    }
+  }
+}
+
+export async function createLlmProvider(config: Config): Promise<LLMProvider> {
+  const { provider, model, apiKey, baseUrl } = config.llm;
+  switch (provider) {
+    case 'ollama': {
+      const { OllamaProvider } = (await load('@lineage/adapter-ollama')) as {
+        OllamaProvider: new (opts: { model: string; baseURL?: string }) => LLMProvider;
+      };
+      return new OllamaProvider({ model, ...(baseUrl && { baseURL: baseUrl }) });
+    }
+    case 'openai': {
+      const { OpenAIProvider } = (await load('@lineage/adapter-openai')) as {
+        OpenAIProvider: new (opts: {
+          apiKey: string;
+          model: string;
+          baseURL?: string;
+        }) => LLMProvider;
+      };
+      if (!apiKey) throw new Error('llm.apiKey is required for OpenAI provider');
+      return new OpenAIProvider({ apiKey, model, ...(baseUrl && { baseURL: baseUrl }) });
+    }
+    case 'anthropic': {
+      const { AnthropicProvider } = (await load('@lineage/adapter-anthropic')) as {
+        AnthropicProvider: new (opts: {
+          apiKey: string;
+          model: string;
+          baseURL?: string;
+        }) => LLMProvider;
+      };
+      if (!apiKey) throw new Error('llm.apiKey is required for Anthropic provider');
+      return new AnthropicProvider({ apiKey, model, ...(baseUrl && { baseURL: baseUrl }) });
+    }
+    case 'bedrock': {
+      const mod = (await load('@lineage/adapter-bedrock')) as {
+        BedrockProvider?: new (opts: { model: string; region?: string }) => LLMProvider;
+      };
+      if (!mod.BedrockProvider) throw new Error('Bedrock adapter is not yet implemented');
+      return new mod.BedrockProvider({
+        model,
+        ...(config.llm.region && { region: config.llm.region }),
+      });
     }
   }
 }

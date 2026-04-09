@@ -2,12 +2,25 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { InMemoryRepository } from '@lineage/adapter-sqlite';
+import type { LLMProvider } from '@lineage/core';
 import { createMcpServer } from '../server.js';
 
+/** Fake LLM that returns a fixed response. */
+function fakeLlm(response: string): LLMProvider {
+  return {
+    async complete() {
+      return response;
+    },
+    async *stream() {
+      yield response;
+    },
+  };
+}
+
 // Helper to connect a client to the MCP server backed by InMemoryRepository
-async function setup() {
+async function setup(options?: { llm?: LLMProvider }) {
   const repo = new InMemoryRepository();
-  const server = createMcpServer(repo);
+  const server = createMcpServer(repo, options);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const client = new Client({ name: 'test-client', version: '0.0.1' });
@@ -893,5 +906,130 @@ describe('create_tree_from_nodes', () => {
     ) as { contextSources: { treeId: string; nodeId: string }[] };
 
     expect(result.contextSources).toHaveLength(2);
+  });
+});
+
+// ── LLM-backed summarization ───────────────────────────────────────────────
+
+describe('end_session with LLM', () => {
+  let client: Client;
+
+  beforeEach(async () => {
+    ({ client } = await setup({ llm: fakeLlm('LLM-generated summary of the session.') }));
+  });
+
+  it('auto-generates summary via LLM when no explicit summary provided', async () => {
+    const session = parseResult(
+      (await client.callTool({
+        name: 'start_session',
+        arguments: { title: 'LLM test', description: 'Testing auto-summarization' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    await client.callTool({
+      name: 'create_node',
+      arguments: {
+        treeId: session.treeId,
+        parentId: session.rootNodeId,
+        content: 'We discussed important things',
+        type: 'ai',
+      },
+    });
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'end_session',
+        arguments: { treeId: session.treeId },
+      })) as { content: unknown[] },
+    ) as { summaryNodeId: string };
+
+    const summaryNode = parseResult(
+      (await client.callTool({
+        name: 'get_node',
+        arguments: { nodeId: result.summaryNodeId },
+      })) as { content: unknown[] },
+    ) as { type: string; content: string };
+
+    expect(summaryNode.type).toBe('summary');
+    expect(summaryNode.content).toBe('LLM-generated summary of the session.');
+  });
+
+  it('uses explicit summary over LLM when provided', async () => {
+    const session = parseResult(
+      (await client.callTool({
+        name: 'start_session',
+        arguments: { title: 'Test' },
+      })) as { content: unknown[] },
+    ) as { treeId: string };
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'end_session',
+        arguments: {
+          treeId: session.treeId,
+          summary: 'My explicit summary',
+        },
+      })) as { content: unknown[] },
+    ) as { summaryNodeId: string };
+
+    const summaryNode = parseResult(
+      (await client.callTool({
+        name: 'get_node',
+        arguments: { nodeId: result.summaryNodeId },
+      })) as { content: unknown[] },
+    ) as { content: string };
+
+    expect(summaryNode.content).toBe('My explicit summary');
+  });
+});
+
+describe('create_tree_from_nodes with LLM', () => {
+  let client: Client;
+
+  beforeEach(async () => {
+    ({ client } = await setup({ llm: fakeLlm('Auto-generated summary.') }));
+  });
+
+  it('auto-summarizes non-summary nodes without existing summaries', async () => {
+    const tree = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Source', rootContent: 'Discussion content' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const humanNode = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: {
+          treeId: tree.treeId,
+          parentId: tree.rootNodeId,
+          content: 'Detailed discussion without summary',
+        },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'create_tree_from_nodes',
+        arguments: {
+          sourceNodes: [{ treeId: tree.treeId, nodeId: humanNode.nodeId }],
+        },
+      })) as { content: unknown[] },
+    ) as { contextSources: { treeId: string; nodeId: string }[] };
+
+    // The resolved source should be the auto-generated summary, not the original node
+    expect(result.contextSources[0].nodeId).not.toBe(humanNode.nodeId);
+
+    // Verify the summary was saved
+    const summaryNode = parseResult(
+      (await client.callTool({
+        name: 'get_node',
+        arguments: { nodeId: result.contextSources[0].nodeId },
+      })) as { content: unknown[] },
+    ) as { type: string; content: string };
+
+    expect(summaryNode.type).toBe('summary');
+    expect(summaryNode.content).toBe('Auto-generated summary.');
   });
 });
