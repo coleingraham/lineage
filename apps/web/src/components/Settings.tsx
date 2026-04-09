@@ -3,7 +3,6 @@ import { COLORS, FONTS } from '../styles/theme.js';
 import {
   useSettings,
   saveSettings,
-  type StorageMode,
   type LLMProvider,
   type EmbeddingProvider,
 } from '../hooks/useSettings.js';
@@ -176,29 +175,15 @@ export function Settings({ onClose }: { onClose: () => void }) {
           <h3 style={heading}>Storage</h3>
 
           <div style={fieldGroup}>
-            <span style={label}>Mode</span>
-            <select
-              value={state.storageMode}
-              onChange={(e) => update('storageMode', e.target.value as StorageMode)}
-              style={selectStyle}
-            >
-              <option value="local">In-browser SQLite (default)</option>
-              <option value="remote">Remote server</option>
-            </select>
+            <span style={label}>Server URL</span>
+            <input
+              type="url"
+              value={state.serverUrl}
+              onChange={(e) => update('serverUrl', e.target.value)}
+              placeholder="http://localhost:3000"
+              style={inputBase}
+            />
           </div>
-
-          {state.storageMode === 'remote' && (
-            <div style={fieldGroup}>
-              <span style={label}>Server URL</span>
-              <input
-                type="url"
-                value={state.serverUrl}
-                onChange={(e) => update('serverUrl', e.target.value)}
-                placeholder="http://localhost:3000"
-                style={inputBase}
-              />
-            </div>
-          )}
         </div>
 
         {/* ── LLM Provider ──────────────────────────────────────── */}
@@ -230,29 +215,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
               style={inputBase}
             />
           </div>
-
-          {state.storageMode === 'local' && (
-            <div style={fieldGroup}>
-              <span style={label}>API Key</span>
-              <input
-                type="password"
-                value={state.llmApiKey}
-                onChange={(e) => update('llmApiKey', e.target.value)}
-                placeholder="sk-..."
-                style={inputBase}
-              />
-              <span
-                style={{
-                  display: 'block',
-                  fontSize: '9px',
-                  color: COLORS.textSecondary,
-                  marginTop: '4px',
-                }}
-              >
-                Stored locally only — never sent to the app server.
-              </span>
-            </div>
-          )}
 
           {state.llmProvider === 'ollama' && (
             <div style={fieldGroup}>
