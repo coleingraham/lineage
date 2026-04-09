@@ -104,6 +104,8 @@ export function GraphView({
     onEdit,
     onCreateSibling,
     onDelete,
+    onDeleteTree,
+    selectedTreeId: selectedTreeId ?? null,
     onNodeReply,
     onRootNodeSubmitted,
     pendingEditNodeId,

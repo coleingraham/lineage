@@ -6,6 +6,8 @@ interface UseNodeEditingOptions {
   onEdit: (nodeId: string, content: string) => Promise<void>;
   onCreateSibling: (originalNodeId: string, content: string) => Promise<string | null>;
   onDelete: (nodeId: string) => void;
+  onDeleteTree: (treeId: string) => void;
+  selectedTreeId: string | null;
   onNodeReply: (nodeId: string) => void;
   onRootNodeSubmitted?: (content: string) => void;
   pendingEditNodeId: string | null;
@@ -25,6 +27,8 @@ export function useNodeEditing({
   onEdit,
   onCreateSibling,
   onDelete,
+  onDeleteTree,
+  selectedTreeId,
   onNodeReply,
   onRootNodeSubmitted,
   pendingEditNodeId,
@@ -100,14 +104,20 @@ export function useNodeEditing({
 
   const handleEditCancel = useCallback(() => {
     if (pendingNewNodeId) {
-      const parentId = nodeById.get(pendingNewNodeId)?.parentId ?? null;
-      onDelete(pendingNewNodeId);
+      const node = nodeById.get(pendingNewNodeId);
+      const parentId = node?.parentId ?? null;
+      if (!parentId && selectedTreeId) {
+        // Canceling the root node of a new conversation — remove the entire tree
+        onDeleteTree(selectedTreeId);
+      } else {
+        onDelete(pendingNewNodeId);
+        if (parentId) setSelectedNodeId(parentId);
+      }
       setPendingNewNodeId(null);
-      if (parentId) setSelectedNodeId(parentId);
     }
     setEditingNodeId(null);
     setEditText('');
-  }, [pendingNewNodeId, onDelete, nodeById, setSelectedNodeId]);
+  }, [pendingNewNodeId, onDelete, onDeleteTree, selectedTreeId, nodeById, setSelectedNodeId]);
 
   // Sync internal selection when parent changes it (e.g. tree switch)
   useEffect(() => {

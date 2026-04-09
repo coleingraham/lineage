@@ -143,6 +143,8 @@ export function LinearView({
     onEdit,
     onCreateSibling,
     onDelete,
+    onDeleteTree,
+    selectedTreeId: selectedTreeId ?? null,
     onNodeReply,
     onRootNodeSubmitted,
     pendingEditNodeId,
