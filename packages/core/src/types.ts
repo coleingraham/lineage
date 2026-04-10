@@ -56,3 +56,18 @@ export interface SearchResult {
   node: Node;
   treeTitle: string;
 }
+
+export interface TagCategory {
+  categoryId: string;
+  name: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface Tag {
+  tagId: string;
+  categoryId: string;
+  name: string;
+  description: string;
+  createdAt: string;
+}

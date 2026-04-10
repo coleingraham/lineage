@@ -183,7 +183,7 @@ describe('PostgresRepository', () => {
       const { sql } = createMockSql();
       const repo = new PostgresRepository(sql as never);
       await repo.migrate();
-      expect(sql.unsafe).toHaveBeenCalledTimes(3);
+      expect(sql.unsafe).toHaveBeenCalledTimes(4);
     });
   });
 });

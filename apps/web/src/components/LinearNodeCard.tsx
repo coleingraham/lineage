@@ -22,6 +22,7 @@ export function LinearNodeCard({
   onAddHumanReply,
   isPinned,
   onTogglePin,
+  onOpenTagPicker,
 }: {
   node: GraphNode;
   siblings: GraphNode[];
@@ -38,6 +39,7 @@ export function LinearNodeCard({
   onAddHumanReply: (parentNodeId: string) => void;
   isPinned?: boolean;
   onTogglePin?: () => void;
+  onOpenTagPicker?: () => void;
 }) {
   const c = nodeColor(node.type, node.isDeleted);
   const [hover, setHover] = useState(false);
@@ -110,6 +112,9 @@ export function LinearNodeCard({
             }}
           />
           {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
+          {onOpenTagPicker && (
+            <ActionBtn label="Tags" color={COLORS.textSecondary} onClick={onOpenTagPicker} />
+          )}
           <span
             style={{
               fontSize: '10px',
@@ -173,6 +178,9 @@ export function LinearNodeCard({
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
         <RoleIcon role={node.type} size={16} />
         {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
+        {onOpenTagPicker && (
+          <ActionBtn label="Tags" color={COLORS.textSecondary} onClick={onOpenTagPicker} />
+        )}
         <span
           style={{
             fontSize: '9px',

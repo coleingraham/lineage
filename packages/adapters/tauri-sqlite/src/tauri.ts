@@ -1,4 +1,12 @@
-import type { Node, NodeRepository, Tree, SearchOptions, SearchResult } from '@lineage/core';
+import type {
+  Node,
+  NodeRepository,
+  Tag,
+  TagCategory,
+  Tree,
+  SearchOptions,
+  SearchResult,
+} from '@lineage/core';
 import Database from '@tauri-apps/plugin-sql';
 
 const INIT_SQL = `
@@ -44,6 +52,36 @@ const MIGRATE_V2_STMTS = [
 
 const MIGRATE_V3_STMTS = ['ALTER TABLE trees ADD COLUMN context_sources TEXT'];
 
+const MIGRATE_V4_STMTS = [
+  `CREATE TABLE IF NOT EXISTS tag_categories (
+    category_id  TEXT PRIMARY KEY,
+    name         TEXT NOT NULL UNIQUE,
+    description  TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS tags (
+    tag_id       TEXT PRIMARY KEY,
+    category_id  TEXT NOT NULL REFERENCES tag_categories(category_id),
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL,
+    UNIQUE(category_id, name)
+  )`,
+  `CREATE TABLE IF NOT EXISTS node_tags (
+    node_id  TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    tag_id   TEXT NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
+    PRIMARY KEY (node_id, tag_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS tree_tags (
+    tree_id  TEXT NOT NULL REFERENCES trees(tree_id) ON DELETE CASCADE,
+    tag_id   TEXT NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
+    PRIMARY KEY (tree_id, tag_id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_tags_category ON tags(category_id)',
+  'CREATE INDEX IF NOT EXISTS idx_node_tags_tag ON node_tags(tag_id)',
+  'CREATE INDEX IF NOT EXISTS idx_tree_tags_tag ON tree_tags(tag_id)',
+];
+
 interface NodeRow {
   node_id: string;
   tree_id: string;
@@ -66,6 +104,21 @@ interface TreeRow {
   created_at: string;
   root_node_id: string;
   context_sources: string | null;
+}
+
+interface TagCategoryRow {
+  category_id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+interface TagRow {
+  tag_id: string;
+  category_id: string;
+  name: string;
+  description: string;
+  created_at: string;
 }
 
 function rowToNode(row: NodeRow): Node {
@@ -95,6 +148,25 @@ function rowToTree(row: TreeRow): Tree {
     contextSources: row.context_sources
       ? (JSON.parse(row.context_sources) as Tree['contextSources'])
       : null,
+  };
+}
+
+function rowToTagCategory(row: TagCategoryRow): TagCategory {
+  return {
+    categoryId: row.category_id,
+    name: row.name,
+    description: row.description,
+    createdAt: row.created_at,
+  };
+}
+
+function rowToTag(row: TagRow): Tag {
+  return {
+    tagId: row.tag_id,
+    categoryId: row.category_id,
+    name: row.name,
+    description: row.description,
+    createdAt: row.created_at,
   };
 }
 
@@ -141,6 +213,16 @@ export class TauriSqliteRepository implements NodeRepository {
     );
     if (treeCols.length === 0) {
       for (const stmt of MIGRATE_V3_STMTS) {
+        await db.execute(stmt);
+      }
+    }
+
+    // V4: add tagging tables (tag_categories, tags, node_tags, tree_tags)
+    const tagCols = await db.select<{ cnt: number }[]>(
+      "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name = 'tag_categories'",
+    );
+    if (tagCols.length === 0 || tagCols[0].cnt === 0) {
+      for (const stmt of MIGRATE_V4_STMTS) {
         await db.execute(stmt);
       }
     }
@@ -267,6 +349,11 @@ export class TauriSqliteRepository implements NodeRepository {
     if (rows.length === 0) {
       throw new Error(`Tree not found: ${treeId}`);
     }
+    await this.db.execute(
+      'DELETE FROM node_tags WHERE node_id IN (SELECT node_id FROM nodes WHERE tree_id = $1)',
+      [treeId],
+    );
+    await this.db.execute('DELETE FROM tree_tags WHERE tree_id = $1', [treeId]);
     await this.db.execute('DELETE FROM nodes WHERE tree_id = $1', [treeId]);
     await this.db.execute('DELETE FROM trees WHERE tree_id = $1', [treeId]);
   }
@@ -314,6 +401,253 @@ export class TauriSqliteRepository implements NodeRepository {
       "SELECT * FROM trees WHERE title LIKE '%' || $1 || '%' COLLATE NOCASE ORDER BY created_at DESC",
       [query],
     );
+    return rows.map(rowToTree);
+  }
+
+  // ── Tag category CRUD ──────────────────────────────────────────────────
+
+  async createCategory(category: TagCategory): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO tag_categories (category_id, name, description, created_at)
+       VALUES ($1, $2, $3, $4)`,
+      [category.categoryId, category.name, category.description, category.createdAt],
+    );
+  }
+
+  async getCategory(categoryId: string): Promise<TagCategory> {
+    const rows = await this.db.select<TagCategoryRow[]>(
+      'SELECT * FROM tag_categories WHERE category_id = $1',
+      [categoryId],
+    );
+    if (rows.length === 0) {
+      throw new Error(`Category not found: ${categoryId}`);
+    }
+    return rowToTagCategory(rows[0]);
+  }
+
+  async listCategories(): Promise<TagCategory[]> {
+    const rows = await this.db.select<TagCategoryRow[]>('SELECT * FROM tag_categories');
+    return rows.map(rowToTagCategory);
+  }
+
+  async updateCategory(
+    categoryId: string,
+    fields: { name?: string; description?: string },
+  ): Promise<void> {
+    const existing = await this.db.select<TagCategoryRow[]>(
+      'SELECT * FROM tag_categories WHERE category_id = $1',
+      [categoryId],
+    );
+    if (existing.length === 0) {
+      throw new Error(`Category not found: ${categoryId}`);
+    }
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+    if (fields.name !== undefined) {
+      setClauses.push(`name = $${paramIdx}`);
+      params.push(fields.name);
+      paramIdx++;
+    }
+    if (fields.description !== undefined) {
+      setClauses.push(`description = $${paramIdx}`);
+      params.push(fields.description);
+      paramIdx++;
+    }
+    if (setClauses.length === 0) return;
+    params.push(categoryId);
+    await this.db.execute(
+      `UPDATE tag_categories SET ${setClauses.join(', ')} WHERE category_id = $${paramIdx}`,
+      params,
+    );
+  }
+
+  async deleteCategory(categoryId: string): Promise<void> {
+    const existing = await this.db.select<TagCategoryRow[]>(
+      'SELECT * FROM tag_categories WHERE category_id = $1',
+      [categoryId],
+    );
+    if (existing.length === 0) {
+      throw new Error(`Category not found: ${categoryId}`);
+    }
+    const tags = await this.db.select<TagRow[]>('SELECT * FROM tags WHERE category_id = $1', [
+      categoryId,
+    ]);
+    if (tags.length > 0) {
+      throw new Error('Cannot delete category: it still has tags');
+    }
+    await this.db.execute('DELETE FROM tag_categories WHERE category_id = $1', [categoryId]);
+  }
+
+  // ── Tag CRUD ───────────────────────────────────────────────────────────
+
+  async createTag(tag: Tag): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO tags (tag_id, category_id, name, description, created_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [tag.tagId, tag.categoryId, tag.name, tag.description, tag.createdAt],
+    );
+  }
+
+  async getTag(tagId: string): Promise<Tag> {
+    const rows = await this.db.select<TagRow[]>('SELECT * FROM tags WHERE tag_id = $1', [tagId]);
+    if (rows.length === 0) {
+      throw new Error(`Tag not found: ${tagId}`);
+    }
+    return rowToTag(rows[0]);
+  }
+
+  async listTags(categoryId?: string): Promise<Tag[]> {
+    if (categoryId !== undefined) {
+      const rows = await this.db.select<TagRow[]>('SELECT * FROM tags WHERE category_id = $1', [
+        categoryId,
+      ]);
+      return rows.map(rowToTag);
+    }
+    const rows = await this.db.select<TagRow[]>('SELECT * FROM tags');
+    return rows.map(rowToTag);
+  }
+
+  async updateTag(tagId: string, fields: { name?: string; description?: string }): Promise<void> {
+    const existing = await this.db.select<TagRow[]>('SELECT * FROM tags WHERE tag_id = $1', [
+      tagId,
+    ]);
+    if (existing.length === 0) {
+      throw new Error(`Tag not found: ${tagId}`);
+    }
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+    if (fields.name !== undefined) {
+      setClauses.push(`name = $${paramIdx}`);
+      params.push(fields.name);
+      paramIdx++;
+    }
+    if (fields.description !== undefined) {
+      setClauses.push(`description = $${paramIdx}`);
+      params.push(fields.description);
+      paramIdx++;
+    }
+    if (setClauses.length === 0) return;
+    params.push(tagId);
+    await this.db.execute(
+      `UPDATE tags SET ${setClauses.join(', ')} WHERE tag_id = $${paramIdx}`,
+      params,
+    );
+  }
+
+  async deleteTag(tagId: string): Promise<void> {
+    const existing = await this.db.select<TagRow[]>('SELECT * FROM tags WHERE tag_id = $1', [
+      tagId,
+    ]);
+    if (existing.length === 0) {
+      throw new Error(`Tag not found: ${tagId}`);
+    }
+    await this.db.execute('DELETE FROM node_tags WHERE tag_id = $1', [tagId]);
+    await this.db.execute('DELETE FROM tree_tags WHERE tag_id = $1', [tagId]);
+    await this.db.execute('DELETE FROM tags WHERE tag_id = $1', [tagId]);
+  }
+
+  // ── Tagging operations ─────────────────────────────────────────────────
+
+  async tagNode(nodeId: string, tagIds: string[]): Promise<void> {
+    for (const tagId of tagIds) {
+      await this.db.execute('INSERT OR IGNORE INTO node_tags (node_id, tag_id) VALUES ($1, $2)', [
+        nodeId,
+        tagId,
+      ]);
+    }
+  }
+
+  async untagNode(nodeId: string, tagIds: string[]): Promise<void> {
+    for (const tagId of tagIds) {
+      await this.db.execute('DELETE FROM node_tags WHERE node_id = $1 AND tag_id = $2', [
+        nodeId,
+        tagId,
+      ]);
+    }
+  }
+
+  async getNodeTags(nodeId: string): Promise<Tag[]> {
+    const rows = await this.db.select<TagRow[]>(
+      `SELECT t.tag_id, t.category_id, t.name, t.description, t.created_at
+       FROM tags t
+       JOIN node_tags nt ON nt.tag_id = t.tag_id
+       WHERE nt.node_id = $1`,
+      [nodeId],
+    );
+    return rows.map(rowToTag);
+  }
+
+  async tagTree(treeId: string, tagIds: string[]): Promise<void> {
+    for (const tagId of tagIds) {
+      await this.db.execute('INSERT OR IGNORE INTO tree_tags (tree_id, tag_id) VALUES ($1, $2)', [
+        treeId,
+        tagId,
+      ]);
+    }
+  }
+
+  async untagTree(treeId: string, tagIds: string[]): Promise<void> {
+    for (const tagId of tagIds) {
+      await this.db.execute('DELETE FROM tree_tags WHERE tree_id = $1 AND tag_id = $2', [
+        treeId,
+        tagId,
+      ]);
+    }
+  }
+
+  async getTreeTags(treeId: string): Promise<Tag[]> {
+    const rows = await this.db.select<TagRow[]>(
+      `SELECT t.tag_id, t.category_id, t.name, t.description, t.created_at
+       FROM tags t
+       JOIN tree_tags tt ON tt.tag_id = t.tag_id
+       WHERE tt.tree_id = $1`,
+      [treeId],
+    );
+    return rows.map(rowToTag);
+  }
+
+  // ── Tag-based queries ──────────────────────────────────────────────────
+
+  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+    if (tagIds.length === 0) return [];
+    let paramIdx = 1;
+    const placeholders = tagIds.map(() => `$${paramIdx++}`).join(', ');
+    const params: unknown[] = [...tagIds, tagIds.length];
+    const countParam = `$${paramIdx++}`;
+    let treeFilter = '';
+    if (options?.treeId) {
+      treeFilter = ` AND n.tree_id = $${paramIdx++}`;
+      params.push(options.treeId);
+    }
+    const sql = `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+                        n.content, n.is_deleted, n.created_at, n.model_name,
+                        n.provider, n.token_count, n.embedding_model,
+                        n.metadata, n.author
+                 FROM nodes n
+                 JOIN node_types nt ON nt.id = n.node_type_id
+                 JOIN node_tags ntg ON ntg.node_id = n.node_id
+                 WHERE ntg.tag_id IN (${placeholders})
+                   AND n.is_deleted = 0${treeFilter}
+                 GROUP BY n.node_id
+                 HAVING COUNT(DISTINCT ntg.tag_id) = ${countParam}`;
+    const rows = await this.db.select<NodeRow[]>(sql, params);
+    return rows.map(rowToNode);
+  }
+
+  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+    if (tagIds.length === 0) return [];
+    let paramIdx = 1;
+    const placeholders = tagIds.map(() => `$${paramIdx++}`).join(', ');
+    const countParam = `$${paramIdx}`;
+    const sql = `SELECT tr.tree_id, tr.title, tr.created_at, tr.root_node_id, tr.context_sources
+                 FROM trees tr
+                 JOIN tree_tags tt ON tt.tree_id = tr.tree_id
+                 WHERE tt.tag_id IN (${placeholders})
+                 GROUP BY tr.tree_id
+                 HAVING COUNT(DISTINCT tt.tag_id) = ${countParam}`;
+    const rows = await this.db.select<TreeRow[]>(sql, [...tagIds, tagIds.length]);
     return rows.map(rowToTree);
   }
 }

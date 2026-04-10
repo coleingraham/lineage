@@ -1,8 +1,20 @@
-import type { Node, NodeRepository, Tree, SearchOptions, SearchResult } from '@lineage/core';
+import type {
+  Node,
+  NodeRepository,
+  Tag,
+  TagCategory,
+  Tree,
+  SearchOptions,
+  SearchResult,
+} from '@lineage/core';
 
 export class InMemoryRepository implements NodeRepository {
   private trees = new Map<string, Tree>();
   private nodes = new Map<string, Node>();
+  private categories = new Map<string, TagCategory>();
+  private tags = new Map<string, Tag>();
+  private nodeTags = new Map<string, Set<string>>(); // nodeId → tagIds
+  private treeTags = new Map<string, Set<string>>(); // treeId → tagIds
 
   async getTree(treeId: string): Promise<Tree> {
     const tree = this.trees.get(treeId);
@@ -51,9 +63,11 @@ export class InMemoryRepository implements NodeRepository {
     }
     for (const [nodeId, node] of this.nodes) {
       if (node.treeId === treeId) {
+        this.nodeTags.delete(nodeId);
         this.nodes.delete(nodeId);
       }
     }
+    this.treeTags.delete(treeId);
     this.trees.delete(treeId);
   }
 
@@ -84,5 +98,212 @@ export class InMemoryRepository implements NodeRepository {
   async searchTrees(query: string): Promise<Tree[]> {
     const q = query.toLowerCase();
     return [...this.trees.values()].filter((t) => t.title.toLowerCase().includes(q));
+  }
+
+  // ── Tag category CRUD ──────────────────────────────────────────────────
+
+  async createCategory(category: TagCategory): Promise<void> {
+    if (this.categories.has(category.categoryId)) {
+      throw new Error(`Category already exists: ${category.categoryId}`);
+    }
+    for (const existing of this.categories.values()) {
+      if (existing.name === category.name) {
+        throw new Error(`Category name already exists: ${category.name}`);
+      }
+    }
+    this.categories.set(category.categoryId, category);
+  }
+
+  async getCategory(categoryId: string): Promise<TagCategory> {
+    const cat = this.categories.get(categoryId);
+    if (!cat) throw new Error(`Category not found: ${categoryId}`);
+    return cat;
+  }
+
+  async listCategories(): Promise<TagCategory[]> {
+    return [...this.categories.values()];
+  }
+
+  async updateCategory(
+    categoryId: string,
+    fields: { name?: string; description?: string },
+  ): Promise<void> {
+    const cat = this.categories.get(categoryId);
+    if (!cat) throw new Error(`Category not found: ${categoryId}`);
+    if (fields.name !== undefined) {
+      for (const existing of this.categories.values()) {
+        if (existing.name === fields.name && existing.categoryId !== categoryId) {
+          throw new Error(`Category name already exists: ${fields.name}`);
+        }
+      }
+    }
+    this.categories.set(categoryId, {
+      ...cat,
+      ...(fields.name !== undefined && { name: fields.name }),
+      ...(fields.description !== undefined && { description: fields.description }),
+    });
+  }
+
+  async deleteCategory(categoryId: string): Promise<void> {
+    if (!this.categories.has(categoryId)) {
+      throw new Error(`Category not found: ${categoryId}`);
+    }
+    for (const tag of this.tags.values()) {
+      if (tag.categoryId === categoryId) {
+        throw new Error(`Cannot delete category: it still has tags`);
+      }
+    }
+    this.categories.delete(categoryId);
+  }
+
+  // ── Tag CRUD ───────────────────────────────────────────────────────────
+
+  async createTag(tag: Tag): Promise<void> {
+    if (this.tags.has(tag.tagId)) {
+      throw new Error(`Tag already exists: ${tag.tagId}`);
+    }
+    if (!this.categories.has(tag.categoryId)) {
+      throw new Error(`Category not found: ${tag.categoryId}`);
+    }
+    for (const existing of this.tags.values()) {
+      if (existing.categoryId === tag.categoryId && existing.name === tag.name) {
+        throw new Error(`Tag name already exists in this category: ${tag.name}`);
+      }
+    }
+    this.tags.set(tag.tagId, tag);
+  }
+
+  async getTag(tagId: string): Promise<Tag> {
+    const tag = this.tags.get(tagId);
+    if (!tag) throw new Error(`Tag not found: ${tagId}`);
+    return tag;
+  }
+
+  async listTags(categoryId?: string): Promise<Tag[]> {
+    const all = [...this.tags.values()];
+    if (categoryId !== undefined) {
+      return all.filter((t) => t.categoryId === categoryId);
+    }
+    return all;
+  }
+
+  async updateTag(tagId: string, fields: { name?: string; description?: string }): Promise<void> {
+    const tag = this.tags.get(tagId);
+    if (!tag) throw new Error(`Tag not found: ${tagId}`);
+    if (fields.name !== undefined) {
+      for (const existing of this.tags.values()) {
+        if (
+          existing.categoryId === tag.categoryId &&
+          existing.name === fields.name &&
+          existing.tagId !== tagId
+        ) {
+          throw new Error(`Tag name already exists in this category: ${fields.name}`);
+        }
+      }
+    }
+    this.tags.set(tagId, {
+      ...tag,
+      ...(fields.name !== undefined && { name: fields.name }),
+      ...(fields.description !== undefined && { description: fields.description }),
+    });
+  }
+
+  async deleteTag(tagId: string): Promise<void> {
+    if (!this.tags.has(tagId)) {
+      throw new Error(`Tag not found: ${tagId}`);
+    }
+    this.tags.delete(tagId);
+    // Cascade: remove from all junction tables
+    for (const [, tagSet] of this.nodeTags) {
+      tagSet.delete(tagId);
+    }
+    for (const [, tagSet] of this.treeTags) {
+      tagSet.delete(tagId);
+    }
+  }
+
+  // ── Tagging operations ─────────────────────────────────────────────────
+
+  async tagNode(nodeId: string, tagIds: string[]): Promise<void> {
+    if (!this.nodes.has(nodeId)) throw new Error(`Node not found: ${nodeId}`);
+    let set = this.nodeTags.get(nodeId);
+    if (!set) {
+      set = new Set();
+      this.nodeTags.set(nodeId, set);
+    }
+    for (const tagId of tagIds) {
+      if (!this.tags.has(tagId)) throw new Error(`Tag not found: ${tagId}`);
+      set.add(tagId);
+    }
+  }
+
+  async untagNode(nodeId: string, tagIds: string[]): Promise<void> {
+    const set = this.nodeTags.get(nodeId);
+    if (!set) return;
+    for (const tagId of tagIds) {
+      set.delete(tagId);
+    }
+  }
+
+  async getNodeTags(nodeId: string): Promise<Tag[]> {
+    const set = this.nodeTags.get(nodeId);
+    if (!set) return [];
+    return [...set].map((id) => this.tags.get(id)).filter((t): t is Tag => t !== undefined);
+  }
+
+  async tagTree(treeId: string, tagIds: string[]): Promise<void> {
+    if (!this.trees.has(treeId)) throw new Error(`Tree not found: ${treeId}`);
+    let set = this.treeTags.get(treeId);
+    if (!set) {
+      set = new Set();
+      this.treeTags.set(treeId, set);
+    }
+    for (const tagId of tagIds) {
+      if (!this.tags.has(tagId)) throw new Error(`Tag not found: ${tagId}`);
+      set.add(tagId);
+    }
+  }
+
+  async untagTree(treeId: string, tagIds: string[]): Promise<void> {
+    const set = this.treeTags.get(treeId);
+    if (!set) return;
+    for (const tagId of tagIds) {
+      set.delete(tagId);
+    }
+  }
+
+  async getTreeTags(treeId: string): Promise<Tag[]> {
+    const set = this.treeTags.get(treeId);
+    if (!set) return [];
+    return [...set].map((id) => this.tags.get(id)).filter((t): t is Tag => t !== undefined);
+  }
+
+  // ── Tag-based queries ──────────────────────────────────────────────────
+
+  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+    if (tagIds.length === 0) return [];
+    const results: Node[] = [];
+    for (const [nodeId, tagSet] of this.nodeTags) {
+      if (tagIds.every((id) => tagSet.has(id))) {
+        const node = this.nodes.get(nodeId);
+        if (node && !node.isDeleted) {
+          if (options?.treeId && node.treeId !== options.treeId) continue;
+          results.push(node);
+        }
+      }
+    }
+    return results;
+  }
+
+  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+    if (tagIds.length === 0) return [];
+    const results: Tree[] = [];
+    for (const [treeId, tagSet] of this.treeTags) {
+      if (tagIds.every((id) => tagSet.has(id))) {
+        const tree = this.trees.get(treeId);
+        if (tree) results.push(tree);
+      }
+    }
+    return results;
   }
 }
