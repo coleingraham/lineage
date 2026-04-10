@@ -6,7 +6,6 @@ import type {
   NodeRepository,
   SearchOptions,
   SearchResult,
-  SemanticSearchOptions,
   SemanticSearchResult,
 } from '@lineage/core';
 
@@ -144,7 +143,7 @@ export class RestNodeRepository implements NodeRepository {
     // Not supported via REST yet
   }
 
-  async semanticSearch(_options: SemanticSearchOptions): Promise<SemanticSearchResult[]> {
+  async semanticSearch(): Promise<SemanticSearchResult[]> {
     // Not supported via REST yet
     return [];
   }
