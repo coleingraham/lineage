@@ -6,6 +6,8 @@ import type {
   NodeRepository,
   SearchOptions,
   SearchResult,
+  SemanticSearchOptions,
+  SemanticSearchResult,
 } from '@lineage/core';
 
 export { streamCompletion } from './streaming.js';
@@ -140,6 +142,11 @@ export class RestNodeRepository implements NodeRepository {
 
   async updateNodeEmbedding(): Promise<void> {
     // Not supported via REST yet
+  }
+
+  async semanticSearch(_options: SemanticSearchOptions): Promise<SemanticSearchResult[]> {
+    // Not supported via REST yet
+    return [];
   }
 
   async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
