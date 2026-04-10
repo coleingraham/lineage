@@ -6,6 +6,7 @@ import type {
   Tree,
   SearchOptions,
   SearchResult,
+  SemanticSearchResult,
 } from '@lineage/core';
 import Database from '@tauri-apps/plugin-sql';
 
@@ -363,6 +364,10 @@ export class TauriSqliteRepository implements NodeRepository {
     // No-op: Tauri desktop SQLite backend does not support embeddings
   }
 
+  async semanticSearch(): Promise<SemanticSearchResult[]> {
+    throw new Error('Semantic search is not supported by the Tauri SQLite backend');
+  }
+
   async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
     const conditions = ["n.content LIKE '%' || $1 || '%' COLLATE NOCASE"];
     const params: unknown[] = [options.query];
@@ -610,12 +615,21 @@ export class TauriSqliteRepository implements NodeRepository {
 
   // ── Tag-based queries ──────────────────────────────────────────────────
 
-  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+  async findNodesByTags(
+    tagIds: string[],
+    options?: { treeId?: string; matchAll?: boolean },
+  ): Promise<Node[]> {
     if (tagIds.length === 0) return [];
+    const matchAll = options?.matchAll ?? true;
     let paramIdx = 1;
     const placeholders = tagIds.map(() => `$${paramIdx++}`).join(', ');
-    const params: unknown[] = [...tagIds, tagIds.length];
-    const countParam = `$${paramIdx++}`;
+    const params: unknown[] = [...tagIds];
+    let having = '';
+    if (matchAll) {
+      params.push(tagIds.length);
+      const countParam = `$${paramIdx++}`;
+      having = `\n                 HAVING COUNT(DISTINCT ntg.tag_id) = ${countParam}`;
+    }
     let treeFilter = '';
     if (options?.treeId) {
       treeFilter = ` AND n.tree_id = $${paramIdx++}`;
@@ -630,24 +644,29 @@ export class TauriSqliteRepository implements NodeRepository {
                  JOIN node_tags ntg ON ntg.node_id = n.node_id
                  WHERE ntg.tag_id IN (${placeholders})
                    AND n.is_deleted = 0${treeFilter}
-                 GROUP BY n.node_id
-                 HAVING COUNT(DISTINCT ntg.tag_id) = ${countParam}`;
+                 GROUP BY n.node_id${having}`;
     const rows = await this.db.select<NodeRow[]>(sql, params);
     return rows.map(rowToNode);
   }
 
-  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+  async findTreesByTags(tagIds: string[], options?: { matchAll?: boolean }): Promise<Tree[]> {
     if (tagIds.length === 0) return [];
+    const matchAll = options?.matchAll ?? true;
     let paramIdx = 1;
     const placeholders = tagIds.map(() => `$${paramIdx++}`).join(', ');
-    const countParam = `$${paramIdx}`;
+    const params: unknown[] = [...tagIds];
+    let having = '';
+    if (matchAll) {
+      params.push(tagIds.length);
+      const countParam = `$${paramIdx}`;
+      having = `\n                 HAVING COUNT(DISTINCT tt.tag_id) = ${countParam}`;
+    }
     const sql = `SELECT tr.tree_id, tr.title, tr.created_at, tr.root_node_id, tr.context_sources
                  FROM trees tr
                  JOIN tree_tags tt ON tt.tree_id = tr.tree_id
                  WHERE tt.tag_id IN (${placeholders})
-                 GROUP BY tr.tree_id
-                 HAVING COUNT(DISTINCT tt.tag_id) = ${countParam}`;
-    const rows = await this.db.select<TreeRow[]>(sql, [...tagIds, tagIds.length]);
+                 GROUP BY tr.tree_id${having}`;
+    const rows = await this.db.select<TreeRow[]>(sql, params);
     return rows.map(rowToTree);
   }
 }

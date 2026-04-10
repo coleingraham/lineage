@@ -6,6 +6,7 @@ import type {
   Tree,
   SearchOptions,
   SearchResult,
+  SemanticSearchResult,
 } from '@lineage/core';
 
 export class InMemoryRepository implements NodeRepository {
@@ -74,6 +75,10 @@ export class InMemoryRepository implements NodeRepository {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
     // No-op: in-memory backend does not support embeddings
+  }
+
+  async semanticSearch(): Promise<SemanticSearchResult[]> {
+    throw new Error('Semantic search is not supported by the in-memory backend');
   }
 
   async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
@@ -280,11 +285,18 @@ export class InMemoryRepository implements NodeRepository {
 
   // ── Tag-based queries ──────────────────────────────────────────────────
 
-  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+  async findNodesByTags(
+    tagIds: string[],
+    options?: { treeId?: string; matchAll?: boolean },
+  ): Promise<Node[]> {
     if (tagIds.length === 0) return [];
+    const matchAll = options?.matchAll ?? true;
+    const match = matchAll
+      ? (set: Set<string>) => tagIds.every((id) => set.has(id))
+      : (set: Set<string>) => tagIds.some((id) => set.has(id));
     const results: Node[] = [];
     for (const [nodeId, tagSet] of this.nodeTags) {
-      if (tagIds.every((id) => tagSet.has(id))) {
+      if (match(tagSet)) {
         const node = this.nodes.get(nodeId);
         if (node && !node.isDeleted) {
           if (options?.treeId && node.treeId !== options.treeId) continue;
@@ -295,11 +307,15 @@ export class InMemoryRepository implements NodeRepository {
     return results;
   }
 
-  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+  async findTreesByTags(tagIds: string[], options?: { matchAll?: boolean }): Promise<Tree[]> {
     if (tagIds.length === 0) return [];
+    const matchAll = options?.matchAll ?? true;
+    const match = matchAll
+      ? (set: Set<string>) => tagIds.every((id) => set.has(id))
+      : (set: Set<string>) => tagIds.some((id) => set.has(id));
     const results: Tree[] = [];
     for (const [treeId, tagSet] of this.treeTags) {
-      if (tagIds.every((id) => tagSet.has(id))) {
+      if (match(tagSet)) {
         const tree = this.trees.get(treeId);
         if (tree) results.push(tree);
       }

@@ -57,6 +57,17 @@ export interface SearchResult {
   treeTitle: string;
 }
 
+export interface SemanticSearchOptions {
+  embedding: number[];
+  treeId: string;
+  limit?: number;
+}
+
+export interface SemanticSearchResult {
+  node: Node;
+  score: number;
+}
+
 export interface TagCategory {
   categoryId: string;
   name: string;

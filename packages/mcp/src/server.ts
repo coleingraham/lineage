@@ -1174,23 +1174,27 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
 
   server.tool(
     'find_by_tags',
-    'Find nodes and/or trees that have ALL of the given tags',
+    'Find nodes and/or trees by tags. By default requires ALL tags to match; set matchAll=false for ANY (OR) matching.',
     {
-      tagIds: z.array(z.string()).min(1).describe('Tag IDs (intersection — all must match)'),
+      tagIds: z.array(z.string()).min(1).describe('Tag IDs to filter by'),
       scope: z
         .enum(['nodes', 'trees', 'all'])
         .default('all')
         .describe('What to search: nodes, trees, or both'),
       treeId: z.string().optional().describe('Limit node search to a specific tree'),
+      matchAll: z
+        .boolean()
+        .default(true)
+        .describe('When true (default), all tags must match (AND). When false, any tag can match (OR).'),
     },
-    async ({ tagIds, scope, treeId }) => {
+    async ({ tagIds, scope, treeId, matchAll }) => {
       const result: { nodes?: Node[]; trees?: Tree[] } = {};
 
       if (scope === 'nodes' || scope === 'all') {
-        result.nodes = await repo.findNodesByTags(tagIds, { treeId });
+        result.nodes = await repo.findNodesByTags(tagIds, { treeId, matchAll });
       }
       if (scope === 'trees' || scope === 'all') {
-        result.trees = await repo.findTreesByTags(tagIds);
+        result.trees = await repo.findTreesByTags(tagIds, { matchAll });
       }
 
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };

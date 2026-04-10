@@ -1,4 +1,13 @@
-import type { Node, Tree, Tag, TagCategory, SearchOptions, SearchResult } from './types.js';
+import type {
+  Node,
+  Tree,
+  Tag,
+  TagCategory,
+  SearchOptions,
+  SearchResult,
+  SemanticSearchOptions,
+  SemanticSearchResult,
+} from './types.js';
 
 export interface NodeRepository {
   getTree(treeId: string): Promise<Tree>;
@@ -10,6 +19,7 @@ export interface NodeRepository {
   softDeleteNode(nodeId: string): Promise<void>;
   deleteTree(treeId: string): Promise<void>;
   updateNodeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void>;
+  semanticSearch(options: SemanticSearchOptions): Promise<SemanticSearchResult[]>;
   searchNodes(options: SearchOptions): Promise<SearchResult[]>;
   searchTrees(query: string): Promise<Tree[]>;
 
@@ -38,7 +48,10 @@ export interface NodeRepository {
   untagTree(treeId: string, tagIds: string[]): Promise<void>;
   getTreeTags(treeId: string): Promise<Tag[]>;
 
-  // ── Tag-based queries (intersection semantics) ──
-  findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]>;
-  findTreesByTags(tagIds: string[]): Promise<Tree[]>;
+  // ── Tag-based queries ──
+  findNodesByTags(
+    tagIds: string[],
+    options?: { treeId?: string; matchAll?: boolean },
+  ): Promise<Node[]>;
+  findTreesByTags(tagIds: string[], options?: { matchAll?: boolean }): Promise<Tree[]>;
 }

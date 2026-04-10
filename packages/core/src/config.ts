@@ -5,7 +5,7 @@ const LLM_PROVIDERS = ['anthropic', 'openai', 'bedrock', 'ollama'] as const;
 const EMBEDDING_PROVIDERS = ['openai', 'bedrock', 'ollama'] as const;
 
 type LlmProvider = (typeof LLM_PROVIDERS)[number];
-type EmbeddingProvider = (typeof EMBEDDING_PROVIDERS)[number];
+type EmbeddingBackend = (typeof EMBEDDING_PROVIDERS)[number];
 
 export type Config = {
   storage:
@@ -21,7 +21,7 @@ export type Config = {
   };
   embedding: {
     enabled: boolean;
-    provider?: EmbeddingProvider;
+    provider?: EmbeddingBackend;
     model?: string;
     dimensions?: number;
   };
