@@ -113,7 +113,7 @@ export function LinearNodeCard({
           />
           {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
           {onOpenTagPicker && (
-            <ActionBtn label="Tags" color={COLORS.textSecondary} onClick={onOpenTagPicker} />
+            <ActionBtn label="Tags" color={c} onClick={onOpenTagPicker} />
           )}
           <span
             style={{
@@ -179,7 +179,7 @@ export function LinearNodeCard({
         <RoleIcon role={node.type} size={16} />
         {onTogglePin && <PinIcon pinned={isPinned ?? false} onClick={onTogglePin} />}
         {onOpenTagPicker && (
-          <ActionBtn label="Tags" color={COLORS.textSecondary} onClick={onOpenTagPicker} />
+          <ActionBtn label="Tags" color={c} onClick={onOpenTagPicker} />
         )}
         <span
           style={{

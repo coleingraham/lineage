@@ -277,6 +277,7 @@ export function LinearView({
         selectedPinNodeIds={selectedPinNodeIds}
         onPinSelectionChange={onPinSelectionChange}
         onCreateTreeFromContext={onCreateTreeFromContext}
+        onOpenTagPicker={onOpenTagPicker}
       />
       <div
         style={{

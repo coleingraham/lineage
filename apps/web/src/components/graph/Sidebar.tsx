@@ -31,6 +31,7 @@ export function Sidebar({
   onPinSelectionChange,
   onCreateTreeFromContext,
   onNavigateToNode,
+  onOpenTagPicker,
 }: {
   nodes: GraphNode[];
   selectedNodeId: string | null;
@@ -51,6 +52,9 @@ export function Sidebar({
   onPinSelectionChange?: (ids: Set<string>) => void;
   onCreateTreeFromContext?: () => Promise<void>;
   onNavigateToNode?: (treeId: string, nodeId: string) => void;
+  onOpenTagPicker?: (
+    target: { type: 'node'; nodeId: string } | { type: 'tree'; treeId: string },
+  ) => void;
 }) {
   const [localMode, setLocalMode] = useState<SidebarMode>('conversations');
   const mode = sidebarMode ?? localMode;
@@ -139,7 +143,7 @@ export function Sidebar({
   return (
     <div
       style={{
-        width: '258px',
+        width: '300px',
         flexShrink: 0,
         background: '#0a0b0e',
         borderRight: '1px solid rgba(255,255,255,0.05)',
@@ -491,6 +495,7 @@ export function Sidebar({
                   repo={repo}
                   onTreeCreated={onTreeCreated}
                   onRequestEdit={onRequestEdit}
+                  onOpenTagPicker={onOpenTagPicker}
                 />
               )}
             {mode === 'pins' && pinnedNodes && onUnpin && onClearAllPins && (

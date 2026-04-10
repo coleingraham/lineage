@@ -10,6 +10,7 @@ export function ConversationList({
   repo,
   onTreeCreated,
   onRequestEdit,
+  onOpenTagPicker,
 }: {
   trees: Tree[];
   selectedTreeId: string | null;
@@ -18,6 +19,9 @@ export function ConversationList({
   repo: NodeRepository;
   onTreeCreated: () => void;
   onRequestEdit: (nodeId: string) => void;
+  onOpenTagPicker?: (
+    target: { type: 'node'; nodeId: string } | { type: 'tree'; treeId: string },
+  ) => void;
 }) {
   const [creating, setCreating] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -214,6 +218,27 @@ export function ConversationList({
                 ) : (
                   editingTitleId !== tree.treeId && (
                     <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                      {onOpenTagPicker && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenTagPicker({ type: 'tree', treeId: tree.treeId });
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#444',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            padding: '2px 4px',
+                            fontFamily: FONTS.mono,
+                            opacity: 0.6,
+                          }}
+                          title="Manage tags"
+                        >
+                          #
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
