@@ -110,13 +110,12 @@ export function TopBar({
           padding: '5px 10px',
           cursor: 'pointer',
           fontFamily: FONTS.mono,
-          fontSize: '10px',
-          letterSpacing: '0.06em',
+          fontSize: '12px',
           color: COLORS.textSecondary,
         }}
         title="Manage Tags"
       >
-        Tags
+        #
       </button>
 
       {/* Settings gear */}

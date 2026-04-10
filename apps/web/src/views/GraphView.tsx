@@ -82,6 +82,7 @@ export function GraphView({
   onPinSelectionChange,
   onCreateTreeFromContext,
   autoAiReply,
+  onOpenTagPicker,
 }: GraphViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
   const nodeById = useMemo(() => new Map(graphNodes.map((n) => [n.id, n])), [graphNodes]);
@@ -192,6 +193,7 @@ export function GraphView({
         selectedPinNodeIds={selectedPinNodeIds}
         onPinSelectionChange={onPinSelectionChange}
         onCreateTreeFromContext={onCreateTreeFromContext}
+        onOpenTagPicker={onOpenTagPicker}
       />
       <GraphRenderer
         nodes={graphNodes}
