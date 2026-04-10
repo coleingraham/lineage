@@ -1,11 +1,32 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
 import postgres from 'postgres';
-import type { Node, Tree } from '../types.js';
+import type { Node, Tag, TagCategory, Tree } from '../types.js';
 import type { NodeRepository } from '../repository.js';
 import { InMemoryRepository } from '../../../adapters/sqlite/src/memory.js';
 import { SqliteRepository } from '../../../adapters/sqlite/src/server.js';
 import { PostgresRepository } from '../../../adapters/postgres/src/repository.js';
+
+function makeCategory(overrides: Partial<TagCategory> = {}): TagCategory {
+  return {
+    categoryId: 'cat-1',
+    name: 'architecture',
+    description: 'Architectural decisions',
+    createdAt: '2026-04-03T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function makeTag(overrides: Partial<Tag> = {}): Tag {
+  return {
+    tagId: 'tag-1',
+    categoryId: 'cat-1',
+    name: 'database',
+    description: 'Database-related',
+    createdAt: '2026-04-03T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 function makeTree(overrides: Partial<Tree> = {}): Tree {
   return {
@@ -74,6 +95,10 @@ if (POSTGRES_URL) {
       sql = postgres(POSTGRES_URL);
       // Drop and recreate tables for a clean state
       await sql.unsafe(`
+        DROP TABLE IF EXISTS node_tags CASCADE;
+        DROP TABLE IF EXISTS tree_tags CASCADE;
+        DROP TABLE IF EXISTS tags CASCADE;
+        DROP TABLE IF EXISTS tag_categories CASCADE;
         DROP TABLE IF EXISTS nodes CASCADE;
         DROP TABLE IF EXISTS trees CASCADE;
         DROP TABLE IF EXISTS node_types CASCADE;
@@ -318,5 +343,239 @@ describe.each(fixtures)('NodeRepository contract — $name', (fixture) => {
         ).resolves.toBeUndefined();
       });
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tagging — categories, tags, tagging operations, and queries
+  // ---------------------------------------------------------------------------
+  describe('tagging', () => {
+    // ── Category CRUD ──
+    describe('category CRUD', () => {
+      it('creates and gets a category', async () => {
+        const cat = makeCategory();
+        await repo.createCategory(cat);
+        expect(await repo.getCategory('cat-1')).toEqual(cat);
+      });
+
+      it('throws on missing category', async () => {
+        await expect(repo.getCategory('missing')).rejects.toThrow();
+      });
+
+      it('lists all categories', async () => {
+        await repo.createCategory(makeCategory({ categoryId: 'c1', name: 'a' }));
+        await repo.createCategory(makeCategory({ categoryId: 'c2', name: 'b' }));
+        expect(await repo.listCategories()).toHaveLength(2);
+      });
+
+      it('throws on duplicate category name', async () => {
+        await repo.createCategory(makeCategory());
+        await expect(repo.createCategory(makeCategory({ categoryId: 'cat-2' }))).rejects.toThrow();
+      });
+
+      it('updates category name', async () => {
+        await repo.createCategory(makeCategory());
+        await repo.updateCategory('cat-1', { name: 'renamed' });
+        expect((await repo.getCategory('cat-1')).name).toBe('renamed');
+      });
+
+      it('updates category description only', async () => {
+        await repo.createCategory(makeCategory());
+        await repo.updateCategory('cat-1', { description: 'new desc' });
+        const cat = await repo.getCategory('cat-1');
+        expect(cat.description).toBe('new desc');
+        expect(cat.name).toBe('architecture');
+      });
+
+      it('deletes an empty category', async () => {
+        await repo.createCategory(makeCategory());
+        await repo.deleteCategory('cat-1');
+        await expect(repo.getCategory('cat-1')).rejects.toThrow();
+      });
+
+      it('refuses to delete a category with tags', async () => {
+        await repo.createCategory(makeCategory());
+        await repo.createTag(makeTag());
+        await expect(repo.deleteCategory('cat-1')).rejects.toThrow();
+      });
+    });
+
+    // ── Tag CRUD ──
+    describe('tag CRUD', () => {
+      beforeEach(async () => {
+        await repo.createCategory(makeCategory());
+      });
+
+      it('creates and gets a tag', async () => {
+        const tag = makeTag();
+        await repo.createTag(tag);
+        expect(await repo.getTag('tag-1')).toEqual(tag);
+      });
+
+      it('throws on missing tag', async () => {
+        await expect(repo.getTag('missing')).rejects.toThrow();
+      });
+
+      it('lists all tags', async () => {
+        await repo.createTag(makeTag({ tagId: 't1', name: 'a' }));
+        await repo.createTag(makeTag({ tagId: 't2', name: 'b' }));
+        expect(await repo.listTags()).toHaveLength(2);
+      });
+
+      it('lists tags filtered by category', async () => {
+        await repo.createCategory(makeCategory({ categoryId: 'cat-2', name: 'other' }));
+        await repo.createTag(makeTag({ tagId: 't1', name: 'a', categoryId: 'cat-1' }));
+        await repo.createTag(makeTag({ tagId: 't2', name: 'b', categoryId: 'cat-2' }));
+        expect(await repo.listTags('cat-1')).toHaveLength(1);
+        expect(await repo.listTags('cat-2')).toHaveLength(1);
+      });
+
+      it('throws on duplicate tag name in same category', async () => {
+        await repo.createTag(makeTag());
+        await expect(repo.createTag(makeTag({ tagId: 'tag-2' }))).rejects.toThrow();
+      });
+
+      it('allows same tag name in different categories', async () => {
+        await repo.createCategory(makeCategory({ categoryId: 'cat-2', name: 'other' }));
+        await repo.createTag(makeTag({ tagId: 't1', categoryId: 'cat-1' }));
+        await repo.createTag(makeTag({ tagId: 't2', categoryId: 'cat-2' }));
+        expect(await repo.listTags()).toHaveLength(2);
+      });
+
+      it('updates tag name', async () => {
+        await repo.createTag(makeTag());
+        await repo.updateTag('tag-1', { name: 'renamed' });
+        expect((await repo.getTag('tag-1')).name).toBe('renamed');
+      });
+
+      it('deletes a tag', async () => {
+        await repo.createTag(makeTag());
+        await repo.deleteTag('tag-1');
+        await expect(repo.getTag('tag-1')).rejects.toThrow();
+      });
+    });
+
+    // ── Tagging operations ──
+    describe('node and tree tagging', () => {
+      beforeEach(async () => {
+        await repo.putTree(makeTree());
+        await repo.putNode(makeNode());
+        await repo.createCategory(makeCategory());
+        await repo.createTag(makeTag({ tagId: 'tag-1', name: 'db' }));
+        await repo.createTag(makeTag({ tagId: 'tag-2', name: 'api' }));
+      });
+
+      it('tags a node and retrieves tags', async () => {
+        await repo.tagNode('node-1', ['tag-1', 'tag-2']);
+        const tags = await repo.getNodeTags('node-1');
+        expect(tags).toHaveLength(2);
+        expect(tags.map((t) => t.tagId).sort()).toEqual(['tag-1', 'tag-2']);
+      });
+
+      it('tagging is idempotent', async () => {
+        await repo.tagNode('node-1', ['tag-1']);
+        await repo.tagNode('node-1', ['tag-1']);
+        expect(await repo.getNodeTags('node-1')).toHaveLength(1);
+      });
+
+      it('untags a node', async () => {
+        await repo.tagNode('node-1', ['tag-1', 'tag-2']);
+        await repo.untagNode('node-1', ['tag-1']);
+        const tags = await repo.getNodeTags('node-1');
+        expect(tags).toHaveLength(1);
+        expect(tags[0].tagId).toBe('tag-2');
+      });
+
+      it('untagging non-existent association is a no-op', async () => {
+        await expect(repo.untagNode('node-1', ['tag-1'])).resolves.toBeUndefined();
+      });
+
+      it('tags a tree and retrieves tags', async () => {
+        await repo.tagTree('tree-1', ['tag-1']);
+        const tags = await repo.getTreeTags('tree-1');
+        expect(tags).toHaveLength(1);
+        expect(tags[0].tagId).toBe('tag-1');
+      });
+
+      it('untags a tree', async () => {
+        await repo.tagTree('tree-1', ['tag-1', 'tag-2']);
+        await repo.untagTree('tree-1', ['tag-2']);
+        expect(await repo.getTreeTags('tree-1')).toHaveLength(1);
+      });
+
+      it('deleting a tag cascades to junction tables', async () => {
+        await repo.tagNode('node-1', ['tag-1']);
+        await repo.tagTree('tree-1', ['tag-1']);
+        await repo.deleteTag('tag-1');
+        expect(await repo.getNodeTags('node-1')).toHaveLength(0);
+        expect(await repo.getTreeTags('tree-1')).toHaveLength(0);
+      });
+
+      it('deleteTree cleans up tree and node tag associations', async () => {
+        await repo.tagNode('node-1', ['tag-1']);
+        await repo.tagTree('tree-1', ['tag-1']);
+        await repo.deleteTree('tree-1');
+        // Tag itself still exists
+        expect(await repo.getTag('tag-1')).toBeDefined();
+      });
+
+      it('softDeleteNode preserves tag associations', async () => {
+        await repo.tagNode('node-1', ['tag-1']);
+        await repo.softDeleteNode('node-1');
+        expect(await repo.getNodeTags('node-1')).toHaveLength(1);
+      });
+    });
+
+    // ── Tag-based queries ──
+    describe('tag queries', () => {
+      beforeEach(async () => {
+        await repo.putTree(makeTree());
+        await repo.putTree(makeTree({ treeId: 'tree-2', rootNodeId: 'node-root-2' }));
+        await repo.putNode(makeNode({ nodeId: 'n1', treeId: 'tree-1' }));
+        await repo.putNode(makeNode({ nodeId: 'n2', treeId: 'tree-1' }));
+        await repo.putNode(makeNode({ nodeId: 'n3', treeId: 'tree-2' }));
+        await repo.createCategory(makeCategory());
+        await repo.createTag(makeTag({ tagId: 'tag-a', name: 'a' }));
+        await repo.createTag(makeTag({ tagId: 'tag-b', name: 'b' }));
+      });
+
+      it('findNodesByTags returns nodes matching ALL tags', async () => {
+        await repo.tagNode('n1', ['tag-a', 'tag-b']);
+        await repo.tagNode('n2', ['tag-a']); // only one tag
+
+        const results = await repo.findNodesByTags(['tag-a', 'tag-b']);
+        expect(results).toHaveLength(1);
+        expect(results[0].nodeId).toBe('n1');
+      });
+
+      it('findNodesByTags scopes by treeId', async () => {
+        await repo.tagNode('n1', ['tag-a']);
+        await repo.tagNode('n3', ['tag-a']); // different tree
+
+        const results = await repo.findNodesByTags(['tag-a'], { treeId: 'tree-1' });
+        expect(results).toHaveLength(1);
+        expect(results[0].nodeId).toBe('n1');
+      });
+
+      it('findNodesByTags returns empty for no matches', async () => {
+        expect(await repo.findNodesByTags(['tag-a'])).toEqual([]);
+      });
+
+      it('findNodesByTags with empty array returns empty', async () => {
+        expect(await repo.findNodesByTags([])).toEqual([]);
+      });
+
+      it('findTreesByTags returns trees matching ALL tags', async () => {
+        await repo.tagTree('tree-1', ['tag-a', 'tag-b']);
+        await repo.tagTree('tree-2', ['tag-a']); // only one tag
+
+        const results = await repo.findTreesByTags(['tag-a', 'tag-b']);
+        expect(results).toHaveLength(1);
+        expect(results[0].treeId).toBe('tree-1');
+      });
+
+      it('findTreesByTags with empty array returns empty', async () => {
+        expect(await repo.findTreesByTags([])).toEqual([]);
+      });
+    });
   });
 });

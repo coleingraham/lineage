@@ -417,7 +417,29 @@ describe('record_decision', () => {
     ) as { treeId: string; rootNodeId: string };
   });
 
-  it('creates a node with structured metadata', async () => {
+  it('creates a node with structured metadata and tag IDs', async () => {
+    // Create category and tags first
+    const category = parseResult(
+      (await client.callTool({
+        name: 'create_category',
+        arguments: { name: 'architecture' },
+      })) as { content: unknown[] },
+    ) as { categoryId: string };
+
+    const tag1 = parseResult(
+      (await client.callTool({
+        name: 'create_tag',
+        arguments: { categoryId: category.categoryId, name: 'database' },
+      })) as { content: unknown[] },
+    ) as { tagId: string };
+
+    const tag2 = parseResult(
+      (await client.callTool({
+        name: 'create_tag',
+        arguments: { categoryId: category.categoryId, name: 'storage' },
+      })) as { content: unknown[] },
+    ) as { tagId: string };
+
     const node = parseResult(
       (await client.callTool({
         name: 'record_decision',
@@ -426,14 +448,14 @@ describe('record_decision', () => {
           parentId: tree.rootNodeId,
           summary: 'Chose PostgreSQL over SQLite',
           reasoning: 'Need concurrent writes',
-          tags: ['architecture', 'database'],
+          tagIds: [tag1.tagId, tag2.tagId],
           files: ['packages/adapters/postgres/src/repository.ts'],
         },
       })) as { content: unknown[] },
-    ) as { content: string; metadata: Record<string, unknown> };
+    ) as { content: string; metadata: Record<string, unknown>; tags: { tagId: string }[] };
 
     expect(node.content).toBe('Chose PostgreSQL over SQLite');
-    expect(node.metadata.tags).toEqual(['architecture', 'database']);
+    expect(node.tags).toHaveLength(2);
     expect(node.metadata.files).toEqual(['packages/adapters/postgres/src/repository.ts']);
     expect(node.metadata.reasoning).toBe('Need concurrent writes');
     expect(node.metadata.recordedAt).toBeDefined();
@@ -449,11 +471,11 @@ describe('record_decision', () => {
           summary: 'Simple decision',
         },
       })) as { content: unknown[] },
-    ) as { content: string; metadata: Record<string, unknown> };
+    ) as { content: string; metadata: Record<string, unknown>; tags: unknown[] };
 
     expect(node.content).toBe('Simple decision');
     expect(node.metadata.recordedAt).toBeDefined();
-    expect(node.metadata.tags).toBeUndefined();
+    expect(node.tags).toEqual([]);
   });
 });
 

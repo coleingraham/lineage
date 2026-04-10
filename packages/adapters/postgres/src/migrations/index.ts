@@ -48,8 +48,39 @@ const MIGRATE_V3 = `
 ALTER TABLE trees ADD COLUMN IF NOT EXISTS context_sources JSONB;
 `;
 
+const MIGRATE_V4 = `
+CREATE TABLE IF NOT EXISTS tag_categories (
+  category_id  UUID PRIMARY KEY,
+  name         TEXT NOT NULL UNIQUE,
+  description  TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS tags (
+  tag_id       UUID PRIMARY KEY,
+  category_id  UUID NOT NULL REFERENCES tag_categories(category_id),
+  name         TEXT NOT NULL,
+  description  TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(category_id, name)
+);
+CREATE TABLE IF NOT EXISTS node_tags (
+  node_id  UUID NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+  tag_id   UUID NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
+  PRIMARY KEY (node_id, tag_id)
+);
+CREATE TABLE IF NOT EXISTS tree_tags (
+  tree_id  UUID NOT NULL REFERENCES trees(tree_id) ON DELETE CASCADE,
+  tag_id   UUID NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
+  PRIMARY KEY (tree_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tags_category ON tags(category_id);
+CREATE INDEX IF NOT EXISTS idx_node_tags_tag ON node_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_tree_tags_tag ON tree_tags(tag_id);
+`;
+
 export async function runMigrations(sql: postgres.Sql): Promise<void> {
   await sql.unsafe(INIT_SQL);
   await sql.unsafe(MIGRATE_V2);
   await sql.unsafe(MIGRATE_V3);
+  await sql.unsafe(MIGRATE_V4);
 }

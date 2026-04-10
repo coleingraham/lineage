@@ -1,6 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { NodeRepository, Node, LLMProvider, Message } from '@lineage/core';
+import type {
+  NodeRepository,
+  Node,
+  Tree,
+  LLMProvider,
+  Message,
+  Tag,
+  TagCategory,
+} from '@lineage/core';
 import { buildContext, createNode, stripThinking } from '@lineage/core';
 
 const contextSourceSchema = z.object({
@@ -482,16 +490,19 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
 
   server.tool(
     'record_decision',
-    'Record a decision with structured metadata. Creates a tagged node that can be searched and recalled later.',
+    'Record a decision with structured metadata. Creates a node and applies tags by ID.',
     {
       treeId: z.string().describe('The session tree ID'),
       parentId: z.string().describe('Parent node ID (typically the current leaf)'),
       summary: z.string().describe('The decision text'),
       reasoning: z.string().optional().describe('Why this decision was made'),
-      tags: z.array(z.string()).optional().describe('Categorization tags'),
+      tagIds: z
+        .array(z.string())
+        .optional()
+        .describe('Tag IDs to apply to this decision (use list_tags to find IDs)'),
       files: z.array(z.string()).optional().describe('Related file paths'),
     },
-    async ({ treeId, parentId, summary, reasoning, tags, files }) => {
+    async ({ treeId, parentId, summary, reasoning, tagIds, files }) => {
       try {
         await repo.getTree(treeId);
         await repo.getNode(parentId);
@@ -503,7 +514,6 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
       }
 
       const metadata: Record<string, unknown> = { recordedAt: new Date().toISOString() };
-      if (tags !== undefined) metadata.tags = tags;
       if (files !== undefined) metadata.files = files;
       if (reasoning !== undefined) metadata.reasoning = reasoning;
 
@@ -516,8 +526,14 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
       });
       await repo.putNode(node);
 
+      let appliedTags: Tag[] = [];
+      if (tagIds && tagIds.length > 0) {
+        await repo.tagNode(node.nodeId, tagIds);
+        appliedTags = await repo.getNodeTags(node.nodeId);
+      }
+
       return {
-        content: [{ type: 'text', text: JSON.stringify(node, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ ...node, tags: appliedTags }, null, 2) }],
       };
     },
   );
@@ -538,12 +554,16 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
         .optional()
         .describe('Filter by node types (e.g. ["human", "ai"])'),
       treeId: z.string().optional().describe('Limit search to a specific tree'),
+      tagIds: z
+        .array(z.string())
+        .optional()
+        .describe('Filter results to nodes that have ALL of these tags'),
       mode: z
         .enum(['text', 'semantic'])
         .default('text')
         .describe('Search mode: "text" (substring match) or "semantic" (embedding-based, future)'),
     },
-    async ({ query, maxTokens, nodeTypes, treeId, mode }) => {
+    async ({ query, maxTokens, nodeTypes, treeId, tagIds, mode }) => {
       if (mode === 'semantic') {
         return {
           content: [
@@ -556,7 +576,14 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
         };
       }
 
-      const results = await repo.searchNodes({ query, nodeTypes, treeId });
+      let results = await repo.searchNodes({ query, nodeTypes, treeId });
+
+      // Post-filter by tags if specified
+      if (tagIds && tagIds.length > 0) {
+        const taggedNodes = await repo.findNodesByTags(tagIds, { treeId });
+        const taggedIds = new Set(taggedNodes.map((n) => n.nodeId));
+        results = results.filter((r) => taggedIds.has(r.node.nodeId));
+      }
 
       if (results.length === 0) {
         return {
@@ -857,6 +884,316 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
           },
         ],
       };
+    },
+  );
+
+  // ── Tag category tools ───────────────────────────────────────────────
+
+  server.tool(
+    'create_category',
+    'Create a tag category for organizing tags',
+    {
+      name: z.string().describe('Category name (must be unique)'),
+      description: z.string().default('').describe('Category description'),
+    },
+    async ({ name, description }) => {
+      const category: TagCategory = {
+        categoryId: crypto.randomUUID(),
+        name,
+        description,
+        createdAt: new Date().toISOString(),
+      };
+      try {
+        await repo.createCategory(category);
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to create category: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(category, null, 2) }] };
+    },
+  );
+
+  server.tool('list_categories', 'List all tag categories', {}, async () => {
+    const categories = await repo.listCategories();
+    return { content: [{ type: 'text', text: JSON.stringify(categories, null, 2) }] };
+  });
+
+  server.tool(
+    'update_category',
+    'Update a tag category name and/or description',
+    {
+      categoryId: z.string().describe('The category ID'),
+      name: z.string().optional().describe('New name'),
+      description: z.string().optional().describe('New description'),
+    },
+    async ({ categoryId, name, description }) => {
+      if (name === undefined && description === undefined) {
+        return {
+          content: [{ type: 'text', text: 'At least one of name or description is required' }],
+          isError: true,
+        };
+      }
+      try {
+        await repo.updateCategory(categoryId, {
+          ...(name !== undefined && { name }),
+          ...(description !== undefined && { description }),
+        });
+        const updated = await repo.getCategory(categoryId);
+        return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] };
+      } catch (err) {
+        return {
+          content: [
+            { type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    'delete_category',
+    'Delete an empty tag category. Fails if the category still has tags.',
+    { categoryId: z.string().describe('The category ID') },
+    async ({ categoryId }) => {
+      try {
+        await repo.deleteCategory(categoryId);
+        return { content: [{ type: 'text', text: `Deleted category ${categoryId}` }] };
+      } catch (err) {
+        return {
+          content: [
+            { type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── Tag tools ───────────────────────────────────────────────────────────
+
+  server.tool(
+    'create_tag',
+    'Create a tag within a category',
+    {
+      categoryId: z.string().describe('The parent category ID'),
+      name: z.string().describe('Tag name (must be unique within the category)'),
+      description: z.string().default('').describe('Tag description'),
+    },
+    async ({ categoryId, name, description }) => {
+      const tag: Tag = {
+        tagId: crypto.randomUUID(),
+        categoryId,
+        name,
+        description,
+        createdAt: new Date().toISOString(),
+      };
+      try {
+        await repo.createTag(tag);
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to create tag: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(tag, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'list_tags',
+    'List tags, optionally filtered by category',
+    {
+      categoryId: z.string().optional().describe('Filter by category ID'),
+    },
+    async ({ categoryId }) => {
+      const tags = await repo.listTags(categoryId);
+      return { content: [{ type: 'text', text: JSON.stringify(tags, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'update_tag',
+    'Update a tag name and/or description',
+    {
+      tagId: z.string().describe('The tag ID'),
+      name: z.string().optional().describe('New name'),
+      description: z.string().optional().describe('New description'),
+    },
+    async ({ tagId, name, description }) => {
+      if (name === undefined && description === undefined) {
+        return {
+          content: [{ type: 'text', text: 'At least one of name or description is required' }],
+          isError: true,
+        };
+      }
+      try {
+        await repo.updateTag(tagId, {
+          ...(name !== undefined && { name }),
+          ...(description !== undefined && { description }),
+        });
+        const updated = await repo.getTag(tagId);
+        return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] };
+      } catch (err) {
+        return {
+          content: [
+            { type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    'delete_tag',
+    'Delete a tag and remove all its associations from nodes and trees',
+    { tagId: z.string().describe('The tag ID') },
+    async ({ tagId }) => {
+      try {
+        await repo.deleteTag(tagId);
+        return { content: [{ type: 'text', text: `Deleted tag ${tagId}` }] };
+      } catch (err) {
+        return {
+          content: [
+            { type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── Tagging operation tools ─────────────────────────────────────────────
+
+  server.tool(
+    'tag_node',
+    'Apply tags to a node by tag IDs',
+    {
+      nodeId: z.string().describe('The node ID'),
+      tagIds: z.array(z.string()).min(1).describe('Tag IDs to apply'),
+    },
+    async ({ nodeId, tagIds }) => {
+      try {
+        await repo.tagNode(nodeId, tagIds);
+        const tags = await repo.getNodeTags(nodeId);
+        return { content: [{ type: 'text', text: JSON.stringify(tags, null, 2) }] };
+      } catch (err) {
+        return {
+          content: [
+            { type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    'untag_node',
+    'Remove tags from a node by tag IDs',
+    {
+      nodeId: z.string().describe('The node ID'),
+      tagIds: z.array(z.string()).min(1).describe('Tag IDs to remove'),
+    },
+    async ({ nodeId, tagIds }) => {
+      await repo.untagNode(nodeId, tagIds);
+      const tags = await repo.getNodeTags(nodeId);
+      return { content: [{ type: 'text', text: JSON.stringify(tags, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'get_node_tags',
+    'Get all tags applied to a node',
+    { nodeId: z.string().describe('The node ID') },
+    async ({ nodeId }) => {
+      const tags = await repo.getNodeTags(nodeId);
+      return { content: [{ type: 'text', text: JSON.stringify(tags, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'tag_tree',
+    'Apply tags to a tree by tag IDs',
+    {
+      treeId: z.string().describe('The tree ID'),
+      tagIds: z.array(z.string()).min(1).describe('Tag IDs to apply'),
+    },
+    async ({ treeId, tagIds }) => {
+      try {
+        await repo.tagTree(treeId, tagIds);
+        const tags = await repo.getTreeTags(treeId);
+        return { content: [{ type: 'text', text: JSON.stringify(tags, null, 2) }] };
+      } catch (err) {
+        return {
+          content: [
+            { type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    'untag_tree',
+    'Remove tags from a tree by tag IDs',
+    {
+      treeId: z.string().describe('The tree ID'),
+      tagIds: z.array(z.string()).min(1).describe('Tag IDs to remove'),
+    },
+    async ({ treeId, tagIds }) => {
+      await repo.untagTree(treeId, tagIds);
+      const tags = await repo.getTreeTags(treeId);
+      return { content: [{ type: 'text', text: JSON.stringify(tags, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'get_tree_tags',
+    'Get all tags applied to a tree',
+    { treeId: z.string().describe('The tree ID') },
+    async ({ treeId }) => {
+      const tags = await repo.getTreeTags(treeId);
+      return { content: [{ type: 'text', text: JSON.stringify(tags, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'find_by_tags',
+    'Find nodes and/or trees that have ALL of the given tags',
+    {
+      tagIds: z.array(z.string()).min(1).describe('Tag IDs (intersection — all must match)'),
+      scope: z
+        .enum(['nodes', 'trees', 'all'])
+        .default('all')
+        .describe('What to search: nodes, trees, or both'),
+      treeId: z.string().optional().describe('Limit node search to a specific tree'),
+    },
+    async ({ tagIds, scope, treeId }) => {
+      const result: { nodes?: Node[]; trees?: Tree[] } = {};
+
+      if (scope === 'nodes' || scope === 'all') {
+        result.nodes = await repo.findNodesByTags(tagIds, { treeId });
+      }
+      if (scope === 'trees' || scope === 'all') {
+        result.trees = await repo.findTreesByTags(tagIds);
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     },
   );
 

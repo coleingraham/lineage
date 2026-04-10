@@ -46,6 +46,36 @@ const MIGRATE_V3 = `
 ALTER TABLE trees ADD COLUMN context_sources TEXT;
 `;
 
+const MIGRATE_V4 = `
+CREATE TABLE IF NOT EXISTS tag_categories (
+  category_id  TEXT PRIMARY KEY,
+  name         TEXT NOT NULL UNIQUE,
+  description  TEXT NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS tags (
+  tag_id       TEXT PRIMARY KEY,
+  category_id  TEXT NOT NULL REFERENCES tag_categories(category_id),
+  name         TEXT NOT NULL,
+  description  TEXT NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL,
+  UNIQUE(category_id, name)
+);
+CREATE TABLE IF NOT EXISTS node_tags (
+  node_id  TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+  tag_id   TEXT NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
+  PRIMARY KEY (node_id, tag_id)
+);
+CREATE TABLE IF NOT EXISTS tree_tags (
+  tree_id  TEXT NOT NULL REFERENCES trees(tree_id) ON DELETE CASCADE,
+  tag_id   TEXT NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
+  PRIMARY KEY (tree_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tags_category ON tags(category_id);
+CREATE INDEX IF NOT EXISTS idx_node_tags_tag ON node_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_tree_tags_tag ON tree_tags(tag_id);
+`;
+
 export function runMigrations(db: Database.Database): void {
   db.exec(INIT_SQL);
 
@@ -65,5 +95,15 @@ export function runMigrations(db: Database.Database): void {
     .get() as { cnt: number };
   if (hasContextSources.cnt === 0) {
     db.exec(MIGRATE_V3);
+  }
+
+  // V4: add tagging tables (tag_categories, tags, node_tags, tree_tags)
+  const hasTagCategories = db
+    .prepare(
+      "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name = 'tag_categories'",
+    )
+    .get() as { cnt: number };
+  if (hasTagCategories.cnt === 0) {
+    db.exec(MIGRATE_V4);
   }
 }
