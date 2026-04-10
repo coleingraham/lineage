@@ -1,4 +1,5 @@
 import type { Config } from './config.js';
+import type { EmbeddingProvider } from './embedding.js';
 import type { LLMProvider } from './llm.js';
 import type { NodeRepository } from './repository.js';
 
@@ -78,6 +79,60 @@ export async function createLlmProvider(config: Config): Promise<LLMProvider> {
       return new mod.BedrockProvider({
         model,
         ...(config.llm.region && { region: config.llm.region }),
+      });
+    }
+  }
+}
+
+export async function createEmbeddingProvider(config: Config): Promise<EmbeddingProvider> {
+  const { embedding } = config;
+  if (!embedding.enabled || !embedding.provider) {
+    throw new Error('Embedding is not enabled in config');
+  }
+  const { provider, model, dimensions } = embedding;
+  switch (provider) {
+    case 'openai': {
+      const { OpenAIEmbeddingProvider } = (await load('@lineage/adapter-openai')) as {
+        OpenAIEmbeddingProvider: new (opts: {
+          apiKey: string;
+          model?: string;
+          dimensions?: number;
+        }) => EmbeddingProvider;
+      };
+      const apiKey = config.llm.apiKey;
+      if (!apiKey) throw new Error('llm.apiKey is required for OpenAI embedding provider');
+      return new OpenAIEmbeddingProvider({
+        apiKey,
+        ...(model && { model }),
+        ...(dimensions && { dimensions }),
+      });
+    }
+    case 'ollama': {
+      const { OllamaEmbeddingProvider } = (await load('@lineage/adapter-ollama')) as {
+        OllamaEmbeddingProvider: new (opts: {
+          model: string;
+          baseURL?: string;
+          dimensions?: number;
+        }) => EmbeddingProvider;
+      };
+      return new OllamaEmbeddingProvider({
+        model: model ?? 'nomic-embed-text',
+        ...(config.llm.baseUrl && { baseURL: config.llm.baseUrl }),
+        ...(dimensions && { dimensions }),
+      });
+    }
+    case 'bedrock': {
+      const { BedrockEmbeddingProvider } = (await load('@lineage/adapter-bedrock')) as {
+        BedrockEmbeddingProvider: new (opts: {
+          model?: string;
+          region?: string;
+          dimensions?: number;
+        }) => EmbeddingProvider;
+      };
+      return new BedrockEmbeddingProvider({
+        ...(model && { model }),
+        ...(config.llm.region && { region: config.llm.region }),
+        ...(dimensions && { dimensions }),
       });
     }
   }

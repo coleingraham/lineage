@@ -346,6 +346,45 @@ describe.each(fixtures)('NodeRepository contract — $name', (fixture) => {
   });
 
   // ---------------------------------------------------------------------------
+  // semanticSearch
+  // ---------------------------------------------------------------------------
+  describe('semanticSearch', () => {
+    if (fixture.supportsEmbeddings) {
+      beforeEach(async () => {
+        await repo.putTree(makeTree());
+        await repo.putNode(makeNode());
+        await repo.updateNodeEmbedding('node-1', [0.1, 0.2, 0.3], 'text-embedding-3-small');
+      });
+
+      it('returns nodes ranked by similarity', async () => {
+        const results = await repo.semanticSearch({
+          embedding: [0.1, 0.2, 0.3],
+          treeId: 'tree-1',
+          limit: 5,
+        });
+        expect(results.length).toBe(1);
+        expect(results[0].node.nodeId).toBe('node-1');
+        expect(results[0].score).toBeGreaterThan(0);
+      });
+
+      it('excludes deleted nodes', async () => {
+        await repo.softDeleteNode('node-1');
+        const results = await repo.semanticSearch({
+          embedding: [0.1, 0.2, 0.3],
+          treeId: 'tree-1',
+        });
+        expect(results.length).toBe(0);
+      });
+    } else {
+      it('throws on non-embedding backends', async () => {
+        await expect(
+          repo.semanticSearch({ embedding: [1, 2, 3], treeId: 'tree-1' }),
+        ).rejects.toThrow();
+      });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Tagging — categories, tags, tagging operations, and queries
   // ---------------------------------------------------------------------------
   describe('tagging', () => {
@@ -575,6 +614,37 @@ describe.each(fixtures)('NodeRepository contract — $name', (fixture) => {
 
       it('findTreesByTags with empty array returns empty', async () => {
         expect(await repo.findTreesByTags([])).toEqual([]);
+      });
+
+      it('findNodesByTags with matchAll=false returns nodes matching ANY tag', async () => {
+        await repo.tagNode('n1', ['tag-a', 'tag-b']);
+        await repo.tagNode('n2', ['tag-a']); // only tag-a
+        // n3 has no tags
+
+        const results = await repo.findNodesByTags(['tag-a', 'tag-b'], { matchAll: false });
+        const ids = results.map((n) => n.nodeId).sort();
+        expect(ids).toEqual(['n1', 'n2']);
+      });
+
+      it('findNodesByTags with matchAll=false respects treeId scope', async () => {
+        await repo.tagNode('n1', ['tag-a']);
+        await repo.tagNode('n3', ['tag-b']); // different tree
+
+        const results = await repo.findNodesByTags(['tag-a', 'tag-b'], {
+          treeId: 'tree-1',
+          matchAll: false,
+        });
+        expect(results).toHaveLength(1);
+        expect(results[0].nodeId).toBe('n1');
+      });
+
+      it('findTreesByTags with matchAll=false returns trees matching ANY tag', async () => {
+        await repo.tagTree('tree-1', ['tag-a', 'tag-b']);
+        await repo.tagTree('tree-2', ['tag-a']); // only tag-a
+
+        const results = await repo.findTreesByTags(['tag-a', 'tag-b'], { matchAll: false });
+        const ids = results.map((t) => t.treeId).sort();
+        expect(ids).toEqual(['tree-1', 'tree-2']);
       });
     });
   });

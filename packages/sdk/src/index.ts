@@ -305,23 +305,28 @@ export class RestNodeRepository implements NodeRepository {
 
   // ── Tag-based queries ──
 
-  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+  async findNodesByTags(
+    tagIds: string[],
+    options?: { treeId?: string; matchAll?: boolean },
+  ): Promise<Node[]> {
     const params = new URLSearchParams({
       tagIds: tagIds.join(','),
       scope: 'nodes',
     });
     if (options?.treeId) params.set('treeId', options.treeId);
+    if (options?.matchAll === false) params.set('matchAll', 'false');
     const res = await fetch(`${this.baseUrl}/tags/search?${params}`);
     if (!res.ok) throw new Error(`findNodesByTags failed: HTTP ${res.status}`);
     const data = (await res.json()) as { nodes: Node[] };
     return data.nodes;
   }
 
-  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+  async findTreesByTags(tagIds: string[], options?: { matchAll?: boolean }): Promise<Tree[]> {
     const params = new URLSearchParams({
       tagIds: tagIds.join(','),
       scope: 'trees',
     });
+    if (options?.matchAll === false) params.set('matchAll', 'false');
     const res = await fetch(`${this.baseUrl}/tags/search?${params}`);
     if (!res.ok) throw new Error(`findTreesByTags failed: HTTP ${res.status}`);
     const data = (await res.json()) as { trees: Tree[] };

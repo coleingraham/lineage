@@ -8,6 +8,8 @@ import type {
   TagCategory,
   SearchOptions,
   SearchResult,
+  SemanticSearchOptions,
+  SemanticSearchResult,
 } from '@lineage/core';
 import { runMigrations } from './migrations/index.js';
 
@@ -235,6 +237,26 @@ export class PostgresRepository implements NodeRepository {
     `;
   }
 
+  async semanticSearch(options: SemanticSearchOptions): Promise<SemanticSearchResult[]> {
+    const vectorStr = `[${options.embedding.join(',')}]`;
+    const limit = options.limit ?? 10;
+    const rows = await this.sql<(NodeRow & { score: number })[]>`
+      SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
+             n.content, n.is_deleted, n.created_at, n.model_name,
+             n.provider, n.token_count, n.embedding_model,
+             n.metadata, n.author,
+             1 - (n.embedding <=> ${vectorStr}::vector) AS score
+      FROM nodes n
+      JOIN node_types nt ON nt.id = n.node_type_id
+      WHERE n.tree_id = ${options.treeId}
+        AND n.is_deleted = FALSE
+        AND n.embedding IS NOT NULL
+      ORDER BY n.embedding <=> ${vectorStr}::vector
+      LIMIT ${limit}
+    `;
+    return rows.map((row) => ({ node: rowToNode(row), score: row.score }));
+  }
+
   async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
     const pattern = `%${options.query}%`;
     const includeDeleted = options.includeDeleted ?? false;
@@ -439,9 +461,14 @@ export class PostgresRepository implements NodeRepository {
 
   // ── Tag-based queries ──
 
-  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+  async findNodesByTags(
+    tagIds: string[],
+    options?: { treeId?: string; matchAll?: boolean },
+  ): Promise<Node[]> {
     if (tagIds.length === 0) return [];
     const treeId = options?.treeId ?? null;
+    const matchAll = options?.matchAll ?? true;
+    const requiredCount = matchAll ? tagIds.length : 0;
     const rows = await this.sql<NodeRow[]>`
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
@@ -456,20 +483,22 @@ export class PostgresRepository implements NodeRepository {
                n.content, n.is_deleted, n.created_at, n.model_name,
                n.provider, n.token_count, n.embedding_model,
                n.metadata, n.author
-      HAVING COUNT(DISTINCT ntg.tag_id) = ${tagIds.length}
+      HAVING COUNT(DISTINCT ntg.tag_id) >= ${matchAll ? requiredCount : 1}
     `;
     return rows.map(rowToNode);
   }
 
-  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+  async findTreesByTags(tagIds: string[], options?: { matchAll?: boolean }): Promise<Tree[]> {
     if (tagIds.length === 0) return [];
+    const matchAll = options?.matchAll ?? true;
+    const requiredCount = matchAll ? tagIds.length : 1;
     const rows = await this.sql<TreeRow[]>`
       SELECT t.tree_id, t.title, t.created_at, t.root_node_id, t.context_sources
       FROM trees t
       JOIN tree_tags tt ON tt.tree_id = t.tree_id
       WHERE tt.tag_id = ANY(${tagIds})
       GROUP BY t.tree_id, t.title, t.created_at, t.root_node_id, t.context_sources
-      HAVING COUNT(DISTINCT tt.tag_id) = ${tagIds.length}
+      HAVING COUNT(DISTINCT tt.tag_id) >= ${requiredCount}
     `;
     return rows.map(rowToTree);
   }

@@ -6,6 +6,7 @@ import type {
   Tree,
   SearchOptions,
   SearchResult,
+  SemanticSearchResult,
 } from '@lineage/core';
 import initSqlJs, { type Database } from 'sql.js';
 
@@ -442,6 +443,10 @@ export class BrowserSqliteRepository implements NodeRepository {
     // No-op: browser SQLite backend does not support embeddings
   }
 
+  async semanticSearch(): Promise<SemanticSearchResult[]> {
+    throw new Error('Semantic search is not supported by the browser SQLite backend');
+  }
+
   async searchNodes(options: SearchOptions): Promise<SearchResult[]> {
     const conditions = ["n.content LIKE '%' || ? || '%' COLLATE NOCASE"];
     const params: unknown[] = [options.query];
@@ -663,15 +668,21 @@ export class BrowserSqliteRepository implements NodeRepository {
 
   // ── Tag-based queries ──────────────────────────────────────────────────
 
-  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+  async findNodesByTags(
+    tagIds: string[],
+    options?: { treeId?: string; matchAll?: boolean },
+  ): Promise<Node[]> {
     if (tagIds.length === 0) return [];
     const placeholders = tagIds.map(() => '?').join(', ');
-    const params: unknown[] = [...tagIds, tagIds.length];
+    const matchAll = options?.matchAll ?? true;
+    const params: unknown[] = [...tagIds];
+    if (matchAll) params.push(tagIds.length);
     let treeFilter = '';
     if (options?.treeId) {
       treeFilter = ' AND n.tree_id = ?';
       params.push(options.treeId);
     }
+    const having = matchAll ? '\n                 HAVING COUNT(DISTINCT ntg.tag_id) = ?' : '';
     const sql = `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                         n.content, n.is_deleted, n.created_at, n.model_name,
                         n.provider, n.token_count, n.embedding_model,
@@ -681,22 +692,23 @@ export class BrowserSqliteRepository implements NodeRepository {
                  JOIN node_tags ntg ON ntg.node_id = n.node_id
                  WHERE ntg.tag_id IN (${placeholders})
                    AND n.is_deleted = 0${treeFilter}
-                 GROUP BY n.node_id
-                 HAVING COUNT(DISTINCT ntg.tag_id) = ?`;
+                 GROUP BY n.node_id${having}`;
     const rows = this.all<NodeRow>(sql, params);
     return rows.map(rowToNode);
   }
 
-  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+  async findTreesByTags(tagIds: string[], options?: { matchAll?: boolean }): Promise<Tree[]> {
     if (tagIds.length === 0) return [];
     const placeholders = tagIds.map(() => '?').join(', ');
+    const matchAll = options?.matchAll ?? true;
+    const having = matchAll ? '\n                 HAVING COUNT(DISTINCT tt.tag_id) = ?' : '';
+    const params: unknown[] = matchAll ? [...tagIds, tagIds.length] : [...tagIds];
     const sql = `SELECT tr.tree_id, tr.title, tr.created_at, tr.root_node_id, tr.context_sources
                  FROM trees tr
                  JOIN tree_tags tt ON tt.tree_id = tr.tree_id
                  WHERE tt.tag_id IN (${placeholders})
-                 GROUP BY tr.tree_id
-                 HAVING COUNT(DISTINCT tt.tag_id) = ?`;
-    const rows = this.all<TreeRow>(sql, [...tagIds, tagIds.length]);
+                 GROUP BY tr.tree_id${having}`;
+    const rows = this.all<TreeRow>(sql, params);
     return rows.map(rowToTree);
   }
 }

@@ -101,3 +101,32 @@ When server code changes and you need it reflected in the desktop app, run `bash
 - **Testing:** Vitest with `--passWithNoTests` (packages may have no tests yet)
 - **ESM only:** All packages are `"type": "module"`
 - **Database enums:** Use lookup/reference tables (e.g. `node_types`) instead of `ENUM` types or `CHECK ... IN (...)` constraints. Store the foreign key ID in the referencing table and JOIN to resolve the name.
+
+## Lineage MCP Integration
+
+This project uses its own Lineage MCP server (`lineage`) for development tracking. The tools are available as `mcp__lineage__*` and backed by a local SQLite database at `./lineage-dev.db`.
+
+### When to use Lineage tools
+
+- **Non-trivial work sessions:** Call `start_session` with a descriptive title before beginning multi-step work (features, refactors, bug investigations). Skip it for quick one-off questions.
+- **Architectural decisions and trade-offs:** Call `record_decision` whenever you make a choice that has alternatives, involves a trade-off, or would be non-obvious to someone reading the code later. Include `reasoning` and relevant `files`.
+- **Before starting work on a topic:** Call `recall_context` to check for prior decisions, context, or related roadmap items. Use `find_by_tags` to locate related work by status or type.
+- **End of session:** Call `end_session` when work is complete — the LLM will auto-summarize the session.
+
+### Tag conventions
+
+These tag categories are used for roadmap and development tracking:
+
+| Category   | Tags                                    |
+|------------|-----------------------------------------|
+| **status** | `open`, `in-progress`, `done`, `blocked`|
+| **priority** | `high`, `medium`, `low`               |
+| **type**   | `bug`, `feature`, `chore`, `refactor`   |
+
+Apply tags to trees (for session/ticket-level classification) and to individual decision nodes when relevant. Use `find_by_tags` with `matchAll: false` for OR queries across categories (e.g. find all `open` or `blocked` items).
+
+### What NOT to record
+
+- Routine file reads, searches, or exploratory work — only record conclusions and decisions.
+- Intermediate debugging steps — record the root cause and fix, not every hypothesis tested.
+- Information already captured in git commits or code comments.

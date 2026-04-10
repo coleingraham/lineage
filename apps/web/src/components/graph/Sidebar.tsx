@@ -9,6 +9,7 @@ import { DrilldownSlice } from './DrilldownSlice.js';
 import { SmartCollapse } from './SmartCollapse.js';
 import { ConversationList } from './ConversationList.js';
 import { PinnedList } from './PinnedList.js';
+import { TagFilter } from '../TagFilter.js';
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 export function Sidebar({
@@ -59,6 +60,25 @@ export function Sidebar({
   const [localMode, setLocalMode] = useState<SidebarMode>('conversations');
   const mode = sidebarMode ?? localMode;
   const setMode = onSidebarModeChange ?? setLocalMode;
+
+  // Tag filter state
+  const [filterTagIds, setFilterTagIds] = useState<Set<string>>(new Set());
+  const [filteredTrees, setFilteredTrees] = useState<Tree[] | null>(null);
+  const [tagRefreshKey, setTagRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (filterTagIds.size === 0 || !repo) {
+      setFilteredTrees(null);
+      return;
+    }
+    let cancelled = false;
+    repo.findTreesByTags([...filterTagIds], { matchAll: false }).then((result) => {
+      if (!cancelled) setFilteredTrees(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterTagIds, repo, trees]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -266,6 +286,16 @@ export function Sidebar({
           </button>
         )}
       </div>
+
+      {/* Tag filter */}
+      {!isSearchActive && repo && mode === 'conversations' && (
+        <TagFilter
+          repo={repo}
+          selectedTagIds={filterTagIds}
+          onSelectionChange={setFilterTagIds}
+          refreshKey={tagRefreshKey}
+        />
+      )}
 
       {/* Mode label */}
       {!isSearchActive && (
@@ -488,14 +518,21 @@ export function Sidebar({
               onTreeCreated &&
               onRequestEdit && (
                 <ConversationList
-                  trees={trees}
+                  trees={filteredTrees ?? trees}
                   selectedTreeId={selectedTreeId ?? null}
                   onSelectTree={onSelectTree}
                   onDeleteTree={onDeleteTree}
                   repo={repo}
-                  onTreeCreated={onTreeCreated}
+                  onTreeCreated={() => {
+                    onTreeCreated();
+                    setTagRefreshKey((k) => k + 1);
+                  }}
                   onRequestEdit={onRequestEdit}
-                  onOpenTagPicker={onOpenTagPicker}
+                  onOpenTagPicker={(target) => {
+                    onOpenTagPicker?.(target);
+                    // Refresh tag filter after picker closes (tags may have changed)
+                    setTimeout(() => setTagRefreshKey((k) => k + 1), 500);
+                  }}
                 />
               )}
             {mode === 'pins' && pinnedNodes && onUnpin && onClearAllPins && (

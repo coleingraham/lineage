@@ -48,6 +48,11 @@ const searchQuery = z.object({
   tagIds: z.string().min(1),
   scope: z.enum(['nodes', 'trees', 'all']).optional().default('all'),
   treeId: z.string().optional(),
+  matchAll: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('true')
+    .transform((v) => v === 'true'),
 });
 
 // ── Category & tag routes (mounted at / — caller provides base paths) ──
@@ -139,16 +144,16 @@ export function tagRoutes(repo: NodeRepository) {
 
   // GET /tags/search — must be before /tags/:tagId so it doesn't match as a param
   app.get('/tags/search', zValidator('query', searchQuery), async (c) => {
-    const { tagIds: tagIdsStr, scope, treeId } = c.req.valid('query');
+    const { tagIds: tagIdsStr, scope, treeId, matchAll } = c.req.valid('query');
     const tagIds = tagIdsStr.split(',').map((id) => id.trim());
 
     const result: { nodes?: unknown[]; trees?: unknown[] } = {};
 
     if (scope === 'nodes' || scope === 'all') {
-      result.nodes = await c.var.repo.findNodesByTags(tagIds, treeId ? { treeId } : undefined);
+      result.nodes = await c.var.repo.findNodesByTags(tagIds, { treeId, matchAll });
     }
     if (scope === 'trees' || scope === 'all') {
-      result.trees = await c.var.repo.findTreesByTags(tagIds);
+      result.trees = await c.var.repo.findTreesByTags(tagIds, { matchAll });
     }
 
     return c.json(result);
