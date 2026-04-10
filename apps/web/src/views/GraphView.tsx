@@ -46,6 +46,9 @@ interface GraphViewProps {
   onCreateTreeFromContext: () => Promise<void>;
   onNavigateToNode: (treeId: string, nodeId: string) => void;
   autoAiReply?: boolean;
+  onOpenTagPicker?: (
+    target: { type: 'node'; nodeId: string } | { type: 'tree'; treeId: string },
+  ) => void;
 }
 
 export function GraphView({

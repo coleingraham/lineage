@@ -53,6 +53,9 @@ interface LinearViewProps {
   onCreateTreeFromContext: () => Promise<void>;
   onNavigateToNode: (treeId: string, nodeId: string) => void;
   autoAiReply?: boolean;
+  onOpenTagPicker?: (
+    target: { type: 'node'; nodeId: string } | { type: 'tree'; treeId: string },
+  ) => void;
 }
 
 // ── Vertical connector between cards ────────────────────────────────────────
@@ -105,6 +108,7 @@ export function LinearView({
   onCreateTreeFromContext,
   onNavigateToNode,
   autoAiReply,
+  onOpenTagPicker,
 }: LinearViewProps) {
   const graphNodes = useMemo(() => toGraphNodes(nodes), [nodes]);
 
@@ -350,6 +354,11 @@ export function LinearView({
                   isPinned={pinnedNodeIds.has(node.id)}
                   onTogglePin={() => onTogglePin(node.id)}
                   onAddHumanReply={handleAddHumanReply}
+                  onOpenTagPicker={
+                    onOpenTagPicker
+                      ? () => onOpenTagPicker({ type: 'node', nodeId: node.id })
+                      : undefined
+                  }
                 />
               </div>
             );

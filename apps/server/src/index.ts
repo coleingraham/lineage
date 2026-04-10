@@ -6,6 +6,7 @@ import { completionRoutes } from './routes/completion.js';
 import { summarizeRoutes } from './routes/summarize.js';
 import { titleRoutes } from './routes/title.js';
 import { searchRoutes } from './routes/search.js';
+import { tagRoutes, nodeTagRoutes, treeTagRoutes } from './routes/tags.js';
 
 export interface CreateAppOptions {
   repo: NodeRepository;
@@ -31,6 +32,9 @@ export function createApp(repoOrOptions: NodeRepository | CreateAppOptions, llm?
   app.route('/trees', treeRoutes(repo));
   app.route('/trees/:treeId/nodes', nodeRoutes(repo));
   app.route('/search', searchRoutes(repo));
+  app.route('/', tagRoutes(repo));
+  app.route('/nodes/:nodeId/tags', nodeTagRoutes(repo));
+  app.route('/trees/:treeId/tags', treeTagRoutes(repo));
 
   if (provider) {
     app.route('/trees/:treeId/nodes', completionRoutes(repo, provider));
@@ -47,3 +51,4 @@ export { completionRoutes } from './routes/completion.js';
 export { summarizeRoutes } from './routes/summarize.js';
 export { titleRoutes } from './routes/title.js';
 export { searchRoutes } from './routes/search.js';
+export { tagRoutes, nodeTagRoutes, treeTagRoutes } from './routes/tags.js';

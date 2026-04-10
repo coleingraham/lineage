@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { GraphView } from './views/GraphView.js';
 import { LinearView } from './views/LinearView.js';
 import { Settings } from './components/Settings.js';
+import { TagManager } from './components/TagManager.js';
+import { TagPicker } from './components/TagPicker.js';
 import { TopBar } from './components/TopBar.js';
 import { COLORS, FONTS } from './styles/theme.js';
 import { useRepository } from './hooks/useRepository.js';
@@ -31,6 +33,10 @@ function readSavedMode(): ViewMode {
 export function App() {
   const [mode, setMode] = useState<ViewMode>(readSavedMode);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [tagPickerTarget, setTagPickerTarget] = useState<
+    { type: 'node'; nodeId: string } | { type: 'tree'; treeId: string } | null
+  >(null);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('conversations');
   const [autoAiReply, setAutoAiReply] = useState(
     () => localStorage.getItem(SETTINGS_KEYS.autoAiReply) !== 'false',
@@ -381,6 +387,7 @@ export function App() {
           onFocusHandled={handleFocusHandled}
           onRootNodeSubmitted={handleRootNodeSubmitted}
           autoAiReply={autoAiReply}
+          onOpenTagPicker={setTagPickerTarget}
           {...treeProps!}
         />
       );
@@ -400,6 +407,7 @@ export function App() {
         onFocusHandled={handleFocusHandled}
         onRootNodeSubmitted={handleRootNodeSubmitted}
         autoAiReply={autoAiReply}
+        onOpenTagPicker={setTagPickerTarget}
         {...treeProps!}
       />
     );
@@ -413,11 +421,29 @@ export function App() {
         autoAiReply={autoAiReply}
         onAutoAiReplyToggle={handleAutoAiReplyToggle}
         onSettingsOpen={() => setShowSettings(true)}
+        onTagsOpen={() => setShowTagManager(true)}
       />
 
       {renderContent()}
 
       {showSettings && <Settings onClose={handleSettingsClose} />}
+
+      {showTagManager && repo && (
+        <TagManager repo={repo} onClose={() => setShowTagManager(false)} />
+      )}
+
+      {tagPickerTarget && repo && (
+        <TagPicker
+          repo={repo}
+          target={tagPickerTarget}
+          onClose={() => setTagPickerTarget(null)}
+          onTagsChanged={refresh}
+          onOpenManager={() => {
+            setTagPickerTarget(null);
+            setShowTagManager(true);
+          }}
+        />
+      )}
     </div>
   );
 }

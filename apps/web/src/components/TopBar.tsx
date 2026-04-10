@@ -8,6 +8,7 @@ interface TopBarProps {
   autoAiReply: boolean;
   onAutoAiReplyToggle: () => void;
   onSettingsOpen: () => void;
+  onTagsOpen: () => void;
 }
 
 export function TopBar({
@@ -16,6 +17,7 @@ export function TopBar({
   autoAiReply,
   onAutoAiReplyToggle,
   onSettingsOpen,
+  onTagsOpen,
 }: TopBarProps) {
   return (
     <div
@@ -96,6 +98,25 @@ export function TopBar({
         }
       >
         {autoAiReply ? 'Auto AI ✓' : 'Auto AI ✗'}
+      </button>
+
+      {/* Tags manager */}
+      <button
+        onClick={onTagsOpen}
+        style={{
+          background: COLORS.surface,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: '6px',
+          padding: '5px 10px',
+          cursor: 'pointer',
+          fontFamily: FONTS.mono,
+          fontSize: '10px',
+          letterSpacing: '0.06em',
+          color: COLORS.textSecondary,
+        }}
+        title="Manage Tags"
+      >
+        Tags
       </button>
 
       {/* Settings gear */}

@@ -1,4 +1,12 @@
-import type { Node, Tree, NodeRepository, SearchOptions, SearchResult } from '@lineage/core';
+import type {
+  Node,
+  Tree,
+  Tag,
+  TagCategory,
+  NodeRepository,
+  SearchOptions,
+  SearchResult,
+} from '@lineage/core';
 
 export { streamCompletion } from './streaming.js';
 export type { StreamCompletionOptions } from './streaming.js';
@@ -152,6 +160,170 @@ export class RestNodeRepository implements NodeRepository {
     const params = new URLSearchParams({ q: query });
     const res = await fetch(`${this.baseUrl}/search?${params}`);
     if (!res.ok) throw new Error(`searchTrees failed: HTTP ${res.status}`);
+    const data = (await res.json()) as { trees: Tree[] };
+    return data.trees;
+  }
+
+  // ── Tag category CRUD ──
+
+  async createCategory(category: TagCategory): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: category.name, description: category.description }),
+    });
+    if (!res.ok) throw new Error(`createCategory failed: HTTP ${res.status}`);
+  }
+
+  async getCategory(categoryId: string): Promise<TagCategory> {
+    const res = await fetch(`${this.baseUrl}/categories/${categoryId}`);
+    if (!res.ok) throw new Error(`getCategory failed: HTTP ${res.status}`);
+    return res.json() as Promise<TagCategory>;
+  }
+
+  async listCategories(): Promise<TagCategory[]> {
+    const res = await fetch(`${this.baseUrl}/categories`);
+    if (!res.ok) throw new Error(`listCategories failed: HTTP ${res.status}`);
+    return res.json() as Promise<TagCategory[]>;
+  }
+
+  async updateCategory(
+    categoryId: string,
+    fields: { name?: string; description?: string },
+  ): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/categories/${categoryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) throw new Error(`updateCategory failed: HTTP ${res.status}`);
+  }
+
+  async deleteCategory(categoryId: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/categories/${categoryId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok && res.status !== 204) throw new Error(`deleteCategory failed: HTTP ${res.status}`);
+  }
+
+  // ── Tag CRUD ──
+
+  async createTag(tag: Tag): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        categoryId: tag.categoryId,
+        name: tag.name,
+        description: tag.description,
+      }),
+    });
+    if (!res.ok) throw new Error(`createTag failed: HTTP ${res.status}`);
+  }
+
+  async getTag(tagId: string): Promise<Tag> {
+    const res = await fetch(`${this.baseUrl}/tags/${tagId}`);
+    if (!res.ok) throw new Error(`getTag failed: HTTP ${res.status}`);
+    return res.json() as Promise<Tag>;
+  }
+
+  async listTags(categoryId?: string): Promise<Tag[]> {
+    const params = new URLSearchParams();
+    if (categoryId) params.set('categoryId', categoryId);
+    const query = params.toString();
+    const url = query ? `${this.baseUrl}/tags?${query}` : `${this.baseUrl}/tags`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`listTags failed: HTTP ${res.status}`);
+    return res.json() as Promise<Tag[]>;
+  }
+
+  async updateTag(tagId: string, fields: { name?: string; description?: string }): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/tags/${tagId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) throw new Error(`updateTag failed: HTTP ${res.status}`);
+  }
+
+  async deleteTag(tagId: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/tags/${tagId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok && res.status !== 204) throw new Error(`deleteTag failed: HTTP ${res.status}`);
+  }
+
+  // ── Tagging operations ──
+
+  async tagNode(nodeId: string, tagIds: string[]): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/nodes/${nodeId}/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagIds }),
+    });
+    if (!res.ok) throw new Error(`tagNode failed: HTTP ${res.status}`);
+  }
+
+  async untagNode(nodeId: string, tagIds: string[]): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/nodes/${nodeId}/tags`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagIds }),
+    });
+    if (!res.ok) throw new Error(`untagNode failed: HTTP ${res.status}`);
+  }
+
+  async getNodeTags(nodeId: string): Promise<Tag[]> {
+    const res = await fetch(`${this.baseUrl}/nodes/${nodeId}/tags`);
+    if (!res.ok) throw new Error(`getNodeTags failed: HTTP ${res.status}`);
+    return res.json() as Promise<Tag[]>;
+  }
+
+  async tagTree(treeId: string, tagIds: string[]): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/trees/${treeId}/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagIds }),
+    });
+    if (!res.ok) throw new Error(`tagTree failed: HTTP ${res.status}`);
+  }
+
+  async untagTree(treeId: string, tagIds: string[]): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/trees/${treeId}/tags`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagIds }),
+    });
+    if (!res.ok) throw new Error(`untagTree failed: HTTP ${res.status}`);
+  }
+
+  async getTreeTags(treeId: string): Promise<Tag[]> {
+    const res = await fetch(`${this.baseUrl}/trees/${treeId}/tags`);
+    if (!res.ok) throw new Error(`getTreeTags failed: HTTP ${res.status}`);
+    return res.json() as Promise<Tag[]>;
+  }
+
+  // ── Tag-based queries ──
+
+  async findNodesByTags(tagIds: string[], options?: { treeId?: string }): Promise<Node[]> {
+    const params = new URLSearchParams({
+      tagIds: tagIds.join(','),
+      scope: 'nodes',
+    });
+    if (options?.treeId) params.set('treeId', options.treeId);
+    const res = await fetch(`${this.baseUrl}/tags/search?${params}`);
+    if (!res.ok) throw new Error(`findNodesByTags failed: HTTP ${res.status}`);
+    const data = (await res.json()) as { nodes: Node[] };
+    return data.nodes;
+  }
+
+  async findTreesByTags(tagIds: string[]): Promise<Tree[]> {
+    const params = new URLSearchParams({
+      tagIds: tagIds.join(','),
+      scope: 'trees',
+    });
+    const res = await fetch(`${this.baseUrl}/tags/search?${params}`);
+    if (!res.ok) throw new Error(`findTreesByTags failed: HTTP ${res.status}`);
     const data = (await res.json()) as { trees: Tree[] };
     return data.trees;
   }
