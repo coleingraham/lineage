@@ -16,10 +16,7 @@ import { COLORS, FONTS } from './styles/theme.js';
 /** Posture-driven layout envelope: width + an informational banner per mode. */
 const SHELL: Record<FoldMode, { maxWidth: number; banner: string | null }> = {
   closed: { maxWidth: 680, banner: null },
-  book: {
-    maxWidth: 900,
-    banner: 'Book posture — two-page spread (left spine · right divergences) lands next phase.',
-  },
+  book: { maxWidth: 1040, banner: null },
   flat: {
     maxWidth: 1100,
     banner: 'Flat canvas — graph/restructure view lands next phase.',
@@ -153,6 +150,7 @@ export function App() {
               focusedNodeId={session.focusedNodeId}
               onFocus={onFocus}
               authoring={authoring}
+              mode={fold.mode}
               maxWidth={shell.maxWidth}
             />
           ) : (

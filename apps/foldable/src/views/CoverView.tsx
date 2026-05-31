@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { BranchIntent, Node } from '@lineage/core';
 import type { Authoring } from '../hooks/useAuthoring.js';
+import type { FoldMode } from '../fold/types.js';
 import { buildChildrenMap, buildNodeMap, childrenOf, pathToRoot } from '../lib/tree.js';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { MonologueCard } from '../components/MonologueCard.js';
@@ -13,16 +14,40 @@ interface CoverViewProps {
   focusedNodeId: string;
   onFocus: (nodeId: string) => void;
   authoring: Authoring;
-  /** Reading-column width for the cards. The compose bar ignores this and
-   * spans the full pane. */
+  /** Current fold posture — selects the linear stack vs. the book spread. */
+  mode: FoldMode;
+  /** Reading-column / spread width. The compose bar ignores this and spans the
+   * full pane. */
   maxWidth: number;
 }
 
+function PageLabel({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontFamily: FONTS.mono,
+        color: COLORS.textSecondary,
+        margin: '0 0 8px 6px',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /**
- * Cover / linear capture-read view (C1): the active line (root → focused leaf)
- * as a vertical card stack, with the focused node's divergences below and a
- * thumb-reachable compose bar. Works on any phone; the foldable payoff (book
- * spread, flat graph) builds on this same data later.
+ * The capture-read view. Two layouts over the same data, selected by posture:
+ * - **linear** (`closed`/`flat`): the active line as a single card stack with
+ *   the focused node's divergences listed below (C1).
+ * - **book** spread (`book`): left page = the spine (root → focused), right
+ *   page = the focused node's divergences. The hinge sits at the fork point;
+ *   reaching across it (tapping a divergence) walks into that branch (C2).
+ *
+ * Authoring (append / diverge-with-intent) and the compose footer are shared
+ * across both layouts.
  */
 export function CoverView({
   treeId,
@@ -30,6 +55,7 @@ export function CoverView({
   focusedNodeId,
   onFocus,
   authoring,
+  mode,
   maxWidth,
 }: CoverViewProps) {
   const nodeMap = useMemo(() => buildNodeMap(nodes), [nodes]);
@@ -61,46 +87,83 @@ export function CoverView({
     onFocus(id);
   };
 
+  // One spine card, fully wired — reused by both layouts.
+  const spineCard = (node: Node) => (
+    <MonologueCard
+      key={node.nodeId}
+      node={node}
+      isRoot={node.parentId === null}
+      focused={node.nodeId === focusId}
+      onFocus={() => onFocus(node.nodeId)}
+      onEdit={(content) => void authoring.edit(node.nodeId, content)}
+      onDelete={() => {
+        void authoring.remove(node.nodeId);
+        if (node.parentId) onFocus(node.parentId);
+      }}
+      onDiverge={() => {
+        onFocus(node.nodeId);
+        setPicking(true);
+        setDivergeIntent(null);
+      }}
+    />
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minWidth: 0 }}>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth, margin: '0 auto', padding: '12px 10px 16px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {line.map((node) => (
-            <MonologueCard
-              key={node.nodeId}
-              node={node}
-              isRoot={node.parentId === null}
-              focused={node.nodeId === focusId}
-              onFocus={() => onFocus(node.nodeId)}
-              onEdit={(content) => void authoring.edit(node.nodeId, content)}
-              onDelete={() => {
-                void authoring.remove(node.nodeId);
-                if (node.parentId) onFocus(node.parentId);
-              }}
-              onDiverge={() => {
-                onFocus(node.nodeId);
-                setPicking(true);
-                setDivergeIntent(null);
-              }}
-            />
-          ))}
-        </div>
+      {mode === 'book' ? (
+        <BookSpread
+          line={line}
+          divergences={divergences}
+          maxWidth={maxWidth}
+          renderSpineCard={spineCard}
+          onFocus={onFocus}
+        />
+      ) : (
+        <LinearStack
+          line={line}
+          divergences={divergences}
+          maxWidth={maxWidth}
+          renderSpineCard={spineCard}
+          onFocus={onFocus}
+        />
+      )}
+
+      {picking && !divergeIntent ? (
+        <IntentPicker onPick={(intent) => setDivergeIntent(intent)} onCancel={resetDiverge} />
+      ) : divergeIntent ? (
+        <ComposeBar
+          key="diverge"
+          autoFocus
+          accent={intentColor(divergeIntent)}
+          submitLabel="Branch"
+          placeholder={`Write the ${divergeIntent}…`}
+          onSubmit={submitDiverge}
+        />
+      ) : (
+        <ComposeBar key="append" placeholder="Continue the line…" onSubmit={submitAppend} />
+      )}
+    </div>
+  );
+}
+
+interface LayoutProps {
+  line: Node[];
+  divergences: Node[];
+  maxWidth: number;
+  renderSpineCard: (node: Node) => ReactNode;
+  onFocus: (nodeId: string) => void;
+}
+
+/** Single-column stack (cover / flat): spine then divergence chips below. */
+function LinearStack({ line, divergences, maxWidth, renderSpineCard, onFocus }: LayoutProps) {
+  return (
+    <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ maxWidth, margin: '0 auto', padding: '12px 10px 16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
 
         {divergences.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontFamily: FONTS.mono,
-                color: COLORS.textSecondary,
-                margin: '0 0 6px 6px',
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-              }}
-            >
-              branches from here
-            </div>
+            <PageLabel>branches from here</PageLabel>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {divergences.map((child) => (
                 <button
@@ -117,23 +180,10 @@ export function CoverView({
                     cursor: 'pointer',
                   }}
                 >
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontFamily: FONTS.mono,
-                      color: intentColor(child.intent),
-                    }}
-                  >
+                  <span style={{ fontSize: 10, fontFamily: FONTS.mono, color: intentColor(child.intent) }}>
                     {child.intent ?? 'sequence'}
                   </span>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
+                  <div style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {child.content.split('\n')[0] || '(empty)'}
                   </div>
                 </button>
@@ -141,23 +191,105 @@ export function CoverView({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Book posture: two portrait pages either side of the hinge. Left = the spine
+ * you're on; right = what diverges from the focused (last) node. The hinge is
+ * the fork point; tapping a divergence reaches across it into that branch.
+ */
+function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus }: LayoutProps) {
+  const pageStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    overflowY: 'auto',
+    padding: '14px 14px 16px',
+  };
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', width: '100%', maxWidth }}>
+        {/* Left page — the spine. */}
+        <div style={pageStyle}>
+          <PageLabel>spine</PageLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
+        </div>
+
+        {/* Hinge — the fold, aligned with the focused node's fork point. */}
+        <div
+          aria-hidden
+          style={{
+            width: 2,
+            flex: '0 0 auto',
+            background: COLORS.borderHi,
+            boxShadow: `0 0 14px 2px rgba(0,0,0,0.5)`,
+          }}
+        />
+
+        {/* Right page — divergences (typed by branch intent). */}
+        <div style={pageStyle}>
+          <PageLabel>{divergences.length > 0 ? 'divergences' : 'divergences — none yet'}</PageLabel>
+          {divergences.length === 0 ? (
+            <div
+              style={{
+                color: COLORS.textSecondary,
+                fontSize: 13,
+                lineHeight: 1.6,
+                padding: '8px 6px',
+              }}
+            >
+              The focused thought has no branches yet. Use{' '}
+              <span style={{ color: COLORS.branch }}>⌥ diverge</span> on it to open an alternative,
+              elaboration, or objection here.
+            </div>
+          ) : (
+            divergences.map((child) => (
+              <button
+                key={child.nodeId}
+                onClick={() => onFocus(child.nodeId)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  marginBottom: 8,
+                  padding: '10px 12px',
+                  background: COLORS.surface,
+                  border: `1px solid ${COLORS.border}`,
+                  borderLeft: `3px solid ${intentColor(child.intent)}`,
+                  borderRadius: '0 8px 8px 0',
+                  color: COLORS.text,
+                  cursor: 'pointer',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontFamily: FONTS.mono,
+                    color: intentColor(child.intent),
+                    marginBottom: 4,
+                  }}
+                >
+                  {child.intent ?? 'sequence'}
+                </div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 1.5,
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 6,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {child.content || '(empty)'}
+                </div>
+              </button>
+            ))
+          )}
         </div>
       </div>
-
-      {picking && !divergeIntent ? (
-        <IntentPicker onPick={(intent) => setDivergeIntent(intent)} onCancel={resetDiverge} />
-      ) : divergeIntent ? (
-        <ComposeBar
-          key="diverge"
-          autoFocus
-          accent={intentColor(divergeIntent)}
-          submitLabel="Branch"
-          placeholder={`Write the ${divergeIntent}…`}
-          onSubmit={submitDiverge}
-        />
-      ) : (
-        <ComposeBar key="append" placeholder="Continue the line…" onSubmit={submitAppend} />
-      )}
     </div>
   );
 }
