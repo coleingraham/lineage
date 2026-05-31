@@ -9,6 +9,8 @@ interface TreeBrowserProps {
   onSelect: (treeId: string) => void;
   /** Delete a tree. The browser handles the confirm step before calling this. */
   onDelete: (treeId: string) => void;
+  /** Export all monologues to a JSON backup (share sheet on native, download on web). */
+  onBackup: () => Promise<void>;
   onClose: () => void;
   mode: FoldMode;
 }
@@ -29,11 +31,24 @@ export function TreeBrowser({
   selectedTreeId,
   onSelect,
   onDelete,
+  onBackup,
   onClose,
   mode,
 }: TreeBrowserProps) {
   const [query, setQuery] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
+
+  const runBackup = async () => {
+    setBackingUp(true);
+    try {
+      await onBackup();
+    } catch (err) {
+      console.error('[foldable] backup failed', err);
+    } finally {
+      setBackingUp(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -230,6 +245,32 @@ export function TreeBrowser({
               );
             })
           )}
+        </div>
+
+        <div
+          style={{
+            borderTop: `1px solid ${COLORS.border}`,
+            padding: '10px 14px',
+            paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
+          }}
+        >
+          <button
+            onClick={runBackup}
+            disabled={trees.length === 0 || backingUp}
+            style={{
+              width: '100%',
+              padding: '9px 12px',
+              background: 'transparent',
+              color: trees.length === 0 ? COLORS.textSecondary : COLORS.text,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 8,
+              cursor: trees.length === 0 || backingUp ? 'default' : 'pointer',
+              fontSize: 13,
+              fontFamily: FONTS.mono,
+            }}
+          >
+            {backingUp ? 'Exporting…' : '⤓ Export backup'}
+          </button>
         </div>
       </div>
     </div>

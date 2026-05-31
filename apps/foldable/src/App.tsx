@@ -10,6 +10,7 @@ import { buildChildrenMap, buildNodeMap, deepestNewestLeaf } from './lib/tree.js
 import { CoverView } from './views/CoverView.js';
 import { ComposeBar } from './components/ComposeBar.js';
 import { TreeBrowser } from './components/TreeBrowser.js';
+import { exportBackup } from './lib/backup.js';
 import { COLORS, FONTS } from './styles/theme.js';
 
 /** Posture-driven layout envelope: width + an informational banner per mode. */
@@ -95,6 +96,11 @@ export function App() {
     [repo, session.selectedTreeId, setSession, refresh],
   );
 
+  const backup = useCallback(async () => {
+    if (!repo) return;
+    await exportBackup(repo, new Date());
+  }, [repo]);
+
   const startMonologue = useCallback(
     async (content: string) => {
       const { treeId, rootNodeId } = await authoring.createTree(deriveTitle(content), content);
@@ -163,6 +169,7 @@ export function App() {
           selectedTreeId={session.selectedTreeId}
           onSelect={selectTree}
           onDelete={deleteTree}
+          onBackup={backup}
           onClose={() => setBrowserOpen(false)}
           mode={fold.mode}
         />
