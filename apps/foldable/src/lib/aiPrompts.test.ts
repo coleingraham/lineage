@@ -35,4 +35,15 @@ describe('prompt builders', () => {
     expect(buildReplyPrompt('Y')).toContain('Output only your reply');
     expect(buildReplyPrompt('Y')).toContain('Y');
   });
+
+  it('include pinned background context when provided', () => {
+    const p = buildReplyPrompt('the thread', 'pinned facts');
+    expect(p).toContain('Background the author pinned as context');
+    expect(p).toContain('pinned facts');
+    expect(p.indexOf('pinned facts')).toBeLessThan(p.indexOf('the thread'));
+  });
+
+  it('omit the context section when no context is given', () => {
+    expect(buildSummaryPrompt('only thread')).not.toContain('Background the author pinned');
+  });
 });

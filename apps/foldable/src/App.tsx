@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRepository } from './hooks/useRepository.js';
-import { useTreeData, useTreeList } from './hooks/useTreeData.js';
+import { useContextText, useTreeData, useTreeList } from './hooks/useTreeData.js';
 import { useAuthoring } from './hooks/useAuthoring.js';
 import { useSession } from './lib/session.js';
 import { useFoldStore, useFoldState } from './fold/store.js';
@@ -49,6 +49,7 @@ export function App() {
   const pins = usePins();
   const trees = useTreeList(repo, refreshKey);
   const { nodes, loading } = useTreeData(repo, session.selectedTreeId, refreshKey);
+  const context = useContextText(repo, session.selectedTreeId, refreshKey);
   const authoring = useAuthoring(repo, refresh);
 
   const fold = useFoldState();
@@ -207,6 +208,7 @@ export function App() {
         onCycleMode={cycleMode}
         pinCount={pins.pins.length}
         onOpenPins={() => setPinsOpen(true)}
+        contextCount={!creatingNew && session.selectedTreeId ? context.count : 0}
       />
 
       {shell.banner && (
@@ -241,6 +243,7 @@ export function App() {
               hinge={fold.hinge}
               isPinned={pins.isPinned}
               onTogglePin={(treeId, nodeId) => pins.toggle({ treeId, nodeId })}
+              contextText={context.text}
             />
           ) : (
             <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>
@@ -291,6 +294,7 @@ interface HeaderProps {
   onCycleMode: () => void;
   pinCount: number;
   onOpenPins: () => void;
+  contextCount: number;
 }
 
 function Header({
@@ -303,6 +307,7 @@ function Header({
   onCycleMode,
   pinCount,
   onOpenPins,
+  contextCount,
 }: HeaderProps) {
   return (
     <header
@@ -373,6 +378,23 @@ function Header({
         </span>
         <span style={{ fontSize: 9 }}>{source}</span>
       </button>
+
+      {contextCount > 0 && (
+        <span
+          title={`AI is grounded in ${contextCount} pinned context source${contextCount === 1 ? '' : 's'}`}
+          style={{
+            padding: '6px 8px',
+            color: COLORS.ai,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 8,
+            fontFamily: FONTS.mono,
+            fontSize: 12,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          🔗 {contextCount}
+        </span>
+      )}
 
       {pinCount > 0 && (
         <button

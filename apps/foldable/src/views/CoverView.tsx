@@ -34,6 +34,8 @@ interface CoverViewProps {
   hinge?: HingeInfo;
   isPinned?: (treeId: string, nodeId: string) => boolean;
   onTogglePin?: (treeId: string, nodeId: string) => void;
+  /** Pinned context-source text for this tree — grounds AI reply/summary. */
+  contextText?: string;
 }
 
 function PageLabel({ children }: { children: ReactNode }) {
@@ -75,6 +77,7 @@ export function CoverView({
   hinge,
   isPinned,
   onTogglePin,
+  contextText,
 }: CoverViewProps) {
   const nodeMap = useMemo(() => buildNodeMap(nodes), [nodes]);
   const childrenMap = useMemo(() => buildChildrenMap(nodes), [nodes]);
@@ -161,7 +164,9 @@ export function CoverView({
     if (aiBusy) return;
     setRunningAi('summarize');
     try {
-      const text = await ai.generate(buildSummaryPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
+      const text = await ai.generate(
+        buildSummaryPrompt(threadText(pathToRoot(nodeMap, node.nodeId)), contextText),
+      );
       if (text != null) focusNode(await authoring.summarize(treeId, node.nodeId, text));
     } finally {
       setRunningAi(null);
@@ -171,7 +176,9 @@ export function CoverView({
     if (aiBusy) return;
     setRunningAi('reply');
     try {
-      const text = await ai.generate(buildReplyPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
+      const text = await ai.generate(
+        buildReplyPrompt(threadText(pathToRoot(nodeMap, node.nodeId)), contextText),
+      );
       if (text != null) focusNode(await authoring.aiReply(treeId, node.nodeId, text));
     } finally {
       setRunningAi(null);
