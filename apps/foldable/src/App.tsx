@@ -6,6 +6,7 @@ import { useSession } from './lib/session.js';
 import { useFoldStore, useFoldState } from './fold/store.js';
 import { startSizeInferredSource } from './fold/sizeInferredSource.js';
 import { isWebFoldableSupported, startWebFoldableSource } from './fold/webFoldableSource.js';
+import { isNativePostureSupported, startNativePostureSource } from './fold/nativePostureSource.js';
 import type { FoldMode } from './fold/types.js';
 import { buildChildrenMap, buildNodeMap, deepestNewestLeaf } from './lib/tree.js';
 import { CoverView } from './views/CoverView.js';
@@ -57,12 +58,26 @@ export function App() {
     setModeOverride((cur) => order[(order.indexOf(cur) + 1) % order.length]);
   }, []);
 
-  // Posture source: prefer the real Device Posture API where available
-  // (Android Chromium → true book detection), else the size-inferred fallback.
-  // Both feed the same FoldState, so layout/interaction code is unaffected.
+  // Posture source, best available first: the native Android plugin (Jetpack
+  // WindowManager — real book detection on-device), then the web Device Posture
+  // API, then the size-inferred fallback. All feed the same FoldState.
   useEffect(() => {
-    const start = isWebFoldableSupported() ? startWebFoldableSource : startSizeInferredSource;
-    return start(setFold);
+    let teardown = () => {};
+    let cancelled = false;
+    if (isNativePostureSupported()) {
+      void startNativePostureSource(setFold).then((t) => {
+        if (cancelled) t();
+        else teardown = t;
+      });
+    } else if (isWebFoldableSupported()) {
+      teardown = startWebFoldableSource(setFold);
+    } else {
+      teardown = startSizeInferredSource(setFold);
+    }
+    return () => {
+      cancelled = true;
+      teardown();
+    };
   }, [setFold]);
 
   // Auto-select a tree on first load when none is chosen — but never while the
