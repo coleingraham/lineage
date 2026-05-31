@@ -18,7 +18,9 @@ import { ContextPanel } from './components/ContextPanel.js';
 import { usePins } from './hooks/usePins.js';
 import type { PinnedRef } from './lib/pins.js';
 import { exportBackup } from './lib/backup.js';
+import { resolveContextSources } from './lib/contextResolve.js';
 import { isAiSupported } from './ai/native.js';
+import { useAi } from './hooks/useAi.js';
 import { COLORS, FONTS } from './styles/theme.js';
 
 /** Posture-driven layout envelope: width + an informational banner per mode. */
@@ -48,6 +50,7 @@ export function App() {
   const [pinsOpen, setPinsOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const aiSupported = isAiSupported();
+  const aiRunner = useAi();
   const pins = usePins();
   const trees = useTreeList(repo, refreshKey);
   const { nodes, loading } = useTreeData(repo, session.selectedTreeId, refreshKey);
@@ -178,18 +181,23 @@ export function App() {
   );
 
   const createFromContext = useCallback(
-    async (rootContent: string, refs: PinnedRef[]) => {
-      const { treeId, rootNodeId } = await authoring.createTree(
-        deriveTitle(rootContent),
-        rootContent,
-        refs.map((r) => ({ treeId: r.treeId, nodeId: r.nodeId })),
+    async (refs: PinnedRef[]) => {
+      if (!repo || refs.length === 0) return;
+      // Force a summary for any pin that isn't already one (desktop parity).
+      const sources = await resolveContextSources(
+        repo,
+        authoring.summarize,
+        refs,
+        aiSupported ? aiRunner.generate : null,
       );
+      if (sources.length === 0) return;
+      const { treeId, rootNodeId } = await authoring.createTree('Seeded monologue', '', sources);
       setPinsOpen(false);
       pins.clear();
       setCreatingNew(false);
       setSession({ selectedTreeId: treeId, focusedNodeId: rootNodeId });
     },
-    [authoring, pins, setSession],
+    [repo, authoring, aiSupported, aiRunner, pins, setSession],
   );
 
   const shell = SHELL[effectiveMode];

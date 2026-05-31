@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { PinnedRef } from '../lib/pins.js';
 import { COLORS, FONTS } from '../styles/theme.js';
-import { useAi } from '../hooks/useAi.js';
-import { buildSummaryPrompt } from '../lib/aiPrompts.js';
 
 interface ResolvedPin {
   ref: PinnedRef;
@@ -15,30 +13,27 @@ interface PinsPanelProps {
   resolve: (ref: PinnedRef) => Promise<string | null>;
   onRemove: (ref: PinnedRef) => void;
   onClear: () => void;
-  /** Create a new monologue seeded with `rootContent`, keeping the pins as context. */
-  onCreate: (rootContent: string, refs: PinnedRef[]) => Promise<void>;
+  /** Create a new monologue whose context sources are the pins. */
+  onCreate: (refs: PinnedRef[]) => Promise<void>;
   onClose: () => void;
 }
 
 /**
- * Pinned thoughts → a new monologue. Mirrors the desktop pin / summarize /
+ * Pinned thoughts → a new monologue. Mirrors the desktop pin/summarize/
  * new-from-context flow: the pins become the new tree's context sources, and
- * the opening node is either an on-device AI summary of them or the gathered
- * text (author-editable afterwards).
+ * any pin that isn't already a summary is summarized on-device first (forced).
  */
 export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose }: PinsPanelProps) {
-  const ai = useAi();
   const [resolved, setResolved] = useState<ResolvedPin[]>([]);
-  const [summarize, setSummarize] = useState(ai.supported);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all(
-      pins.map(async (ref) => ({ ref, content: (await resolve(ref)) ?? '' })),
-    ).then((list) => {
-      if (active) setResolved(list.filter((r) => r.content));
-    });
+    Promise.all(pins.map(async (ref) => ({ ref, content: (await resolve(ref)) ?? '' }))).then(
+      (list) => {
+        if (active) setResolved(list.filter((r) => r.content));
+      },
+    );
     return () => {
       active = false;
     };
@@ -48,13 +43,7 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
     if (resolved.length === 0) return;
     setCreating(true);
     try {
-      const gathered = resolved.map((r) => r.content).join('\n\n');
-      let rootContent = gathered;
-      if (summarize && ai.supported) {
-        const text = await ai.generate(buildSummaryPrompt(gathered));
-        if (text) rootContent = text;
-      }
-      await onCreate(rootContent, resolved.map((r) => r.ref));
+      await onCreate(resolved.map((r) => r.ref));
     } finally {
       setCreating(false);
     }
@@ -101,6 +90,11 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
           </button>
         </div>
 
+        <p style={{ margin: 0, fontSize: 12.5, color: COLORS.textSecondary, lineHeight: 1.5 }}>
+          These become the new monologue’s context. Thoughts that aren’t already summaries are
+          summarized on-device first.
+        </p>
+
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {resolved.length === 0 ? (
             <div style={{ color: COLORS.textSecondary, fontSize: 13, padding: '12px 4px' }}>
@@ -146,36 +140,7 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
           )}
         </div>
 
-        {ai.busy && (
-          <div
-            className="ai-working"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              fontSize: 12,
-              fontFamily: FONTS.mono,
-              color: COLORS.ai,
-            }}
-          >
-            <span className="spinner" />
-            {ai.busy}
-          </div>
-        )}
-        {ai.error && (
-          <div style={{ fontSize: 12, fontFamily: FONTS.mono, color: '#d88a8a', textAlign: 'center' }}>
-            {ai.error}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {ai.supported && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: COLORS.textSecondary }}>
-              <input type="checkbox" checked={summarize} onChange={(e) => setSummarize(e.target.checked)} />
-              summarize into the opening
-            </label>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={onClear} disabled={resolved.length === 0} style={ghost}>
             clear all
           </button>
@@ -198,7 +163,7 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
             {creating ? (
               <>
                 <span className="spinner" style={{ marginRight: 6 }} />
-                Creating…
+                Summarizing…
               </>
             ) : (
               'New monologue from context'

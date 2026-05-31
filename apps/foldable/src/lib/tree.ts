@@ -62,6 +62,25 @@ export function pathToRoot(nodeMap: Map<string, Node>, focusedNodeId: string): N
 }
 
 /**
+ * Like {@link pathToRoot}, but a **summary node is a context boundary**: the
+ * walk stops at the nearest (lowest) summary ancestor, inclusive — matching
+ * core's `walkToRoot`. Used to build the context an AI reply/summary sees, so
+ * it traverses up to the root or the lowest summary, whichever comes first.
+ * Stops if a deleted node is hit.
+ */
+export function pathToSummaryOrRoot(nodeMap: Map<string, Node>, focusedNodeId: string): Node[] {
+  const path: Node[] = [];
+  let cur: Node | undefined = nodeMap.get(focusedNodeId);
+  while (cur) {
+    if (cur.isDeleted) break;
+    path.push(cur);
+    if (cur.type === 'summary') break;
+    cur = cur.parentId ? nodeMap.get(cur.parentId) : undefined;
+  }
+  return path.reverse();
+}
+
+/**
  * From a starting node, follow the newest child at each level until a leaf is
  * reached. Used to resolve a tree's default focus (deepest tip of the most
  * recent line) when none is remembered.

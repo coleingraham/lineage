@@ -7,6 +7,7 @@ import {
   childrenOf,
   deepestNewestLeaf,
   pathToRoot,
+  pathToSummaryOrRoot,
 } from './tree.js';
 
 function n(id: string, parentId: string | null, createdAt: string): Node {
@@ -41,6 +42,24 @@ describe('tree helpers', () => {
     const map = buildNodeMap(nodes);
     expect(pathToRoot(map, 'b').map((x) => x.nodeId)).toEqual(['root', 'a', 'b']);
     expect(pathToRoot(map, 'c').map((x) => x.nodeId)).toEqual(['root', 'c']);
+  });
+
+  it('pathToSummaryOrRoot stops at the lowest summary ancestor (inclusive)', () => {
+    // root → a → s(summary) → d → e
+    const withSummary: Node[] = [
+      n('root', null, '2026-01-01T00:00:00Z'),
+      n('a', 'root', '2026-01-01T00:01:00Z'),
+      { ...n('s', 'a', '2026-01-01T00:02:00Z'), type: 'summary' },
+      n('d', 's', '2026-01-01T00:03:00Z'),
+      n('e', 'd', '2026-01-01T00:04:00Z'),
+    ];
+    const map = buildNodeMap(withSummary);
+    // From e, stop at s (the lowest summary) — not all the way to root.
+    expect(pathToSummaryOrRoot(map, 'e').map((x) => x.nodeId)).toEqual(['s', 'd', 'e']);
+    // With no summary above, falls back to the root.
+    expect(pathToSummaryOrRoot(buildNodeMap(nodes), 'b').map((x) => x.nodeId)).toEqual(['root', 'a', 'b']);
+    // Starting on a summary returns just that summary.
+    expect(pathToSummaryOrRoot(map, 's').map((x) => x.nodeId)).toEqual(['s']);
   });
 
   it('childrenOf returns children oldest-first', () => {

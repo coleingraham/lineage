@@ -10,7 +10,14 @@ import {
 import type { BranchIntent, Node } from '@lineage/core';
 import type { Authoring } from '../hooks/useAuthoring.js';
 import type { FoldMode, HingeInfo } from '../fold/types.js';
-import { buildChildrenMap, buildColumns, buildNodeMap, childrenOf, pathToRoot } from '../lib/tree.js';
+import {
+  buildChildrenMap,
+  buildColumns,
+  buildNodeMap,
+  childrenOf,
+  pathToRoot,
+  pathToSummaryOrRoot,
+} from '../lib/tree.js';
 import { swipeDirection } from '../lib/swipe.js';
 import { buildReplyPrompt, buildSummaryPrompt, threadText } from '../lib/aiPrompts.js';
 import { useAi } from '../hooks/useAi.js';
@@ -160,13 +167,19 @@ export function CoverView({
   const [runningAi, setRunningAi] = useState<'summarize' | 'reply' | null>(null);
   const aiBusy = runningAi !== null || ai.busy !== null;
 
+  // Context the model sees: traverse up to the root or the lowest summary node,
+  // whichever comes first (matching core/desktop). The displayed line is the
+  // full path; only AI context stops at a summary boundary. Empty root excluded.
+  const aiThread = (nodeId: string) =>
+    threadText(
+      pathToSummaryOrRoot(nodeMap, nodeId).filter((n) => !(n.parentId === null && n.content === '')),
+    );
+
   const summarizeNode = async (node: Node) => {
     if (aiBusy) return;
     setRunningAi('summarize');
     try {
-      const text = await ai.generate(
-        buildSummaryPrompt(threadText(pathToRoot(nodeMap, node.nodeId)), contextText),
-      );
+      const text = await ai.generate(buildSummaryPrompt(aiThread(node.nodeId), contextText));
       if (text != null) focusNode(await authoring.summarize(treeId, node.nodeId, text));
     } finally {
       setRunningAi(null);
@@ -176,9 +189,7 @@ export function CoverView({
     if (aiBusy) return;
     setRunningAi('reply');
     try {
-      const text = await ai.generate(
-        buildReplyPrompt(threadText(pathToRoot(nodeMap, node.nodeId)), contextText),
-      );
+      const text = await ai.generate(buildReplyPrompt(aiThread(node.nodeId), contextText));
       if (text != null) focusNode(await authoring.aiReply(treeId, node.nodeId, text));
     } finally {
       setRunningAi(null);
