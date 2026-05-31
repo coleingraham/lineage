@@ -5,6 +5,7 @@ import { useAuthoring } from './hooks/useAuthoring.js';
 import { useSession } from './lib/session.js';
 import { useFoldStore, useFoldState } from './fold/store.js';
 import { startSizeInferredSource } from './fold/sizeInferredSource.js';
+import { isWebFoldableSupported, startWebFoldableSource } from './fold/webFoldableSource.js';
 import type { FoldMode } from './fold/types.js';
 import { buildChildrenMap, buildNodeMap, deepestNewestLeaf } from './lib/tree.js';
 import { CoverView } from './views/CoverView.js';
@@ -46,8 +47,13 @@ export function App() {
   const fold = useFoldState();
   const setFold = useFoldStore((s) => s.setFold);
 
-  // Size-inferred posture source (B4): the only source in this slice.
-  useEffect(() => startSizeInferredSource(setFold), [setFold]);
+  // Posture source: prefer the real Device Posture API where available
+  // (Android Chromium → true book detection), else the size-inferred fallback.
+  // Both feed the same FoldState, so layout/interaction code is unaffected.
+  useEffect(() => {
+    const start = isWebFoldableSupported() ? startWebFoldableSource : startSizeInferredSource;
+    return start(setFold);
+  }, [setFold]);
 
   // Auto-select a tree on first load when none is chosen — but never while the
   // author is intentionally composing a new one.
