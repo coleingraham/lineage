@@ -185,6 +185,7 @@ export function App() {
               authoring={authoring}
               mode={effectiveMode}
               maxWidth={shell.maxWidth}
+              hinge={fold.hinge}
             />
           ) : (
             <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>

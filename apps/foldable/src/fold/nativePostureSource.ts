@@ -39,12 +39,20 @@ function hingeFromPayload(
   dpr: number,
 ): HingeInfo {
   const safeDpr = dpr > 0 ? dpr : 1;
-  // Map the hinge centre from device px to CSS px.
+  // Map the hinge centre + thickness from device px to CSS px.
   if (orientation === 'vertical' && typeof p.hingeLeft === 'number' && typeof p.hingeWidth === 'number') {
-    return { orientation, position: Math.round((p.hingeLeft + p.hingeWidth / 2) / safeDpr) };
+    return {
+      orientation,
+      position: Math.round((p.hingeLeft + p.hingeWidth / 2) / safeDpr),
+      size: Math.round(p.hingeWidth / safeDpr),
+    };
   }
   if (orientation === 'horizontal' && typeof p.hingeTop === 'number' && typeof p.hingeHeight === 'number') {
-    return { orientation, position: Math.round((p.hingeTop + p.hingeHeight / 2) / safeDpr) };
+    return {
+      orientation,
+      position: Math.round((p.hingeTop + p.hingeHeight / 2) / safeDpr),
+      size: Math.round(p.hingeHeight / safeDpr),
+    };
   }
   return { orientation, position: 0 };
 }

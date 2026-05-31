@@ -23,8 +23,9 @@ describe('classifyNativePosture', () => {
       900,
       2, // devicePixelRatio
     );
-    // centre = (1040 + 80/2) / 2 = 540
+    // centre = (1040 + 80/2) / 2 = 540; thickness = 80 / 2 = 40
     expect(r.hinge?.position).toBe(540);
+    expect(r.hinge?.size).toBe(40);
   });
 
   it('defaults a missing orientation to a vertical hinge', () => {

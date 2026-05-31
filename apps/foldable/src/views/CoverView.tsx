@@ -1,7 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BranchIntent, Node } from '@lineage/core';
 import type { Authoring } from '../hooks/useAuthoring.js';
-import type { FoldMode } from '../fold/types.js';
+import type { FoldMode, HingeInfo } from '../fold/types.js';
 import { buildChildrenMap, buildNodeMap, childrenOf, pathToRoot } from '../lib/tree.js';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { MonologueCard } from '../components/MonologueCard.js';
@@ -19,6 +19,8 @@ interface CoverViewProps {
   /** Reading-column / spread width. The compose bar ignores this and spans the
    * full pane. */
   maxWidth: number;
+  /** Real hinge geometry, when the posture source provides it (native plugin). */
+  hinge?: HingeInfo;
 }
 
 function PageLabel({ children }: { children: ReactNode }) {
@@ -57,6 +59,7 @@ export function CoverView({
   authoring,
   mode,
   maxWidth,
+  hinge,
 }: CoverViewProps) {
   const nodeMap = useMemo(() => buildNodeMap(nodes), [nodes]);
   const childrenMap = useMemo(() => buildChildrenMap(nodes), [nodes]);
@@ -145,6 +148,7 @@ export function CoverView({
           maxWidth={maxWidth}
           renderSpineCard={spineCard}
           onFocus={focusNode}
+          hinge={hinge}
         />
       ) : (
         <LinearStack
@@ -180,6 +184,7 @@ interface LayoutProps {
   maxWidth: number;
   renderSpineCard: (node: Node) => ReactNode;
   onFocus: (nodeId: string) => void;
+  hinge?: HingeInfo;
 }
 
 /** Single-column stack (cover / flat): spine then divergence chips below. */
@@ -228,95 +233,112 @@ function LinearStack({ line, divergences, maxWidth, renderSpineCard, onFocus }: 
  * Book posture: two portrait pages either side of the hinge. Left = the spine
  * you're on; right = what diverges from the focused (last) node. The hinge is
  * the fork point; tapping a divergence reaches across it into that branch.
+ *
+ * When the posture source reports real hinge geometry (the native plugin), the
+ * seam is placed at the actual fold position and an occlusion gutter keeps
+ * content out from under it. Otherwise (desktop / size-inferred / manual book)
+ * it falls back to a centred split with a thin seam.
  */
-function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus }: LayoutProps) {
-  const pageStyle: React.CSSProperties = {
-    flex: 1,
+function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus, hinge }: LayoutProps) {
+  const pageBase: CSSProperties = {
     minWidth: 0,
     overflowY: 'auto',
     padding: '14px 14px 16px',
   };
+
+  const leftPage = (style: CSSProperties) => (
+    <div style={{ ...pageBase, ...style }}>
+      <PageLabel>spine</PageLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
+    </div>
+  );
+
+  const rightPage = (style: CSSProperties) => (
+    <div style={{ ...pageBase, ...style }}>
+      <PageLabel>{divergences.length > 0 ? 'divergences' : 'divergences — none yet'}</PageLabel>
+      {divergences.length === 0 ? (
+        <div style={{ color: COLORS.textSecondary, fontSize: 13, lineHeight: 1.6, padding: '8px 6px' }}>
+          The focused thought has no branches yet. Use{' '}
+          <span style={{ color: COLORS.branch }}>⌥ diverge</span> on it to open an alternative,
+          elaboration, or objection here.
+        </div>
+      ) : (
+        divergences.map((child) => (
+          <button
+            key={child.nodeId}
+            onClick={() => onFocus(child.nodeId)}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              marginBottom: 8,
+              padding: '10px 12px',
+              background: COLORS.surface,
+              border: `1px solid ${COLORS.border}`,
+              borderLeft: `3px solid ${intentColor(child.intent)}`,
+              borderRadius: '0 8px 8px 0',
+              color: COLORS.text,
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ fontSize: 11, fontFamily: FONTS.mono, color: intentColor(child.intent), marginBottom: 4 }}>
+              {child.intent ?? 'sequence'}
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                lineHeight: 1.5,
+                display: '-webkit-box',
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: 6,
+                overflow: 'hidden',
+              }}
+            >
+              {child.content || '(empty)'}
+            </div>
+          </button>
+        ))
+      )}
+    </div>
+  );
+
+  // Real hinge geometry (native plugin): split at the fold, gutter = occlusion.
+  if (hinge && hinge.orientation === 'vertical' && hinge.position > 0) {
+    const size = Math.max(hinge.size ?? 0, 0);
+    const leftWidth = Math.max(140, Math.round(hinge.position - size / 2));
+    const gutter = Math.max(size, 1);
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', width: '100%' }}>
+        {leftPage({ flex: `0 0 ${leftWidth}px`, width: leftWidth })}
+        <div
+          aria-hidden
+          style={{
+            width: gutter,
+            flex: '0 0 auto',
+            background: COLORS.bg,
+            boxShadow: 'inset 0 0 14px rgba(0,0,0,0.6)',
+          }}
+        />
+        {rightPage({ flex: '1 1 0' })}
+      </div>
+    );
+  }
+
+  // Fallback: centred, equal pages, thin seam.
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center' }}>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', width: '100%', maxWidth }}>
-        {/* Left page — the spine. */}
-        <div style={pageStyle}>
-          <PageLabel>spine</PageLabel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
-        </div>
-
-        {/* Hinge — the fold, aligned with the focused node's fork point. */}
+        {leftPage({ flex: 1 })}
         <div
           aria-hidden
           style={{
             width: 2,
             flex: '0 0 auto',
             background: COLORS.borderHi,
-            boxShadow: `0 0 14px 2px rgba(0,0,0,0.5)`,
+            boxShadow: '0 0 14px 2px rgba(0,0,0,0.5)',
           }}
         />
-
-        {/* Right page — divergences (typed by branch intent). */}
-        <div style={pageStyle}>
-          <PageLabel>{divergences.length > 0 ? 'divergences' : 'divergences — none yet'}</PageLabel>
-          {divergences.length === 0 ? (
-            <div
-              style={{
-                color: COLORS.textSecondary,
-                fontSize: 13,
-                lineHeight: 1.6,
-                padding: '8px 6px',
-              }}
-            >
-              The focused thought has no branches yet. Use{' '}
-              <span style={{ color: COLORS.branch }}>⌥ diverge</span> on it to open an alternative,
-              elaboration, or objection here.
-            </div>
-          ) : (
-            divergences.map((child) => (
-              <button
-                key={child.nodeId}
-                onClick={() => onFocus(child.nodeId)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  marginBottom: 8,
-                  padding: '10px 12px',
-                  background: COLORS.surface,
-                  border: `1px solid ${COLORS.border}`,
-                  borderLeft: `3px solid ${intentColor(child.intent)}`,
-                  borderRadius: '0 8px 8px 0',
-                  color: COLORS.text,
-                  cursor: 'pointer',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontFamily: FONTS.mono,
-                    color: intentColor(child.intent),
-                    marginBottom: 4,
-                  }}
-                >
-                  {child.intent ?? 'sequence'}
-                </div>
-                <div
-                  style={{
-                    fontSize: 14,
-                    lineHeight: 1.5,
-                    display: '-webkit-box',
-                    WebkitBoxOrient: 'vertical',
-                    WebkitLineClamp: 6,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {child.content || '(empty)'}
-                </div>
-              </button>
-            ))
-          )}
-        </div>
+        {rightPage({ flex: 1 })}
       </div>
     </div>
   );

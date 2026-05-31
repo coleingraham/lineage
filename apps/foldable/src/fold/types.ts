@@ -19,6 +19,8 @@ export interface HingeInfo {
   /** Hinge centre along its cross-axis, in CSS pixels. */
   position: number;
   orientation: 'vertical' | 'horizontal';
+  /** Occluded hinge thickness in CSS pixels, when known (0 for a seamless display). */
+  size?: number;
 }
 
 /**
