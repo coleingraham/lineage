@@ -158,12 +158,14 @@ describe('BrowserSqliteRepository', () => {
     it('putTree calls run with correct parameters', async () => {
       const tree = makeTree();
       await repo.putTree(tree);
+      // The legacy context_sources column is written as a NULL literal, so the
+      // INSERT carries only the four base columns; contextSources are synced
+      // separately into cross_tree_refs.
       expect(mockDb.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO trees'), [
         tree.treeId,
         tree.title,
         tree.createdAt,
         tree.rootNodeId,
-        null,
       ]);
     });
   });

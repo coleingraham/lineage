@@ -3,6 +3,8 @@ import type {
   Tree,
   Tag,
   TagCategory,
+  CrossTreeRef,
+  CrossTreeRefQuery,
   NodeRepository,
   SearchOptions,
   SearchResult,
@@ -337,5 +339,25 @@ export class RestNodeRepository implements NodeRepository {
     if (!res.ok) throw new Error(`findTreesByTags failed: HTTP ${res.status}`);
     const data = (await res.json()) as { trees: Tree[] };
     return data.trees;
+  }
+
+  // ── Cross-tree references ──
+  // Not exposed over REST yet. Tree-owned context_source refs round-trip
+  // through getTree/putTree's `contextSources`; node-level refs (e.g. fork
+  // provenance) are not yet reachable through the REST surface.
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async putCrossTreeRef(_ref: CrossTreeRef): Promise<void> {
+    throw new Error('putCrossTreeRef is not supported via the REST client yet');
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getCrossTreeRefs(_query?: CrossTreeRefQuery): Promise<CrossTreeRef[]> {
+    return [];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async deleteCrossTreeRefs(_query: CrossTreeRefQuery): Promise<number> {
+    return 0;
   }
 }

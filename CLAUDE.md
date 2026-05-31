@@ -130,3 +130,28 @@ Apply tags to trees (for session/ticket-level classification) and to individual 
 - Routine file reads, searches, or exploratory work — only record conclusions and decisions.
 - Intermediate debugging steps — record the root cause and fix, not every hypothesis tested.
 - Information already captured in git commits or code comments.
+
+### Multi-answer exploration (branching workflow)
+
+When the user responds to a question with a phrase like "explore both", "try all options", "try each", or "explore A and B", follow this protocol:
+
+**Setup (once, before the first branch):**
+1. If no active session tree, call `start_session` with a title describing the decision (e.g. "Explore: refactor approach options").
+2. Call `record_decision` for the question itself — summary is the question, reasoning is the trade-offs between options, files are any relevant files. Save the returned `nodeId` as the **branch root**.
+3. Tell the user which option you're starting with.
+
+**For each option:**
+1. Announce: "Starting branch: [Option label]"
+2. Do the work fully for that option.
+3. Call `record_decision` with `parentId` = branch root, summarizing what was done and the outcome. Include `reasoning` (trade-offs, what worked/didn't) and `files`. Save the returned `nodeId` as the **branch outcome node**.
+4. To fork for the next option, call `create_tree_from_nodes` with `sourceNodes: [{ treeId, nodeId: branchOutcomeNode }]` and a title like "Branch B: [label] — forked from branch root". The new tree's context sources the previous branch's outcome as background.
+5. Announce the fork and begin the next branch in the new tree.
+
+**After all branches:**
+1. Call `record_decision` in the original tree at the branch root, summarizing what was learned across all branches and which option is recommended.
+2. Ask the user which branch to keep. Do NOT call `end_session` yet.
+
+**Navigating existing branches:**
+- `get_children` on the branch root node → lists all branch outcomes
+- `get_siblings` on any branch node → lists alternative paths
+- `build_context` on a branch outcome node → reconstructs full conversation context for that path so you can resume from it
