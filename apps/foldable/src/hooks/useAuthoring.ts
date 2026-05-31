@@ -15,8 +15,13 @@ export interface Authoring {
     content: string,
     intent: BranchIntent,
   ) => Promise<string>;
-  /** Edit a node's content in place. */
-  edit: (nodeId: string, content: string) => Promise<void>;
+  /**
+   * Revise a node non-destructively: create a **sibling** (same parent + intent)
+   * carrying the new content, preserving the original as a separate version.
+   * The root has no parent to branch from, so it is revised in place. Returns
+   * the id of the node to focus (the new sibling, or the root).
+   */
+  edit: (nodeId: string, content: string) => Promise<string>;
   /** Soft-delete a node. */
   remove: (nodeId: string) => Promise<void>;
 }
@@ -90,10 +95,26 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
     async (nodeId, content) => {
       if (!repo) throw new Error('Repository not ready');
       const node = await repo.getNode(nodeId);
-      await repo.putNode({ ...node, content });
+      if (node.parentId === null) {
+        // Root has no parent to branch a sibling from — revise it in place.
+        await repo.putNode({ ...node, content });
+        onChanged();
+        return node.nodeId;
+      }
+      // Non-destructive: the revision is a new sibling; the original is kept.
+      const sibling = createNode({
+        treeId: node.treeId,
+        parentId: node.parentId,
+        type: node.type,
+        content,
+        author,
+        intent: node.intent,
+      });
+      await repo.putNode(sibling);
       onChanged();
+      return sibling.nodeId;
     },
-    [repo, onChanged],
+    [repo, author, onChanged],
   );
 
   const remove = useCallback<Authoring['remove']>(

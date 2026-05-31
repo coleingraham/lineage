@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 import type { Node } from '@lineage/core';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { Markdown } from './Markdown.js';
@@ -7,8 +7,14 @@ interface MonologueCardProps {
   node: Node;
   focused: boolean;
   isRoot: boolean;
+  /** Edit state is owned by the parent so it survives layout (linear↔book) swaps. */
+  editing: boolean;
+  draft: string;
   onFocus: () => void;
-  onEdit: (content: string) => void;
+  onStartEdit: () => void;
+  onDraftChange: (value: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
   onDelete: () => void;
   onDiverge: () => void;
 }
@@ -28,21 +34,18 @@ export function MonologueCard({
   node,
   focused,
   isRoot,
+  editing,
+  draft,
   onFocus,
-  onEdit,
+  onStartEdit,
+  onDraftChange,
+  onSaveEdit,
+  onCancelEdit,
   onDelete,
   onDiverge,
 }: MonologueCardProps) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(node.content);
-
   const accent = isRoot ? COLORS.root : intentColor(node.intent);
   const showIntent = node.intent && node.intent !== 'sequence';
-
-  const save = () => {
-    onEdit(draft);
-    setEditing(false);
-  };
 
   return (
     <div
@@ -81,7 +84,7 @@ export function MonologueCard({
           <textarea
             value={draft}
             autoFocus
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => onDraftChange(e.target.value)}
             rows={Math.min(12, Math.max(2, draft.split('\n').length))}
             style={{
               width: '100%',
@@ -95,19 +98,18 @@ export function MonologueCard({
               lineHeight: 1.5,
             }}
           />
-          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-            <button onClick={save} style={{ ...ACTION_STYLE, color: COLORS.branch }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+            <button onClick={onSaveEdit} style={{ ...ACTION_STYLE, color: COLORS.branch }}>
               save
             </button>
-            <button
-              onClick={() => {
-                setDraft(node.content);
-                setEditing(false);
-              }}
-              style={ACTION_STYLE}
-            >
+            <button onClick={onCancelEdit} style={ACTION_STYLE}>
               cancel
             </button>
+            {!isRoot && (
+              <span style={{ fontSize: 10, color: COLORS.textSecondary, fontFamily: FONTS.mono }}>
+                saves as a sibling — original kept
+              </span>
+            )}
           </div>
         </div>
       ) : (
@@ -115,14 +117,11 @@ export function MonologueCard({
       )}
 
       {focused && !editing && (
-        <div
-          style={{ display: 'flex', gap: 4, marginTop: 8 }}
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div style={{ display: 'flex', gap: 4, marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
           <button onClick={onDiverge} style={{ ...ACTION_STYLE, color: COLORS.branch }}>
             ⌥ diverge
           </button>
-          <button onClick={() => setEditing(true)} style={ACTION_STYLE}>
+          <button onClick={onStartEdit} style={ACTION_STYLE}>
             edit
           </button>
           {!isRoot && (

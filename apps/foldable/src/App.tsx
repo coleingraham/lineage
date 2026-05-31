@@ -47,6 +47,16 @@ export function App() {
   const fold = useFoldState();
   const setFold = useFoldStore((s) => s.setFold);
 
+  // Manual posture override — tap the header chip to force a mode (lets you view
+  // the book spread on a device whose WebView can't report real posture, and
+  // surfaces which source is actually driving layout).
+  const [modeOverride, setModeOverride] = useState<FoldMode | null>(null);
+  const effectiveMode = modeOverride ?? fold.mode;
+  const cycleMode = useCallback(() => {
+    const order: (FoldMode | null)[] = [null, 'closed', 'book', 'flat'];
+    setModeOverride((cur) => order[(order.indexOf(cur) + 1) % order.length]);
+  }, []);
+
   // Posture source: prefer the real Device Posture API where available
   // (Android Chromium → true book detection), else the size-inferred fallback.
   // Both feed the same FoldState, so layout/interaction code is unaffected.
@@ -113,7 +123,7 @@ export function App() {
     [authoring, setSession],
   );
 
-  const shell = SHELL[fold.mode];
+  const shell = SHELL[effectiveMode];
   const selectedTree = useMemo(
     () => trees.find((t) => t.treeId === session.selectedTreeId) ?? null,
     [trees, session.selectedTreeId],
@@ -125,8 +135,10 @@ export function App() {
         title={creatingNew ? null : (selectedTree?.title ?? null)}
         onOpenBrowser={() => setBrowserOpen(true)}
         onNew={() => setCreatingNew(true)}
-        mode={fold.mode}
-        source={fold.source}
+        mode={effectiveMode}
+        source={modeOverride ? 'manual' : fold.source}
+        overridden={modeOverride !== null}
+        onCycleMode={cycleMode}
       />
 
       {shell.banner && (
@@ -156,7 +168,7 @@ export function App() {
               focusedNodeId={session.focusedNodeId}
               onFocus={onFocus}
               authoring={authoring}
-              mode={fold.mode}
+              mode={effectiveMode}
               maxWidth={shell.maxWidth}
             />
           ) : (
@@ -188,9 +200,11 @@ interface HeaderProps {
   onNew: () => void;
   mode: FoldMode;
   source: string;
+  overridden: boolean;
+  onCycleMode: () => void;
 }
 
-function Header({ title, onOpenBrowser, onNew, mode, source }: HeaderProps) {
+function Header({ title, onOpenBrowser, onNew, mode, source, overridden, onCycleMode }: HeaderProps) {
   return (
     <header
       style={{
@@ -236,20 +250,30 @@ function Header({ title, onOpenBrowser, onNew, mode, source }: HeaderProps) {
         </span>
       </button>
 
-      <span
-        title={`posture source: ${source}`}
+      <button
+        onClick={onCycleMode}
+        title="Tap to override posture mode (→ auto)"
         style={{
-          fontSize: 11,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          lineHeight: 1.1,
           fontFamily: FONTS.mono,
           color: COLORS.textSecondary,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: 999,
+          background: 'transparent',
+          border: `1px solid ${overridden ? COLORS.branch : COLORS.border}`,
+          borderRadius: 8,
           padding: '3px 8px',
+          cursor: 'pointer',
           whiteSpace: 'nowrap',
         }}
       >
-        {mode}
-      </span>
+        <span style={{ fontSize: 12, color: overridden ? COLORS.branch : COLORS.text }}>
+          {mode}
+          {overridden ? ' •' : ''}
+        </span>
+        <span style={{ fontSize: 9 }}>{source}</span>
+      </button>
 
       <button
         onClick={onNew}

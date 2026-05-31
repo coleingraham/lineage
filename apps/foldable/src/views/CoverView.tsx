@@ -70,9 +70,28 @@ export function CoverView({
   const [picking, setPicking] = useState(false);
   const [divergeIntent, setDivergeIntent] = useState<BranchIntent | null>(null);
 
+  // Edit state lives here (not in MonologueCard) so it survives the
+  // linear↔book layout swap rather than being lost to a remount.
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+
   const resetDiverge = () => {
     setPicking(false);
     setDivergeIntent(null);
+  };
+
+  // Focusing anything else cancels an in-progress edit/diverge.
+  const focusNode = (id: string) => {
+    setEditingNodeId(null);
+    resetDiverge();
+    onFocus(id);
+  };
+
+  const saveEdit = async () => {
+    if (!editingNodeId) return;
+    const id = await authoring.edit(editingNodeId, draft);
+    setEditingNodeId(null);
+    onFocus(id);
   };
 
   const submitAppend = async (content: string) => {
@@ -94,13 +113,22 @@ export function CoverView({
       node={node}
       isRoot={node.parentId === null}
       focused={node.nodeId === focusId}
-      onFocus={() => onFocus(node.nodeId)}
-      onEdit={(content) => void authoring.edit(node.nodeId, content)}
+      editing={editingNodeId === node.nodeId}
+      draft={draft}
+      onFocus={() => focusNode(node.nodeId)}
+      onStartEdit={() => {
+        setEditingNodeId(node.nodeId);
+        setDraft(node.content);
+      }}
+      onDraftChange={setDraft}
+      onSaveEdit={() => void saveEdit()}
+      onCancelEdit={() => setEditingNodeId(null)}
       onDelete={() => {
         void authoring.remove(node.nodeId);
         if (node.parentId) onFocus(node.parentId);
       }}
       onDiverge={() => {
+        setEditingNodeId(null);
         onFocus(node.nodeId);
         setPicking(true);
         setDivergeIntent(null);
@@ -116,7 +144,7 @@ export function CoverView({
           divergences={divergences}
           maxWidth={maxWidth}
           renderSpineCard={spineCard}
-          onFocus={onFocus}
+          onFocus={focusNode}
         />
       ) : (
         <LinearStack
@@ -124,7 +152,7 @@ export function CoverView({
           divergences={divergences}
           maxWidth={maxWidth}
           renderSpineCard={spineCard}
-          onFocus={onFocus}
+          onFocus={focusNode}
         />
       )}
 

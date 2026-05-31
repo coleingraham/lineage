@@ -90,7 +90,14 @@ export function isWebFoldableSupported(): boolean {
  * change, viewport-segment change, and resize. Returns a teardown function.
  */
 export function startWebFoldableSource(setFold: (fold: FoldState) => void): () => void {
-  const update = () => setFold(compute());
+  let lastKey = '';
+  const update = () => {
+    const fold = compute();
+    const key = `${fold.mode}|${fold.hinge?.orientation ?? ''}|${fold.hinge?.position ?? ''}`;
+    if (key === lastKey) return;
+    lastKey = key;
+    setFold(fold);
+  };
   update();
 
   const dp = devicePosture();
