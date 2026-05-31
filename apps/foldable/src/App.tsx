@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useRepository } from './hooks/useRepository.js';
 import {
   useAllTags,
+  useCategories,
   useContextText,
   useNodeTags,
   useTreeData,
@@ -22,6 +23,7 @@ import { ProsePanel } from './components/ProsePanel.js';
 import { PinsPanel } from './components/PinsPanel.js';
 import { ContextPanel } from './components/ContextPanel.js';
 import { TagEditor } from './components/TagEditor.js';
+import { TagsView } from './components/TagsView.js';
 import type { Node } from '@lineage/core';
 import { usePins } from './hooks/usePins.js';
 import type { PinnedRef } from './lib/pins.js';
@@ -59,6 +61,7 @@ export function App() {
   const [pinsOpen, setPinsOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [tagEditorNode, setTagEditorNode] = useState<Node | null>(null);
+  const [tagsViewOpen, setTagsViewOpen] = useState(false);
   const aiSupported = isAiSupported();
   const aiRunner = useAi();
   const pins = usePins();
@@ -67,6 +70,7 @@ export function App() {
   const context = useContextText(repo, session.selectedTreeId, refreshKey);
   const nodeTags = useNodeTags(repo, nodes, refreshKey);
   const allTags = useAllTags(repo, refreshKey);
+  const categories = useCategories(repo, refreshKey);
   const authoring = useAuthoring(repo, refresh);
 
   const fold = useFoldState();
@@ -251,6 +255,8 @@ export function App() {
         onOpenPins={() => setPinsOpen(true)}
         contextCount={!creatingNew && session.selectedTreeId ? context.count : 0}
         onOpenContext={() => setContextOpen(true)}
+        tagCount={allTags.length}
+        onOpenTagsView={() => setTagsViewOpen(true)}
       />
 
       {shell.banner && (
@@ -313,6 +319,19 @@ export function App() {
         />
       )}
 
+      {tagsViewOpen && repo && (
+        <TagsView
+          repo={repo}
+          categories={categories}
+          tags={allTags}
+          onOpenNode={(treeId, nodeId) => {
+            setCreatingNew(false);
+            setSession({ selectedTreeId: treeId, focusedNodeId: nodeId });
+          }}
+          onClose={() => setTagsViewOpen(false)}
+        />
+      )}
+
       {tagEditorNode && (
         <TagEditor
           node={tagEditorNode}
@@ -362,6 +381,8 @@ interface HeaderProps {
   onOpenPins: () => void;
   contextCount: number;
   onOpenContext: () => void;
+  tagCount: number;
+  onOpenTagsView: () => void;
 }
 
 function Header({
@@ -376,6 +397,8 @@ function Header({
   onOpenPins,
   contextCount,
   onOpenContext,
+  tagCount,
+  onOpenTagsView,
 }: HeaderProps) {
   return (
     <header
@@ -464,6 +487,24 @@ function Header({
           }}
         >
           🔗 {contextCount}
+        </button>
+      )}
+
+      {tagCount > 0 && (
+        <button
+          onClick={onOpenTagsView}
+          title="Browse / search by tag"
+          style={{
+            padding: '6px 9px',
+            background: 'transparent',
+            color: COLORS.root,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontSize: 13,
+          }}
+        >
+          🏷
         </button>
       )}
 

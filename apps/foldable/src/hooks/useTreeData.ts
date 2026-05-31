@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Node, NodeRepository, Tag, Tree } from '@lineage/core';
+import type { Node, NodeRepository, Tag, TagCategory, Tree } from '@lineage/core';
 
 /** Load each node's tags into a `nodeId → Tag[]` map, refreshing on `refreshKey`. */
 export function useNodeTags(
@@ -52,6 +52,27 @@ export function useAllTags(repo: NodeRepository | null, refreshKey: number): Tag
     };
   }, [repo, refreshKey]);
   return tags;
+}
+
+/** Load all tag categories, refreshing on `refreshKey`. */
+export function useCategories(repo: NodeRepository | null, refreshKey: number): TagCategory[] {
+  const [categories, setCategories] = useState<TagCategory[]>([]);
+  useEffect(() => {
+    if (!repo) return;
+    let active = true;
+    repo
+      .listCategories()
+      .then((c) => {
+        if (active) setCategories(c);
+      })
+      .catch(() => {
+        if (active) setCategories([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [repo, refreshKey]);
+  return categories;
 }
 
 /** Load all trees, refreshing when `refreshKey` changes. */
