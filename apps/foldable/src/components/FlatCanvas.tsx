@@ -17,6 +17,16 @@ const GAP_X = 30;
 const GAP_Y = 54;
 const PAD = 28;
 
+/** Accent for a node's card + its incoming edge — by type, then intent. */
+function nodeAccent(node: Node): string {
+  if (node.parentId === null) return COLORS.root;
+  if (node.type === 'ai') return COLORS.ai;
+  if (node.type === 'summary') return COLORS.summary;
+  // sequence / unlabeled edges get a visible neutral instead of the faint border.
+  if (!node.intent || node.intent === 'sequence') return COLORS.textSecondary;
+  return intentColor(node.intent);
+}
+
 /**
  * Flat (unfolded) canvas: a 2D tidy-tree map of the whole monologue with fuller
  * cards and connectors. Tap a card to focus (the shared compose bar appends to
@@ -64,8 +74,8 @@ export function FlatCanvas({ nodes, focusId, onFocus, onDiverge }: FlatCanvasPro
                 key={node.nodeId}
                 d={`M ${x1} ${y1} C ${x1} ${my} ${x2} ${my} ${x2} ${y2}`}
                 fill="none"
-                stroke={intentColor(node.intent)}
-                strokeOpacity={0.5}
+                stroke={nodeAccent(node)}
+                strokeOpacity={0.6}
                 strokeWidth={1.5}
               />
             );
@@ -78,13 +88,7 @@ export function FlatCanvas({ nodes, focusId, onFocus, onDiverge }: FlatCanvasPro
           if (!p) return null;
           const focused = node.nodeId === focusId;
           const isRoot = node.parentId === null;
-          const accent = isRoot
-            ? COLORS.root
-            : node.type === 'ai'
-              ? COLORS.ai
-              : node.type === 'summary'
-                ? COLORS.summary
-                : intentColor(node.intent);
+          const accent = nodeAccent(node);
           const chip = isRoot
             ? 'root'
             : node.type === 'ai'
