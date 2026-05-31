@@ -1,5 +1,5 @@
 import { type CSSProperties } from 'react';
-import type { Node } from '@lineage/core';
+import type { Node, Tag } from '@lineage/core';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { Markdown } from './Markdown.js';
 
@@ -20,10 +20,14 @@ interface MonologueCardProps {
   /** AI actions, shown on the focused card when on-device AI is available. */
   onSummarize?: () => void;
   onAiReply?: () => void;
-  /** True while any on-device AI op is running — disables both AI actions. */
+  /** Extract topical tags from this node via on-device AI. */
+  onExtractTags?: () => void;
+  /** Tags currently on this node. */
+  tags?: Tag[];
+  /** True while any on-device AI op is running — disables AI actions. */
   aiBusy?: boolean;
   /** Which AI action is in flight, to spin only that button. */
-  aiRunning?: 'summarize' | 'reply' | null;
+  aiRunning?: 'summarize' | 'reply' | 'tags' | null;
   pinned?: boolean;
   onTogglePin?: () => void;
 }
@@ -54,6 +58,8 @@ export function MonologueCard({
   onDiverge,
   onSummarize,
   onAiReply,
+  onExtractTags,
+  tags,
   aiBusy,
   aiRunning,
   pinned,
@@ -140,6 +146,27 @@ export function MonologueCard({
         <Markdown content={node.content} />
       )}
 
+      {!editing && tags && tags.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+          {tags.map((t) => (
+            <span
+              key={t.tagId}
+              style={{
+                fontSize: 10,
+                fontFamily: FONTS.mono,
+                color: COLORS.textSecondary,
+                background: COLORS.bg,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 999,
+                padding: '1px 7px',
+              }}
+            >
+              {t.name}
+            </span>
+          ))}
+        </div>
+      )}
+
       {focused && !editing && (
         <div style={{ display: 'flex', gap: 4, marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
           <button onClick={onDiverge} style={{ ...ACTION_STYLE, color: COLORS.branch }}>
@@ -184,6 +211,27 @@ export function MonologueCard({
                 </>
               ) : (
                 'summarize'
+              )}
+            </button>
+          )}
+          {onExtractTags && (
+            <button
+              onClick={onExtractTags}
+              disabled={aiBusy}
+              style={{
+                ...ACTION_STYLE,
+                color: COLORS.root,
+                opacity: aiBusy && aiRunning !== 'tags' ? 0.4 : 1,
+                cursor: aiBusy ? 'default' : 'pointer',
+              }}
+            >
+              {aiRunning === 'tags' ? (
+                <>
+                  <span className="spinner" style={{ marginRight: 5 }} />
+                  tagging…
+                </>
+              ) : (
+                '🏷 tags'
               )}
             </button>
           )}

@@ -1,5 +1,37 @@
 import { useEffect, useState } from 'react';
-import type { Node, NodeRepository, Tree } from '@lineage/core';
+import type { Node, NodeRepository, Tag, Tree } from '@lineage/core';
+
+/** Load each node's tags into a `nodeId → Tag[]` map, refreshing on `refreshKey`. */
+export function useNodeTags(
+  repo: NodeRepository | null,
+  nodes: Node[],
+  refreshKey: number,
+): Map<string, Tag[]> {
+  const [map, setMap] = useState<Map<string, Tag[]>>(new Map());
+  const ids = nodes.map((n) => n.nodeId).join(',');
+
+  useEffect(() => {
+    if (!repo || nodes.length === 0) {
+      setMap(new Map());
+      return;
+    }
+    let active = true;
+    Promise.all(
+      nodes.map(
+        async (n) => [n.nodeId, await repo.getNodeTags(n.nodeId).catch(() => [])] as const,
+      ),
+    ).then((entries) => {
+      if (active) setMap(new Map(entries));
+    });
+    return () => {
+      active = false;
+    };
+    // `ids` captures the node set (avoids array-identity churn); refreshKey
+    // forces a reload after tagging.
+  }, [repo, ids, refreshKey]);
+
+  return map;
+}
 
 /** Load all trees, refreshing when `refreshKey` changes. */
 export function useTreeList(repo: NodeRepository | null, refreshKey: number): Tree[] {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRepository } from './hooks/useRepository.js';
-import { useContextText, useTreeData, useTreeList } from './hooks/useTreeData.js';
+import { useContextText, useNodeTags, useTreeData, useTreeList } from './hooks/useTreeData.js';
 import { useAuthoring } from './hooks/useAuthoring.js';
 import { useSession } from './lib/session.js';
 import { useFoldStore, useFoldState } from './fold/store.js';
@@ -19,6 +19,7 @@ import { usePins } from './hooks/usePins.js';
 import type { PinnedRef } from './lib/pins.js';
 import { exportBackup } from './lib/backup.js';
 import { resolveContextSources } from './lib/contextResolve.js';
+import { applyNamedTags, ensureCategory } from './lib/tagging.js';
 import { isAiSupported } from './ai/native.js';
 import { useAi } from './hooks/useAi.js';
 import { COLORS, FONTS } from './styles/theme.js';
@@ -55,6 +56,7 @@ export function App() {
   const trees = useTreeList(repo, refreshKey);
   const { nodes, loading } = useTreeData(repo, session.selectedTreeId, refreshKey);
   const context = useContextText(repo, session.selectedTreeId, refreshKey);
+  const nodeTags = useNodeTags(repo, nodes, refreshKey);
   const authoring = useAuthoring(repo, refresh);
 
   const fold = useFoldState();
@@ -140,6 +142,16 @@ export function App() {
     if (!repo) return;
     await exportBackup(repo, new Date());
   }, [repo]);
+
+  const applyTags = useCallback(
+    async (nodeId: string, names: string[]) => {
+      if (!repo) return;
+      const categoryId = await ensureCategory(repo, 'Topics');
+      await applyNamedTags(repo, categoryId, nodeId, names);
+      refresh();
+    },
+    [repo, refresh],
+  );
 
   const startMonologue = useCallback(
     async (content: string) => {
@@ -255,6 +267,8 @@ export function App() {
               isPinned={pins.isPinned}
               onTogglePin={(treeId, nodeId) => pins.toggle({ treeId, nodeId })}
               contextText={context.text}
+              tagsOf={(nodeId) => nodeTags.get(nodeId) ?? []}
+              onApplyTags={applyTags}
             />
           ) : (
             <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>
