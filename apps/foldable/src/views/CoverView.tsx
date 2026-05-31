@@ -1,8 +1,16 @@
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEventHandler } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type TouchEventHandler,
+} from 'react';
 import type { BranchIntent, Node } from '@lineage/core';
 import type { Authoring } from '../hooks/useAuthoring.js';
 import type { FoldMode, HingeInfo } from '../fold/types.js';
-import { buildChildrenMap, buildNodeMap, childrenOf, pathToRoot } from '../lib/tree.js';
+import { buildChildrenMap, buildColumns, buildNodeMap, childrenOf, pathToRoot } from '../lib/tree.js';
 import { swipeDirection } from '../lib/swipe.js';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { MonologueCard } from '../components/MonologueCard.js';
@@ -179,6 +187,8 @@ export function CoverView({
           hinge={hinge}
           swipe={swipe}
         />
+      ) : mode === 'flat' ? (
+        <MillerColumns childrenMap={childrenMap} path={line} focusId={focusId} onFocus={focusNode} />
       ) : (
         <LinearStack
           line={line}
@@ -376,6 +386,96 @@ function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus, hin
         />
         {rightPage({ flex: 1 })}
       </div>
+    </div>
+  );
+}
+
+interface MillerColumnsProps {
+  childrenMap: Map<string | null, Node[]>;
+  path: Node[];
+  focusId: string;
+  onFocus: (nodeId: string) => void;
+}
+
+/**
+ * Flat / restructure view (C3): Miller columns. Column 0 is the root level;
+ * each subsequent column is the children of the selected node before it, with
+ * the active path highlighted. Tapping a node focuses it (and opens its
+ * children in the next column); the wide flat canvas shows spine + branches
+ * side-by-side. Authoring (append / diverge) stays on the shared footer.
+ */
+function MillerColumns({ childrenMap, path, focusId, onFocus }: MillerColumnsProps) {
+  const columns = useMemo(() => buildColumns(childrenMap, path), [childrenMap, path]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keep the deepest (rightmost) column in view as focus moves.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [columns.length, focusId]);
+
+  return (
+    <div
+      ref={scrollRef}
+      style={{ flex: 1, minHeight: 0, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}
+    >
+      {columns.map((col, i) => (
+        <div
+          key={i}
+          style={{
+            flex: '0 0 240px',
+            width: 240,
+            height: '100%',
+            overflowY: 'auto',
+            borderRight: `1px solid ${COLORS.border}`,
+            padding: '12px 8px',
+          }}
+        >
+          {col.items.map((node) => {
+            const focused = node.nodeId === focusId;
+            const selected = node.nodeId === col.selectedId;
+            const isRoot = node.parentId === null;
+            const accent = isRoot ? COLORS.root : intentColor(node.intent);
+            return (
+              <button
+                key={node.nodeId}
+                onClick={() => onFocus(node.nodeId)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  marginBottom: 4,
+                  padding: '8px 10px',
+                  background: focused ? COLORS.elevated : selected ? COLORS.surface : 'transparent',
+                  border: `1px solid ${focused ? accent : 'transparent'}`,
+                  borderLeft: `3px solid ${accent}`,
+                  borderRadius: '0 8px 8px 0',
+                  color: COLORS.text,
+                  cursor: 'pointer',
+                }}
+              >
+                {(isRoot || (node.intent && node.intent !== 'sequence')) && (
+                  <div style={{ fontSize: 10, fontFamily: FONTS.mono, color: accent, marginBottom: 2 }}>
+                    {isRoot ? 'root' : node.intent}
+                  </div>
+                )}
+                <div
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 3,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {node.content || '(empty)'}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }

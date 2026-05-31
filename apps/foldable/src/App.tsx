@@ -19,10 +19,7 @@ import { COLORS, FONTS } from './styles/theme.js';
 const SHELL: Record<FoldMode, { maxWidth: number; banner: string | null }> = {
   closed: { maxWidth: 680, banner: null },
   book: { maxWidth: 1040, banner: null },
-  flat: {
-    maxWidth: 1100,
-    banner: 'Flat canvas — graph/restructure view lands next phase.',
-  },
+  flat: { maxWidth: 1100, banner: null },
 };
 
 function deriveTitle(content: string): string {

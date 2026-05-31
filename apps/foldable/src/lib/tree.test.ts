@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { Node } from '@lineage/core';
-import { buildChildrenMap, buildNodeMap, childrenOf, deepestNewestLeaf, pathToRoot } from './tree.js';
+import {
+  buildChildrenMap,
+  buildColumns,
+  buildNodeMap,
+  childrenOf,
+  deepestNewestLeaf,
+  pathToRoot,
+} from './tree.js';
 
 function n(id: string, parentId: string | null, createdAt: string): Node {
   return {
@@ -48,5 +55,16 @@ describe('tree helpers', () => {
     expect(deepestNewestLeaf('root', map, cmap)).toBe('c');
     // from a, the only line ends at b.
     expect(deepestNewestLeaf('a', map, cmap)).toBe('b');
+  });
+
+  it('buildColumns produces Miller columns along the active path', () => {
+    const map = buildNodeMap(nodes);
+    const cmap = buildChildrenMap(nodes);
+    const path = pathToRoot(map, 'b'); // root → a → b
+    const cols = buildColumns(cmap, path);
+    expect(cols.map((c) => c.items.map((n) => n.nodeId))).toEqual([['root'], ['a', 'c'], ['b']]);
+    expect(cols.map((c) => c.selectedId)).toEqual(['root', 'a', 'b']);
+    // The focused leaf 'b' has no children, so there is no trailing column.
+    expect(cols).toHaveLength(3);
   });
 });
