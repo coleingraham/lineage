@@ -1,4 +1,5 @@
 export type {
+  BranchIntent,
   ContextSource,
   CrossTreeRef,
   CrossTreeRefQuery,
@@ -12,7 +13,7 @@ export type {
   Tag,
   TagCategory,
 } from './types.js';
-export { NODE_TYPES, CROSS_TREE_REF_KINDS } from './types.js';
+export { NODE_TYPES, BRANCH_INTENTS, CROSS_TREE_REF_KINDS } from './types.js';
 export type { NodeRepository } from './repository.js';
 export type { EmbeddingProvider } from './embedding.js';
 export type { Message, GenerationConfig, StreamChunk, StreamToken, LLMProvider } from './llm.js';

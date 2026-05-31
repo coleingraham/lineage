@@ -49,6 +49,7 @@ interface NodeRow {
   embedding_model: string | null;
   metadata: string | null;
   author: string | null;
+  intent: string | null;
 }
 
 interface TreeRow {
@@ -74,6 +75,7 @@ function rowToNode(row: NodeRow): Node {
     embeddingModel: row.embedding_model,
     metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : null,
     author: row.author,
+    intent: row.intent ?? null,
   };
 }
 
@@ -201,9 +203,10 @@ export class SqliteRepository implements NodeRepository {
         `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                 n.content, n.is_deleted, n.created_at, n.model_name,
                 n.provider, n.token_count, n.embedding_model,
-                n.metadata, n.author
+                n.metadata, n.author, bi.name AS intent
          FROM nodes n
          JOIN node_types nt ON nt.id = n.node_type_id
+         LEFT JOIN branch_intents bi ON bi.id = n.intent_id
          WHERE n.node_id = ?`,
       )
       .get(nodeId);
@@ -219,9 +222,10 @@ export class SqliteRepository implements NodeRepository {
         `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                 n.content, n.is_deleted, n.created_at, n.model_name,
                 n.provider, n.token_count, n.embedding_model,
-                n.metadata, n.author
+                n.metadata, n.author, bi.name AS intent
          FROM nodes n
          JOIN node_types nt ON nt.id = n.node_type_id
+         LEFT JOIN branch_intents bi ON bi.id = n.intent_id
          WHERE n.tree_id = ?`,
       )
       .all(treeId);
@@ -231,8 +235,8 @@ export class SqliteRepository implements NodeRepository {
   async putNode(node: Node): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model, metadata, author)
-         VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model, metadata, author, intent_id)
+         VALUES (?, ?, ?, (SELECT id FROM node_types WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT id FROM branch_intents WHERE name = ?))
          ON CONFLICT(node_id) DO UPDATE SET
            tree_id = excluded.tree_id,
            parent_id = excluded.parent_id,
@@ -245,7 +249,8 @@ export class SqliteRepository implements NodeRepository {
            token_count = excluded.token_count,
            embedding_model = excluded.embedding_model,
            metadata = excluded.metadata,
-           author = excluded.author`,
+           author = excluded.author,
+           intent_id = excluded.intent_id`,
       )
       .run(
         node.nodeId,
@@ -261,6 +266,7 @@ export class SqliteRepository implements NodeRepository {
         node.embeddingModel,
         node.metadata ? JSON.stringify(node.metadata) : null,
         node.author,
+        node.intent,
       );
   }
 
@@ -315,9 +321,10 @@ export class SqliteRepository implements NodeRepository {
     const sql = `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                         n.content, n.is_deleted, n.created_at, n.model_name,
                         n.provider, n.token_count, n.embedding_model,
-                        n.metadata, n.author, t.title AS tree_title
+                        n.metadata, n.author, bi.name AS intent, t.title AS tree_title
                  FROM nodes n
                  JOIN node_types nt ON nt.id = n.node_type_id
+                 LEFT JOIN branch_intents bi ON bi.id = n.intent_id
                  JOIN trees t ON t.tree_id = n.tree_id
                  WHERE ${conditions.join(' AND ')}
                  ORDER BY n.created_at DESC`;
@@ -572,9 +579,10 @@ export class SqliteRepository implements NodeRepository {
         `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                 n.content, n.is_deleted, n.created_at, n.model_name,
                 n.provider, n.token_count, n.embedding_model,
-                n.metadata, n.author
+                n.metadata, n.author, bi.name AS intent
          FROM nodes n
          JOIN node_types nt ON nt.id = n.node_type_id
+         LEFT JOIN branch_intents bi ON bi.id = n.intent_id
          JOIN node_tags ntg ON ntg.node_id = n.node_id
          WHERE ntg.tag_id IN (${placeholders})${whereExtra}
          GROUP BY n.node_id${having}`,

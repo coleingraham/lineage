@@ -75,6 +75,7 @@ export function treeRoutes(repo: NodeRepository) {
       embeddingModel: null,
       metadata: null,
       author: null,
+      intent: null,
     });
 
     return c.json(tree, 201);

@@ -10,6 +10,14 @@ INSERT OR IGNORE INTO node_types (id, name) VALUES
   (1, 'human'), (2, 'ai'), (3, 'summary'),
   (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
+CREATE TABLE IF NOT EXISTS branch_intents (
+  id   INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+INSERT OR IGNORE INTO branch_intents (id, name) VALUES
+  (1, 'sequence'), (2, 'alternative'), (3, 'elaboration'), (4, 'objection');
+
 CREATE TABLE IF NOT EXISTS trees (
   tree_id          TEXT PRIMARY KEY,
   title            TEXT NOT NULL,
@@ -31,7 +39,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   token_count     INTEGER,
   embedding_model TEXT,
   metadata        TEXT,
-  author          TEXT
+  author          TEXT,
+  intent_id       INTEGER REFERENCES branch_intents(id)
 );
 `;
 
@@ -90,6 +99,16 @@ CREATE INDEX IF NOT EXISTS idx_ctr_to ON cross_tree_refs(to_tree_id, to_node_id)
 CREATE INDEX IF NOT EXISTS idx_ctr_kind ON cross_tree_refs(kind);
 `;
 
+const MIGRATE_V6 = `
+CREATE TABLE IF NOT EXISTS branch_intents (
+  id   INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+INSERT OR IGNORE INTO branch_intents (id, name) VALUES
+  (1, 'sequence'), (2, 'alternative'), (3, 'elaboration'), (4, 'objection');
+ALTER TABLE nodes ADD COLUMN intent_id INTEGER REFERENCES branch_intents(id);
+`;
+
 export function runMigrations(db: Database.Database): void {
   db.exec(INIT_SQL);
 
@@ -130,6 +149,15 @@ export function runMigrations(db: Database.Database): void {
   if (hasCrossTreeRefs.cnt === 0) {
     db.exec(MIGRATE_V5);
     backfillCrossTreeRefs(db);
+  }
+
+  // V6: branch_intents lookup table + nodes.intent_id column (labels the hard
+  // edge from a node to its parent).
+  const hasIntentId = db
+    .prepare("SELECT COUNT(*) AS cnt FROM pragma_table_info('nodes') WHERE name = 'intent_id'")
+    .get() as { cnt: number };
+  if (hasIntentId.cnt === 0) {
+    db.exec(MIGRATE_V6);
   }
 }
 

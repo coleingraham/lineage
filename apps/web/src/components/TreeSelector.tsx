@@ -48,6 +48,7 @@ export function TreeSelector({
         embeddingModel: null,
         metadata: null,
         author: null,
+        intent: null,
       });
 
       onTreeCreated();

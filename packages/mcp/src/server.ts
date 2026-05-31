@@ -152,6 +152,7 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
         embeddingModel: null,
         metadata: null,
         author: null,
+        intent: null,
       });
 
       return {

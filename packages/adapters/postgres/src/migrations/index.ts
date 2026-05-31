@@ -10,6 +10,13 @@ CREATE TABLE IF NOT EXISTS node_types (
 
 INSERT INTO node_types (name) VALUES ('human'), ('ai'), ('summary'), ('system'), ('tool_call'), ('tool_result') ON CONFLICT DO NOTHING;
 
+CREATE TABLE IF NOT EXISTS branch_intents (
+  id   SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+INSERT INTO branch_intents (name) VALUES ('sequence'), ('alternative'), ('elaboration'), ('objection') ON CONFLICT DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS trees (
   tree_id          UUID PRIMARY KEY,
   title            TEXT NOT NULL,
@@ -32,7 +39,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   embedding_model TEXT,
   embedding       vector(1536),
   metadata        JSONB,
-  author          TEXT
+  author          TEXT,
+  intent_id       INTEGER REFERENCES branch_intents(id)
 );
 
 CREATE INDEX IF NOT EXISTS nodes_embedding_idx ON nodes USING hnsw (embedding vector_cosine_ops);
@@ -107,6 +115,15 @@ WHERE t.context_sources IS NOT NULL
   );
 `;
 
+const MIGRATE_V6 = `
+CREATE TABLE IF NOT EXISTS branch_intents (
+  id   SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+INSERT INTO branch_intents (name) VALUES ('sequence'), ('alternative'), ('elaboration'), ('objection') ON CONFLICT DO NOTHING;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS intent_id INTEGER REFERENCES branch_intents(id);
+`;
+
 export async function runMigrations(sql: postgres.Sql): Promise<void> {
   await sql.unsafe(INIT_SQL);
   await sql.unsafe(MIGRATE_V2);
@@ -114,4 +131,5 @@ export async function runMigrations(sql: postgres.Sql): Promise<void> {
   await sql.unsafe(MIGRATE_V4);
   await sql.unsafe(MIGRATE_V5);
   await sql.unsafe(MIGRATE_V5_BACKFILL);
+  await sql.unsafe(MIGRATE_V6);
 }

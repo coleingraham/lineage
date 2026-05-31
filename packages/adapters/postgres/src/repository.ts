@@ -30,6 +30,7 @@ interface NodeRow {
   embedding_model: string | null;
   metadata: string | Record<string, unknown> | null;
   author: string | null;
+  intent: string | null;
 }
 
 interface TreeRow {
@@ -78,6 +79,7 @@ function rowToNode(row: NodeRow): Node {
     embeddingModel: row.embedding_model,
     metadata,
     author: row.author,
+    intent: row.intent ?? null,
   };
 }
 
@@ -217,9 +219,10 @@ export class PostgresRepository implements NodeRepository {
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
              n.provider, n.token_count, n.embedding_model,
-             n.metadata, n.author
+             n.metadata, n.author, bi.name AS intent
       FROM nodes n
       JOIN node_types nt ON nt.id = n.node_type_id
+      LEFT JOIN branch_intents bi ON bi.id = n.intent_id
       WHERE n.node_id = ${nodeId}
     `;
     if (rows.length === 0) {
@@ -233,9 +236,10 @@ export class PostgresRepository implements NodeRepository {
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
              n.provider, n.token_count, n.embedding_model,
-             n.metadata, n.author
+             n.metadata, n.author, bi.name AS intent
       FROM nodes n
       JOIN node_types nt ON nt.id = n.node_type_id
+      LEFT JOIN branch_intents bi ON bi.id = n.intent_id
       WHERE n.tree_id = ${treeId}
     `;
     return rows.map(rowToNode);
@@ -246,12 +250,13 @@ export class PostgresRepository implements NodeRepository {
     await this.sql`
       INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted,
                          created_at, model_name, provider, token_count, embedding_model,
-                         metadata, author)
+                         metadata, author, intent_id)
       VALUES (${node.nodeId}, ${node.treeId}, ${node.parentId},
               (SELECT id FROM node_types WHERE name = ${node.type}),
               ${node.content}, ${node.isDeleted}, ${node.createdAt},
               ${node.modelName}, ${node.provider}, ${node.tokenCount},
-              ${node.embeddingModel}, ${metadataJson}::jsonb, ${node.author})
+              ${node.embeddingModel}, ${metadataJson}::jsonb, ${node.author},
+              (SELECT id FROM branch_intents WHERE name = ${node.intent}))
       ON CONFLICT (node_id) DO UPDATE SET
         tree_id = EXCLUDED.tree_id,
         parent_id = EXCLUDED.parent_id,
@@ -264,7 +269,8 @@ export class PostgresRepository implements NodeRepository {
         token_count = EXCLUDED.token_count,
         embedding_model = EXCLUDED.embedding_model,
         metadata = EXCLUDED.metadata,
-        author = EXCLUDED.author
+        author = EXCLUDED.author,
+        intent_id = EXCLUDED.intent_id
     `;
   }
 
@@ -303,10 +309,11 @@ export class PostgresRepository implements NodeRepository {
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
              n.provider, n.token_count, n.embedding_model,
-             n.metadata, n.author,
+             n.metadata, n.author, bi.name AS intent,
              1 - (n.embedding <=> ${vectorStr}::vector) AS score
       FROM nodes n
       JOIN node_types nt ON nt.id = n.node_type_id
+      LEFT JOIN branch_intents bi ON bi.id = n.intent_id
       WHERE n.tree_id = ${options.treeId}
         AND n.is_deleted = FALSE
         AND n.embedding IS NOT NULL
@@ -326,9 +333,10 @@ export class PostgresRepository implements NodeRepository {
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
              n.provider, n.token_count, n.embedding_model,
-             n.metadata, n.author, t.title AS tree_title
+             n.metadata, n.author, bi.name AS intent, t.title AS tree_title
       FROM nodes n
       JOIN node_types nt ON nt.id = n.node_type_id
+      LEFT JOIN branch_intents bi ON bi.id = n.intent_id
       JOIN trees t ON t.tree_id = n.tree_id
       WHERE n.content ILIKE ${pattern}
         AND (${includeDeleted} OR n.is_deleted = FALSE)
@@ -532,16 +540,17 @@ export class PostgresRepository implements NodeRepository {
       SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
              n.content, n.is_deleted, n.created_at, n.model_name,
              n.provider, n.token_count, n.embedding_model,
-             n.metadata, n.author
+             n.metadata, n.author, bi.name AS intent
       FROM nodes n
       JOIN node_types nt ON nt.id = n.node_type_id
+      LEFT JOIN branch_intents bi ON bi.id = n.intent_id
       JOIN node_tags ntg ON ntg.node_id = n.node_id
       WHERE ntg.tag_id = ANY(${tagIds})
         AND (${treeId} IS NULL OR n.tree_id = ${treeId})
       GROUP BY n.node_id, n.tree_id, n.parent_id, nt.name,
                n.content, n.is_deleted, n.created_at, n.model_name,
                n.provider, n.token_count, n.embedding_model,
-               n.metadata, n.author
+               n.metadata, n.author, bi.name
       HAVING COUNT(DISTINCT ntg.tag_id) >= ${matchAll ? requiredCount : 1}
     `;
     return rows.map(rowToNode);

@@ -218,6 +218,7 @@ export function App() {
       embeddingModel: null,
       metadata: null,
       author: null,
+      intent: null,
     });
 
     // Clear pin selection and navigate with root node in edit mode

@@ -54,6 +54,7 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     embeddingModel: null,
     metadata: null,
     author: null,
+    intent: null,
     ...overrides,
   };
 }
@@ -209,6 +210,28 @@ describe.each(fixtures)('NodeRepository contract — $name', (fixture) => {
       });
       await repo.putNode(node);
       expect(await repo.getNode('ai-1')).toEqual(node);
+    });
+
+    it('round-trips a branch-intent label on a node', async () => {
+      const root = makeNode({ nodeId: 'node-root', intent: null });
+      await repo.putNode(root);
+      const child = makeNode({
+        nodeId: 'child-1',
+        parentId: 'node-root',
+        intent: 'elaboration',
+      });
+      await repo.putNode(child);
+      expect((await repo.getNode('node-root')).intent).toBeNull();
+      expect((await repo.getNode('child-1')).intent).toBe('elaboration');
+      // The full object (incl. intent) round-trips intact.
+      expect(await repo.getNode('child-1')).toEqual(child);
+    });
+
+    it('updates a node intent on upsert', async () => {
+      await repo.putNode(makeNode({ intent: null }));
+      expect((await repo.getNode('node-1')).intent).toBeNull();
+      await repo.putNode(makeNode({ intent: 'objection' }));
+      expect((await repo.getNode('node-1')).intent).toBe('objection');
     });
   });
 

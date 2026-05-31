@@ -16,6 +16,7 @@ function makeNode(overrides: Partial<Node> & { nodeId: string }): Node {
     embeddingModel: null,
     metadata: null,
     author: null,
+    intent: null,
     ...overrides,
   };
 }
