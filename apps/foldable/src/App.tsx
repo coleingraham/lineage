@@ -9,6 +9,7 @@ import type { FoldMode } from './fold/types.js';
 import { buildChildrenMap, buildNodeMap, deepestNewestLeaf } from './lib/tree.js';
 import { CoverView } from './views/CoverView.js';
 import { ComposeBar } from './components/ComposeBar.js';
+import { TreeBrowser } from './components/TreeBrowser.js';
 import { COLORS, FONTS } from './styles/theme.js';
 
 /** Posture-driven layout envelope: width + an informational banner per mode. */
@@ -39,6 +40,7 @@ export function App() {
   // from `selectedTreeId` so the auto-select effect below can't fight the +
   // button — nulling the selection alone would just get re-selected.
   const [creatingNew, setCreatingNew] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const trees = useTreeList(repo, refreshKey);
   const { nodes, loading } = useTreeData(repo, session.selectedTreeId, refreshKey);
   const authoring = useAuthoring(repo, refresh);
@@ -71,6 +73,28 @@ export function App() {
 
   const onFocus = useCallback((nodeId: string) => setSession({ focusedNodeId: nodeId }), [setSession]);
 
+  const selectTree = useCallback(
+    (id: string) => {
+      setCreatingNew(false);
+      setSession({ selectedTreeId: id, focusedNodeId: null });
+    },
+    [setSession],
+  );
+
+  const deleteTree = useCallback(
+    async (treeId: string) => {
+      if (!repo) return;
+      await repo.deleteTree(treeId);
+      // If the open tree was deleted, drop the selection — the auto-select
+      // effect will pick another (or fall through to the empty state).
+      if (treeId === session.selectedTreeId) {
+        setSession({ selectedTreeId: null, focusedNodeId: null });
+      }
+      refresh();
+    },
+    [repo, session.selectedTreeId, setSession, refresh],
+  );
+
   const startMonologue = useCallback(
     async (content: string) => {
       const { treeId, rootNodeId } = await authoring.createTree(deriveTitle(content), content);
@@ -89,12 +113,8 @@ export function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: COLORS.bg }}>
       <Header
-        trees={trees}
-        selectedTreeId={creatingNew ? null : session.selectedTreeId}
-        onSelectTree={(id) => {
-          setCreatingNew(false);
-          setSession({ selectedTreeId: id, focusedNodeId: null });
-        }}
+        title={creatingNew ? null : (selectedTree?.title ?? null)}
+        onOpenBrowser={() => setBrowserOpen(true)}
         onNew={() => setCreatingNew(true)}
         mode={fold.mode}
         source={fold.source}
@@ -116,41 +136,50 @@ export function App() {
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center' }}>
-        <div style={{ width: '100%', maxWidth: shell.maxWidth, minHeight: 0, display: 'flex' }}>
-          {!repo ? (
-            <Centered>Opening on-device store…</Centered>
-          ) : !creatingNew && session.selectedTreeId && selectedTree ? (
-            session.focusedNodeId ? (
-              <CoverView
-                treeId={session.selectedTreeId}
-                nodes={nodes}
-                focusedNodeId={session.focusedNodeId}
-                onFocus={onFocus}
-                authoring={authoring}
-              />
-            ) : (
-              <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>
-            )
+      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        {!repo ? (
+          <Centered>Opening on-device store…</Centered>
+        ) : !creatingNew && session.selectedTreeId && selectedTree ? (
+          session.focusedNodeId ? (
+            <CoverView
+              treeId={session.selectedTreeId}
+              nodes={nodes}
+              focusedNodeId={session.focusedNodeId}
+              onFocus={onFocus}
+              authoring={authoring}
+              maxWidth={shell.maxWidth}
+            />
           ) : (
-            <EmptyState onStart={startMonologue} />
-          )}
-        </div>
+            <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>
+          )
+        ) : (
+          <EmptyState onStart={startMonologue} />
+        )}
       </div>
+
+      {browserOpen && (
+        <TreeBrowser
+          trees={trees}
+          selectedTreeId={session.selectedTreeId}
+          onSelect={selectTree}
+          onDelete={deleteTree}
+          onClose={() => setBrowserOpen(false)}
+          mode={fold.mode}
+        />
+      )}
     </div>
   );
 }
 
 interface HeaderProps {
-  trees: { treeId: string; title: string }[];
-  selectedTreeId: string | null;
-  onSelectTree: (id: string) => void;
+  title: string | null;
+  onOpenBrowser: () => void;
   onNew: () => void;
   mode: FoldMode;
   source: string;
 }
 
-function Header({ trees, selectedTreeId, onSelectTree, onNew, mode, source }: HeaderProps) {
+function Header({ title, onOpenBrowser, onNew, mode, source }: HeaderProps) {
   return (
     <header
       style={{
@@ -163,27 +192,38 @@ function Header({ trees, selectedTreeId, onSelectTree, onNew, mode, source }: He
         borderBottom: `1px solid ${COLORS.border}`,
       }}
     >
-      <select
-        value={selectedTreeId ?? ''}
-        onChange={(e) => onSelectTree(e.target.value)}
+      <button
+        onClick={onOpenBrowser}
+        title="Browse monologues"
         style={{
           flex: 1,
           minWidth: 0,
-          padding: '6px 8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '7px 10px',
           background: COLORS.bg,
-          color: COLORS.text,
+          color: title ? COLORS.text : COLORS.textSecondary,
           border: `1px solid ${COLORS.border}`,
           borderRadius: 8,
           fontSize: 14,
+          cursor: 'pointer',
+          textAlign: 'left',
         }}
       >
-        {!selectedTreeId && <option value="">— select a monologue —</option>}
-        {trees.map((t) => (
-          <option key={t.treeId} value={t.treeId}>
-            {t.title}
-          </option>
-        ))}
-      </select>
+        <span style={{ color: COLORS.textSecondary, fontSize: 12 }}>☰</span>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {title ?? 'Select a monologue'}
+        </span>
+      </button>
 
       <span
         title={`posture source: ${source}`}

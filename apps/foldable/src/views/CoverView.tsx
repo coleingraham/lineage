@@ -13,6 +13,9 @@ interface CoverViewProps {
   focusedNodeId: string;
   onFocus: (nodeId: string) => void;
   authoring: Authoring;
+  /** Reading-column width for the cards. The compose bar ignores this and
+   * spans the full pane. */
+  maxWidth: number;
 }
 
 /**
@@ -21,7 +24,14 @@ interface CoverViewProps {
  * thumb-reachable compose bar. Works on any phone; the foldable payoff (book
  * spread, flat graph) builds on this same data later.
  */
-export function CoverView({ treeId, nodes, focusedNodeId, onFocus, authoring }: CoverViewProps) {
+export function CoverView({
+  treeId,
+  nodes,
+  focusedNodeId,
+  onFocus,
+  authoring,
+  maxWidth,
+}: CoverViewProps) {
   const nodeMap = useMemo(() => buildNodeMap(nodes), [nodes]);
   const childrenMap = useMemo(() => buildChildrenMap(nodes), [nodes]);
   const rootId = useMemo(() => nodes.find((n) => n.parentId === null)?.nodeId ?? null, [nodes]);
@@ -52,10 +62,11 @@ export function CoverView({ treeId, nodes, focusedNodeId, onFocus, authoring }: 
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px 16px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {line.map((node) => (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth, margin: '0 auto', padding: '12px 10px 16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {line.map((node) => (
             <MonologueCard
               key={node.nodeId}
               node={node}
@@ -130,6 +141,7 @@ export function CoverView({ treeId, nodes, focusedNodeId, onFocus, authoring }: 
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {picking && !divergeIntent ? (
