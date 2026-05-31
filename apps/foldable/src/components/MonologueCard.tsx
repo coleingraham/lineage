@@ -20,14 +20,14 @@ interface MonologueCardProps {
   /** AI actions, shown on the focused card when on-device AI is available. */
   onSummarize?: () => void;
   onAiReply?: () => void;
-  /** Extract topical tags from this node via on-device AI. */
-  onExtractTags?: () => void;
+  /** Open the tag editor (manual + AI suggest) for this node. */
+  onOpenTags?: () => void;
   /** Tags currently on this node. */
   tags?: Tag[];
   /** True while any on-device AI op is running — disables AI actions. */
   aiBusy?: boolean;
   /** Which AI action is in flight, to spin only that button. */
-  aiRunning?: 'summarize' | 'reply' | 'tags' | null;
+  aiRunning?: 'summarize' | 'reply' | null;
   pinned?: boolean;
   onTogglePin?: () => void;
 }
@@ -58,7 +58,7 @@ export function MonologueCard({
   onDiverge,
   onSummarize,
   onAiReply,
-  onExtractTags,
+  onOpenTags,
   tags,
   aiBusy,
   aiRunning,
@@ -214,25 +214,9 @@ export function MonologueCard({
               )}
             </button>
           )}
-          {onExtractTags && (
-            <button
-              onClick={onExtractTags}
-              disabled={aiBusy}
-              style={{
-                ...ACTION_STYLE,
-                color: COLORS.root,
-                opacity: aiBusy && aiRunning !== 'tags' ? 0.4 : 1,
-                cursor: aiBusy ? 'default' : 'pointer',
-              }}
-            >
-              {aiRunning === 'tags' ? (
-                <>
-                  <span className="spinner" style={{ marginRight: 5 }} />
-                  tagging…
-                </>
-              ) : (
-                '🏷 tags'
-              )}
+          {onOpenTags && (
+            <button onClick={onOpenTags} style={{ ...ACTION_STYLE, color: COLORS.root }}>
+              🏷 tags
             </button>
           )}
           {onTogglePin && (

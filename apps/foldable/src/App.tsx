@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRepository } from './hooks/useRepository.js';
-import { useContextText, useNodeTags, useTreeData, useTreeList } from './hooks/useTreeData.js';
+import {
+  useAllTags,
+  useContextText,
+  useNodeTags,
+  useTreeData,
+  useTreeList,
+} from './hooks/useTreeData.js';
 import { useAuthoring } from './hooks/useAuthoring.js';
 import { useSession } from './lib/session.js';
 import { useFoldStore, useFoldState } from './fold/store.js';
@@ -15,6 +21,8 @@ import { TreeBrowser } from './components/TreeBrowser.js';
 import { ProsePanel } from './components/ProsePanel.js';
 import { PinsPanel } from './components/PinsPanel.js';
 import { ContextPanel } from './components/ContextPanel.js';
+import { TagEditor } from './components/TagEditor.js';
+import type { Node } from '@lineage/core';
 import { usePins } from './hooks/usePins.js';
 import type { PinnedRef } from './lib/pins.js';
 import { exportBackup } from './lib/backup.js';
@@ -50,6 +58,7 @@ export function App() {
   const [proseOpen, setProseOpen] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [tagEditorNode, setTagEditorNode] = useState<Node | null>(null);
   const aiSupported = isAiSupported();
   const aiRunner = useAi();
   const pins = usePins();
@@ -57,6 +66,7 @@ export function App() {
   const { nodes, loading } = useTreeData(repo, session.selectedTreeId, refreshKey);
   const context = useContextText(repo, session.selectedTreeId, refreshKey);
   const nodeTags = useNodeTags(repo, nodes, refreshKey);
+  const allTags = useAllTags(repo, refreshKey);
   const authoring = useAuthoring(repo, refresh);
 
   const fold = useFoldState();
@@ -148,6 +158,15 @@ export function App() {
       if (!repo) return;
       const categoryId = await ensureCategory(repo, 'Topics');
       await applyNamedTags(repo, categoryId, nodeId, names);
+      refresh();
+    },
+    [repo, refresh],
+  );
+
+  const removeTag = useCallback(
+    async (nodeId: string, tagId: string) => {
+      if (!repo) return;
+      await repo.untagNode(nodeId, [tagId]);
       refresh();
     },
     [repo, refresh],
@@ -268,7 +287,7 @@ export function App() {
               onTogglePin={(treeId, nodeId) => pins.toggle({ treeId, nodeId })}
               contextText={context.text}
               tagsOf={(nodeId) => nodeTags.get(nodeId) ?? []}
-              onApplyTags={applyTags}
+              onOpenTags={(node) => setTagEditorNode(node)}
             />
           ) : (
             <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>
@@ -291,6 +310,17 @@ export function App() {
           onClear={pins.clear}
           onCreate={createFromContext}
           onClose={() => setPinsOpen(false)}
+        />
+      )}
+
+      {tagEditorNode && (
+        <TagEditor
+          node={tagEditorNode}
+          currentTags={nodeTags.get(tagEditorNode.nodeId) ?? []}
+          allTags={allTags}
+          onAdd={applyTags}
+          onRemove={removeTag}
+          onClose={() => setTagEditorNode(null)}
         />
       )}
 

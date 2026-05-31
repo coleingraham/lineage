@@ -20,7 +20,6 @@ import {
 } from '../lib/tree.js';
 import { swipeDirection } from '../lib/swipe.js';
 import { buildReplyPrompt, buildSummaryPrompt, threadText } from '../lib/aiPrompts.js';
-import { buildTagPrompt, parseTags } from '../lib/tags.js';
 import { useAi } from '../hooks/useAi.js';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { MonologueCard } from '../components/MonologueCard.js';
@@ -46,8 +45,8 @@ interface CoverViewProps {
   contextText?: string;
   /** Tags currently on a node (for display). */
   tagsOf?: (nodeId: string) => Tag[];
-  /** Persist AI-extracted tag names on a node. */
-  onApplyTags?: (nodeId: string, names: string[]) => Promise<void>;
+  /** Open the tag editor for a node (manual + AI). */
+  onOpenTags?: (node: Node) => void;
 }
 
 function PageLabel({ children }: { children: ReactNode }) {
@@ -91,7 +90,7 @@ export function CoverView({
   onTogglePin,
   contextText,
   tagsOf,
-  onApplyTags,
+  onOpenTags,
 }: CoverViewProps) {
   const nodeMap = useMemo(() => buildNodeMap(nodes), [nodes]);
   const childrenMap = useMemo(() => buildChildrenMap(nodes), [nodes]);
@@ -171,7 +170,7 @@ export function CoverView({
   // On-device AI actions (Android only). Each builds a prompt from the active
   // line up to the node, generates, and attaches a typed node.
   const ai = useAi();
-  const [runningAi, setRunningAi] = useState<'summarize' | 'reply' | 'tags' | null>(null);
+  const [runningAi, setRunningAi] = useState<'summarize' | 'reply' | null>(null);
   const aiBusy = runningAi !== null || ai.busy !== null;
 
   // Context the model sees: traverse up to the root or the lowest summary node,
@@ -202,20 +201,6 @@ export function CoverView({
       setRunningAi(null);
     }
   };
-  const extractTagsNode = async (node: Node) => {
-    if (aiBusy || !onApplyTags) return;
-    setRunningAi('tags');
-    try {
-      const text = await ai.generate(buildTagPrompt(node.content));
-      if (text != null) {
-        const names = parseTags(text);
-        if (names.length > 0) await onApplyTags(node.nodeId, names);
-      }
-    } finally {
-      setRunningAi(null);
-    }
-  };
-
   // One spine card, fully wired — reused by both layouts.
   const spineCard = (node: Node) => (
     <MonologueCard
@@ -245,7 +230,7 @@ export function CoverView({
       }}
       onSummarize={ai.supported ? () => void summarizeNode(node) : undefined}
       onAiReply={ai.supported ? () => void aiReplyNode(node) : undefined}
-      onExtractTags={ai.supported && onApplyTags ? () => void extractTagsNode(node) : undefined}
+      onOpenTags={onOpenTags ? () => onOpenTags(node) : undefined}
       tags={tagsOf?.(node.nodeId)}
       aiBusy={aiBusy}
       aiRunning={runningAi}

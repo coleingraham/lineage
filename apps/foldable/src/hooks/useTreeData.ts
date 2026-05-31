@@ -33,6 +33,27 @@ export function useNodeTags(
   return map;
 }
 
+/** Load all known tags (across categories), refreshing on `refreshKey`. */
+export function useAllTags(repo: NodeRepository | null, refreshKey: number): Tag[] {
+  const [tags, setTags] = useState<Tag[]>([]);
+  useEffect(() => {
+    if (!repo) return;
+    let active = true;
+    repo
+      .listTags()
+      .then((t) => {
+        if (active) setTags(t);
+      })
+      .catch(() => {
+        if (active) setTags([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [repo, refreshKey]);
+  return tags;
+}
+
 /** Load all trees, refreshing when `refreshKey` changes. */
 export function useTreeList(repo: NodeRepository | null, refreshKey: number): Tree[] {
   const [trees, setTrees] = useState<Tree[]>([]);
