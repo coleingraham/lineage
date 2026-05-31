@@ -1,8 +1,9 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEventHandler } from 'react';
 import type { BranchIntent, Node } from '@lineage/core';
 import type { Authoring } from '../hooks/useAuthoring.js';
 import type { FoldMode, HingeInfo } from '../fold/types.js';
 import { buildChildrenMap, buildNodeMap, childrenOf, pathToRoot } from '../lib/tree.js';
+import { swipeDirection } from '../lib/swipe.js';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { MonologueCard } from '../components/MonologueCard.js';
 import { ComposeBar } from '../components/ComposeBar.js';
@@ -69,6 +70,10 @@ export function CoverView({
   const line = useMemo(() => pathToRoot(nodeMap, focusId), [nodeMap, focusId]);
   const divergences = useMemo(() => childrenOf(childrenMap, focusId), [childrenMap, focusId]);
 
+  // Spine neighbours for page-turn gestures.
+  const parentId = nodeMap.get(focusId)?.parentId ?? null;
+  const nextChild = divergences.length > 0 ? divergences[divergences.length - 1] : null;
+
   // Diverge flow: pick an intent, then compose the divergence content.
   const [picking, setPicking] = useState(false);
   const [divergeIntent, setDivergeIntent] = useState<BranchIntent | null>(null);
@@ -108,6 +113,29 @@ export function CoverView({
     resetDiverge();
     onFocus(id);
   };
+
+  // Page-turn gesture (D2): a horizontal swipe walks the spine — right → back
+  // to the parent, left → forward to the next thought. Reaching across the
+  // hinge to take a branch stays a tap (it's a choice of which branch).
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart: TouchEventHandler<HTMLDivElement> = (e) => {
+    const t = e.touches[0];
+    touchStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const onTouchEnd: TouchEventHandler<HTMLDivElement> = (e) => {
+    const s = touchStart.current;
+    touchStart.current = null;
+    if (!s || editingNodeId) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dir = swipeDirection(t.clientX - s.x, t.clientY - s.y);
+    if (dir === 'right') {
+      if (parentId) focusNode(parentId);
+    } else if (dir === 'left') {
+      if (nextChild) focusNode(nextChild.nodeId);
+    }
+  };
+  const swipe = { onTouchStart, onTouchEnd };
 
   // One spine card, fully wired — reused by both layouts.
   const spineCard = (node: Node) => (
@@ -149,6 +177,7 @@ export function CoverView({
           renderSpineCard={spineCard}
           onFocus={focusNode}
           hinge={hinge}
+          swipe={swipe}
         />
       ) : (
         <LinearStack
@@ -157,6 +186,7 @@ export function CoverView({
           maxWidth={maxWidth}
           renderSpineCard={spineCard}
           onFocus={focusNode}
+          swipe={swipe}
         />
       )}
 
@@ -178,6 +208,11 @@ export function CoverView({
   );
 }
 
+interface SwipeHandlers {
+  onTouchStart: TouchEventHandler<HTMLDivElement>;
+  onTouchEnd: TouchEventHandler<HTMLDivElement>;
+}
+
 interface LayoutProps {
   line: Node[];
   divergences: Node[];
@@ -185,12 +220,13 @@ interface LayoutProps {
   renderSpineCard: (node: Node) => ReactNode;
   onFocus: (nodeId: string) => void;
   hinge?: HingeInfo;
+  swipe?: SwipeHandlers;
 }
 
 /** Single-column stack (cover / flat): spine then divergence chips below. */
-function LinearStack({ line, divergences, maxWidth, renderSpineCard, onFocus }: LayoutProps) {
+function LinearStack({ line, divergences, maxWidth, renderSpineCard, onFocus, swipe }: LayoutProps) {
   return (
-    <div style={{ flex: 1, overflowY: 'auto' }}>
+    <div style={{ flex: 1, overflowY: 'auto' }} {...swipe}>
       <div style={{ maxWidth, margin: '0 auto', padding: '12px 10px 16px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
 
@@ -239,7 +275,7 @@ function LinearStack({ line, divergences, maxWidth, renderSpineCard, onFocus }: 
  * content out from under it. Otherwise (desktop / size-inferred / manual book)
  * it falls back to a centred split with a thin seam.
  */
-function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus, hinge }: LayoutProps) {
+function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus, hinge, swipe }: LayoutProps) {
   const pageBase: CSSProperties = {
     minWidth: 0,
     overflowY: 'auto',
@@ -247,7 +283,7 @@ function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus, hin
   };
 
   const leftPage = (style: CSSProperties) => (
-    <div style={{ ...pageBase, ...style }}>
+    <div style={{ ...pageBase, ...style }} {...swipe}>
       <PageLabel>spine</PageLabel>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
     </div>
