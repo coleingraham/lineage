@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { BranchIntent, NodeRepository, Tree } from '@lineage/core';
-import { BRANCH_INTENTS, createNode } from '@lineage/core';
+import { BRANCH_INTENTS, NODE_TYPES, createNode } from '@lineage/core';
 import { getAuthorId } from '../lib/authorId.js';
 
 export interface Authoring {
@@ -22,6 +22,10 @@ export interface Authoring {
    * the id of the node to focus (the new sibling, or the root).
    */
   edit: (nodeId: string, content: string) => Promise<string>;
+  /** Attach an AI-generated summary node (type `summary`) under a node. */
+  summarize: (treeId: string, parentId: string, content: string) => Promise<string>;
+  /** Attach an AI-generated response node (type `ai`) under a node. */
+  aiReply: (treeId: string, parentId: string, content: string) => Promise<string>;
   /** Soft-delete a node. */
   remove: (nodeId: string) => Promise<void>;
 }
@@ -117,6 +121,36 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
     [repo, author, onChanged],
   );
 
+  const summarize = useCallback<Authoring['summarize']>(
+    async (treeId, parentId, content) => {
+      if (!repo) throw new Error('Repository not ready');
+      const node = createNode({ treeId, parentId, type: NODE_TYPES.SUMMARY, content, intent: null });
+      await repo.putNode(node);
+      onChanged();
+      return node.nodeId;
+    },
+    [repo, onChanged],
+  );
+
+  const aiReply = useCallback<Authoring['aiReply']>(
+    async (treeId, parentId, content) => {
+      if (!repo) throw new Error('Repository not ready');
+      const node = createNode({
+        treeId,
+        parentId,
+        type: NODE_TYPES.AI,
+        content,
+        provider: 'aicore',
+        modelName: 'gemini-nano',
+        intent: null,
+      });
+      await repo.putNode(node);
+      onChanged();
+      return node.nodeId;
+    },
+    [repo, onChanged],
+  );
+
   const remove = useCallback<Authoring['remove']>(
     async (nodeId) => {
       if (!repo) throw new Error('Repository not ready');
@@ -126,5 +160,5 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
     [repo, onChanged],
   );
 
-  return { createTree, append, diverge, edit, remove };
+  return { createTree, append, diverge, edit, summarize, aiReply, remove };
 }

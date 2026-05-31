@@ -17,6 +17,9 @@ interface MonologueCardProps {
   onCancelEdit: () => void;
   onDelete: () => void;
   onDiverge: () => void;
+  /** AI actions, shown on the focused card when on-device AI is available. */
+  onSummarize?: () => void;
+  onAiReply?: () => void;
 }
 
 const ACTION_STYLE: CSSProperties = {
@@ -43,9 +46,20 @@ export function MonologueCard({
   onCancelEdit,
   onDelete,
   onDiverge,
+  onSummarize,
+  onAiReply,
 }: MonologueCardProps) {
-  const accent = isRoot ? COLORS.root : intentColor(node.intent);
-  const showIntent = node.intent && node.intent !== 'sequence';
+  const typeLabel = node.type === 'ai' ? 'ai' : node.type === 'summary' ? 'summary' : null;
+  const accent = isRoot
+    ? COLORS.root
+    : node.type === 'ai'
+      ? COLORS.ai
+      : node.type === 'summary'
+        ? COLORS.summary
+        : intentColor(node.intent);
+  const chipLabel = isRoot
+    ? 'root'
+    : (typeLabel ?? (node.intent && node.intent !== 'sequence' ? node.intent : null));
 
   return (
     <div
@@ -61,7 +75,7 @@ export function MonologueCard({
         opacity: focused ? 1 : 0.82,
       }}
     >
-      {(showIntent || isRoot) && (
+      {chipLabel && (
         <div
           style={{
             display: 'inline-block',
@@ -75,7 +89,7 @@ export function MonologueCard({
             textTransform: 'lowercase',
           }}
         >
-          {isRoot ? 'root' : node.intent}
+          {chipLabel}
         </div>
       )}
 
@@ -121,6 +135,16 @@ export function MonologueCard({
           <button onClick={onDiverge} style={{ ...ACTION_STYLE, color: COLORS.branch }}>
             ⌥ diverge
           </button>
+          {onAiReply && (
+            <button onClick={onAiReply} style={{ ...ACTION_STYLE, color: COLORS.ai }}>
+              ✨ reply
+            </button>
+          )}
+          {onSummarize && (
+            <button onClick={onSummarize} style={{ ...ACTION_STYLE, color: COLORS.summary }}>
+              summarize
+            </button>
+          )}
           <button onClick={onStartEdit} style={ACTION_STYLE}>
             edit
           </button>

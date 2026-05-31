@@ -12,6 +12,8 @@ import type { Authoring } from '../hooks/useAuthoring.js';
 import type { FoldMode, HingeInfo } from '../fold/types.js';
 import { buildChildrenMap, buildColumns, buildNodeMap, childrenOf, pathToRoot } from '../lib/tree.js';
 import { swipeDirection } from '../lib/swipe.js';
+import { buildReplyPrompt, buildSummaryPrompt, threadText } from '../lib/aiPrompts.js';
+import { useAi } from '../hooks/useAi.js';
 import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 import { MonologueCard } from '../components/MonologueCard.js';
 import { ComposeBar } from '../components/ComposeBar.js';
@@ -145,6 +147,20 @@ export function CoverView({
   };
   const swipe = { onTouchStart, onTouchEnd };
 
+  // On-device AI actions (Android only). Each builds a prompt from the active
+  // line up to the node, generates, and attaches a typed node.
+  const ai = useAi();
+  const summarizeNode = async (node: Node) => {
+    const text = await ai.generate(buildSummaryPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
+    if (text == null) return;
+    focusNode(await authoring.summarize(treeId, node.nodeId, text));
+  };
+  const aiReplyNode = async (node: Node) => {
+    const text = await ai.generate(buildReplyPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
+    if (text == null) return;
+    focusNode(await authoring.aiReply(treeId, node.nodeId, text));
+  };
+
   // One spine card, fully wired — reused by both layouts.
   const spineCard = (node: Node) => (
     <MonologueCard
@@ -172,6 +188,8 @@ export function CoverView({
         setPicking(true);
         setDivergeIntent(null);
       }}
+      onSummarize={ai.supported ? () => void summarizeNode(node) : undefined}
+      onAiReply={ai.supported ? () => void aiReplyNode(node) : undefined}
     />
   );
 
@@ -198,6 +216,25 @@ export function CoverView({
           onFocus={focusNode}
           swipe={swipe}
         />
+      )}
+
+      {(ai.busy || ai.error) && (
+        <div
+          onClick={ai.error ? ai.clearError : undefined}
+          style={{
+            padding: '6px 12px',
+            background: COLORS.elevated,
+            borderTop: `1px solid ${COLORS.border}`,
+            color: ai.error ? '#d88a8a' : COLORS.textSecondary,
+            fontSize: 12,
+            fontFamily: FONTS.mono,
+            textAlign: 'center',
+            cursor: ai.error ? 'pointer' : 'default',
+          }}
+        >
+          {ai.busy ?? ai.error}
+          {ai.error ? ' — tap to dismiss' : ''}
+        </div>
       )}
 
       {picking && !divergeIntent ? (
