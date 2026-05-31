@@ -25,6 +25,8 @@ import { ComposeBar } from '../components/ComposeBar.js';
 import { IntentPicker } from '../components/IntentPicker.js';
 import { FlatCanvas } from '../components/FlatCanvas.js';
 
+const FLAT_LAYOUT_KEY = 'lineage-foldable:flatLayout';
+
 interface CoverViewProps {
   treeId: string;
   nodes: Node[];
@@ -61,6 +63,46 @@ function PageLabel({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+    </div>
+  );
+}
+
+/** Segmented control to switch the flat layout between the 2D map and spread. */
+function FlatLayoutToggle({
+  value,
+  onChange,
+}: {
+  value: 'canvas' | 'spread';
+  onChange: (v: 'canvas' | 'spread') => void;
+}) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 2px' }}>
+      <div
+        style={{
+          display: 'inline-flex',
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}
+      >
+        {(['canvas', 'spread'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            style={{
+              padding: '5px 16px',
+              fontSize: 12,
+              fontFamily: FONTS.mono,
+              background: value === v ? COLORS.elevated : 'transparent',
+              color: value === v ? COLORS.text : COLORS.textSecondary,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            {v === 'canvas' ? '⬡ map' : '▟ spread'}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -106,6 +148,17 @@ export function CoverView({
   // Diverge flow: pick an intent, then compose the divergence content.
   const [picking, setPicking] = useState(false);
   const [divergeIntent, setDivergeIntent] = useState<BranchIntent | null>(null);
+
+  // Flat-mode layout preference (persisted): the 2D map or the book spread.
+  const [flatLayout, setFlatLayoutState] = useState<'canvas' | 'spread'>(() =>
+    typeof localStorage !== 'undefined' && localStorage.getItem(FLAT_LAYOUT_KEY) === 'spread'
+      ? 'spread'
+      : 'canvas',
+  );
+  const setFlatLayout = (value: 'canvas' | 'spread') => {
+    setFlatLayoutState(value);
+    if (typeof localStorage !== 'undefined') localStorage.setItem(FLAT_LAYOUT_KEY, value);
+  };
 
   // Edit state lives here (not in MonologueCard) so it survives the
   // linear↔book layout swap rather than being lost to a remount.
@@ -255,7 +308,27 @@ export function CoverView({
           swipe={swipe}
         />
       ) : mode === 'flat' ? (
-        <FlatCanvas nodes={nodes} focusId={focusId} onFocus={focusNode} onDiverge={startDiverge} />
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <FlatLayoutToggle value={flatLayout} onChange={setFlatLayout} />
+          {flatLayout === 'spread' ? (
+            <BookSpread
+              line={line}
+              divergences={divergences}
+              maxWidth={maxWidth}
+              renderSpineCard={spineCard}
+              onFocus={focusNode}
+              hinge={hinge}
+              swipe={swipe}
+            />
+          ) : (
+            <FlatCanvas
+              nodes={nodes}
+              focusId={focusId}
+              onFocus={focusNode}
+              onDiverge={startDiverge}
+            />
+          )}
+        </div>
       ) : (
         <LinearStack
           line={line}
