@@ -24,29 +24,6 @@ export function childrenOf(childrenMap: Map<string | null, Node[]>, nodeId: stri
   return [...kids].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export interface MillerColumn {
-  items: Node[];
-  /** The node on the active path shown in this column, if any. */
-  selectedId: string | null;
-}
-
-/**
- * Build Miller-column data for the flat view: column 0 is the root level, and
- * each subsequent column is the children of the path node before it, with the
- * on-path node marked selected. Trailing empty columns (a focused leaf) are
- * omitted. `path` is root→focused (from {@link pathToRoot}).
- */
-export function buildColumns(childrenMap: Map<string | null, Node[]>, path: Node[]): MillerColumn[] {
-  const roots = [...(childrenMap.get(null) ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const columns: MillerColumn[] = [{ items: roots, selectedId: path[0]?.nodeId ?? null }];
-  for (let i = 0; i < path.length; i++) {
-    const kids = childrenOf(childrenMap, path[i].nodeId);
-    if (kids.length === 0) break;
-    columns.push({ items: kids, selectedId: path[i + 1]?.nodeId ?? null });
-  }
-  return columns;
-}
-
 /**
  * The active line: the path of nodes from the root down to `focusedNodeId`,
  * root first. This is the "spine you're on" rendered in the cover/linear view.
