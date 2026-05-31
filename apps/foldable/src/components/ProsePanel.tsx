@@ -132,7 +132,14 @@ export function ProsePanel({ onCreate, onClose }: ProsePanelProps) {
             />
             <Actions>
               <Primary onClick={suggest} disabled={!prose.trim() || stage === 'generating'}>
-                {stage === 'generating' ? 'Thinking…' : 'Suggest'}
+                {stage === 'generating' ? (
+                  <>
+                    <span className="spinner" style={{ marginRight: 6 }} />
+                    Thinking…
+                  </>
+                ) : (
+                  'Suggest'
+                )}
               </Primary>
             </Actions>
           </>
@@ -173,7 +180,10 @@ export function ProsePanel({ onCreate, onClose }: ProsePanelProps) {
 
         {stage === 'downloading' && (
           <Message>
-            <p style={messageText}>Downloading the model… {downloadState && `(${downloadState})`}</p>
+            <p style={messageText}>
+              <span className="spinner" style={{ marginRight: 8 }} />
+              Downloading the model… {downloadState && `(${downloadState})`}
+            </p>
             <p style={{ ...messageText, color: COLORS.textSecondary, fontSize: 12 }}>
               This can take a while on first use. You can keep the app open.
             </p>

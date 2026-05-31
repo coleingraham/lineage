@@ -154,15 +154,28 @@ export function CoverView({
   // On-device AI actions (Android only). Each builds a prompt from the active
   // line up to the node, generates, and attaches a typed node.
   const ai = useAi();
+  const [runningAi, setRunningAi] = useState<'summarize' | 'reply' | null>(null);
+  const aiBusy = runningAi !== null || ai.busy !== null;
+
   const summarizeNode = async (node: Node) => {
-    const text = await ai.generate(buildSummaryPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
-    if (text == null) return;
-    focusNode(await authoring.summarize(treeId, node.nodeId, text));
+    if (aiBusy) return;
+    setRunningAi('summarize');
+    try {
+      const text = await ai.generate(buildSummaryPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
+      if (text != null) focusNode(await authoring.summarize(treeId, node.nodeId, text));
+    } finally {
+      setRunningAi(null);
+    }
   };
   const aiReplyNode = async (node: Node) => {
-    const text = await ai.generate(buildReplyPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
-    if (text == null) return;
-    focusNode(await authoring.aiReply(treeId, node.nodeId, text));
+    if (aiBusy) return;
+    setRunningAi('reply');
+    try {
+      const text = await ai.generate(buildReplyPrompt(threadText(pathToRoot(nodeMap, node.nodeId))));
+      if (text != null) focusNode(await authoring.aiReply(treeId, node.nodeId, text));
+    } finally {
+      setRunningAi(null);
+    }
   };
 
   // One spine card, fully wired — reused by both layouts.
@@ -194,6 +207,8 @@ export function CoverView({
       }}
       onSummarize={ai.supported ? () => void summarizeNode(node) : undefined}
       onAiReply={ai.supported ? () => void aiReplyNode(node) : undefined}
+      aiBusy={aiBusy}
+      aiRunning={runningAi}
       pinned={isPinned?.(treeId, node.nodeId)}
       onTogglePin={onTogglePin ? () => onTogglePin(treeId, node.nodeId) : undefined}
     />
@@ -224,22 +239,30 @@ export function CoverView({
         />
       )}
 
-      {(ai.busy || ai.error) && (
+      {(aiBusy || ai.error) && (
         <div
-          onClick={ai.error ? ai.clearError : undefined}
+          onClick={!aiBusy && ai.error ? ai.clearError : undefined}
+          className={aiBusy ? 'ai-working' : undefined}
           style={{
-            padding: '6px 12px',
-            background: COLORS.elevated,
-            borderTop: `1px solid ${COLORS.border}`,
-            color: ai.error ? '#d88a8a' : COLORS.textSecondary,
-            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            background: aiBusy ? 'rgba(126,200,184,0.12)' : 'rgba(216,138,138,0.12)',
+            borderTop: `1px solid ${aiBusy ? COLORS.ai : '#d88a8a'}`,
+            color: aiBusy ? COLORS.ai : '#d88a8a',
+            fontSize: 12.5,
             fontFamily: FONTS.mono,
-            textAlign: 'center',
-            cursor: ai.error ? 'pointer' : 'default',
+            cursor: !aiBusy && ai.error ? 'pointer' : 'default',
           }}
         >
-          {ai.busy ?? ai.error}
-          {ai.error ? ' — tap to dismiss' : ''}
+          {aiBusy && <span className="spinner" />}
+          <span>
+            {aiBusy
+              ? `${ai.busy ?? 'Thinking…'} — please wait`
+              : `${ai.error} — tap to dismiss`}
+          </span>
         </div>
       )}
 

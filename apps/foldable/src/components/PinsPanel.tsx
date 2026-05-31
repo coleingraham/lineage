@@ -147,7 +147,19 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
         </div>
 
         {ai.busy && (
-          <div style={{ fontSize: 12, fontFamily: FONTS.mono, color: COLORS.textSecondary, textAlign: 'center' }}>
+          <div
+            className="ai-working"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              fontSize: 12,
+              fontFamily: FONTS.mono,
+              color: COLORS.ai,
+            }}
+          >
+            <span className="spinner" />
             {ai.busy}
           </div>
         )}
@@ -183,7 +195,14 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
               fontWeight: 600,
             }}
           >
-            {creating ? 'Creating…' : 'New monologue from context'}
+            {creating ? (
+              <>
+                <span className="spinner" style={{ marginRight: 6 }} />
+                Creating…
+              </>
+            ) : (
+              'New monologue from context'
+            )}
           </button>
         </div>
       </div>

@@ -45,3 +45,34 @@ button {
   border-radius: 8px;
   overflow-x: auto;
 }
+
+@keyframes lineage-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: lineage-spin 0.7s linear infinite;
+  vertical-align: -1px;
+}
+
+@keyframes lineage-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.ai-working {
+  animation: lineage-pulse 1.3s ease-in-out infinite;
+}

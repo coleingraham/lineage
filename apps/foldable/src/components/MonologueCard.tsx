@@ -20,6 +20,10 @@ interface MonologueCardProps {
   /** AI actions, shown on the focused card when on-device AI is available. */
   onSummarize?: () => void;
   onAiReply?: () => void;
+  /** True while any on-device AI op is running — disables both AI actions. */
+  aiBusy?: boolean;
+  /** Which AI action is in flight, to spin only that button. */
+  aiRunning?: 'summarize' | 'reply' | null;
   pinned?: boolean;
   onTogglePin?: () => void;
 }
@@ -50,6 +54,8 @@ export function MonologueCard({
   onDiverge,
   onSummarize,
   onAiReply,
+  aiBusy,
+  aiRunning,
   pinned,
   onTogglePin,
 }: MonologueCardProps) {
@@ -140,13 +146,45 @@ export function MonologueCard({
             ⌥ diverge
           </button>
           {onAiReply && (
-            <button onClick={onAiReply} style={{ ...ACTION_STYLE, color: COLORS.ai }}>
-              ✨ reply
+            <button
+              onClick={onAiReply}
+              disabled={aiBusy}
+              style={{
+                ...ACTION_STYLE,
+                color: COLORS.ai,
+                opacity: aiBusy && aiRunning !== 'reply' ? 0.4 : 1,
+                cursor: aiBusy ? 'default' : 'pointer',
+              }}
+            >
+              {aiRunning === 'reply' ? (
+                <>
+                  <span className="spinner" style={{ marginRight: 5 }} />
+                  thinking…
+                </>
+              ) : (
+                '✨ reply'
+              )}
             </button>
           )}
           {onSummarize && (
-            <button onClick={onSummarize} style={{ ...ACTION_STYLE, color: COLORS.summary }}>
-              summarize
+            <button
+              onClick={onSummarize}
+              disabled={aiBusy}
+              style={{
+                ...ACTION_STYLE,
+                color: COLORS.summary,
+                opacity: aiBusy && aiRunning !== 'summarize' ? 0.4 : 1,
+                cursor: aiBusy ? 'default' : 'pointer',
+              }}
+            >
+              {aiRunning === 'summarize' ? (
+                <>
+                  <span className="spinner" style={{ marginRight: 5 }} />
+                  thinking…
+                </>
+              ) : (
+                'summarize'
+              )}
             </button>
           )}
           {onTogglePin && (
