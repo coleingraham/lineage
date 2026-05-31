@@ -158,6 +158,7 @@ export function summarizeRoutes(repo: NodeRepository, llm: LLMProvider) {
           embeddingModel: null,
           metadata: null,
           author: null,
+          intent: null,
         };
 
         await c.var.repo.putNode(summaryNode);

@@ -14,6 +14,25 @@ export const NODE_TYPES = {
   TOOL_RESULT: 'tool_result',
 } as const;
 
+/**
+ * Open string type for branch-intent labels — extensible without core changes.
+ * Use {@link BRANCH_INTENTS} constants for well-known values.
+ */
+export type BranchIntent = string;
+
+/**
+ * Well-known branch-intent constants. A branch intent labels the hard edge from
+ * a node to its parent, typing *how* the node diverges from or continues the
+ * line of thought it hangs off of. `null` on a node means the edge is unlabeled
+ * (e.g. the root, or a plain sequential continuation).
+ */
+export const BRANCH_INTENTS = {
+  SEQUENCE: 'sequence',
+  ALTERNATIVE: 'alternative',
+  ELABORATION: 'elaboration',
+  OBJECTION: 'objection',
+} as const;
+
 export interface Node {
   nodeId: string;
   treeId: string;
@@ -30,6 +49,12 @@ export interface Node {
   metadata: Record<string, unknown> | null;
   /** Identifier for the author (userId, agent name, etc.) in multi-user scenarios. */
   author: string | null;
+  /**
+   * Branch-intent label on the hard edge from this node to its `parentId`
+   * (sequence | alternative | elaboration | objection | …). `null` when the
+   * edge is unlabeled — e.g. the root node, or a plain sequential continuation.
+   */
+  intent: BranchIntent | null;
 }
 
 export interface ContextSource {

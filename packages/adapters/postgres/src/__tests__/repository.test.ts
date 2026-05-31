@@ -28,6 +28,7 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     embeddingModel: null,
     metadata: null,
     author: null,
+    intent: null,
     ...overrides,
   };
 }
@@ -189,8 +190,9 @@ describe('PostgresRepository', () => {
       const { sql } = createMockSql();
       const repo = new PostgresRepository(sql as never);
       await repo.migrate();
-      // V1–V4 plus V5 (cross_tree_refs table) and its backfill statement.
-      expect(sql.unsafe).toHaveBeenCalledTimes(6);
+      // V1–V4 plus V5 (cross_tree_refs table) and its backfill statement, and
+      // V6 (branch_intents lookup + nodes.intent_id column).
+      expect(sql.unsafe).toHaveBeenCalledTimes(7);
     });
   });
 });

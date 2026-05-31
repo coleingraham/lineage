@@ -1,0 +1,609 @@
+import {
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type TouchEventHandler,
+} from 'react';
+import type { BranchIntent, Node, Tag } from '@lineage/core';
+import type { Authoring } from '../hooks/useAuthoring.js';
+import type { FoldMode, HingeInfo } from '../fold/types.js';
+import {
+  buildChildrenMap,
+  buildNodeMap,
+  childrenOf,
+  pathToRoot,
+  pathToSummaryOrRoot,
+} from '../lib/tree.js';
+import { swipeDirection } from '../lib/swipe.js';
+import { buildReplyPrompt, buildSummaryPrompt, threadText } from '../lib/aiPrompts.js';
+import { useAi } from '../hooks/useAi.js';
+import { COLORS, FONTS, intentColor } from '../styles/theme.js';
+import { MonologueCard } from '../components/MonologueCard.js';
+import { ComposeBar } from '../components/ComposeBar.js';
+import { IntentPicker } from '../components/IntentPicker.js';
+import { FlatCanvas } from '../components/FlatCanvas.js';
+
+const FLAT_LAYOUT_KEY = 'lineage-foldable:flatLayout';
+
+interface CoverViewProps {
+  treeId: string;
+  nodes: Node[];
+  focusedNodeId: string;
+  onFocus: (nodeId: string) => void;
+  authoring: Authoring;
+  /** Current fold posture — selects the linear stack vs. the book spread. */
+  mode: FoldMode;
+  /** Reading-column / spread width. The compose bar ignores this and spans the
+   * full pane. */
+  maxWidth: number;
+  /** Real hinge geometry, when the posture source provides it (native plugin). */
+  hinge?: HingeInfo;
+  isPinned?: (treeId: string, nodeId: string) => boolean;
+  onTogglePin?: (treeId: string, nodeId: string) => void;
+  /** Pinned context-source text for this tree — grounds AI reply/summary. */
+  contextText?: string;
+  /** Tags currently on a node (for display). */
+  tagsOf?: (nodeId: string) => Tag[];
+  /** Open the tag editor for a node (manual + AI). */
+  onOpenTags?: (node: Node) => void;
+}
+
+function PageLabel({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontFamily: FONTS.mono,
+        color: COLORS.textSecondary,
+        margin: '0 0 8px 6px',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Segmented control to switch the flat layout between the 2D map and spread. */
+function FlatLayoutToggle({
+  value,
+  onChange,
+}: {
+  value: 'canvas' | 'spread';
+  onChange: (v: 'canvas' | 'spread') => void;
+}) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 2px' }}>
+      <div
+        style={{
+          display: 'inline-flex',
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}
+      >
+        {(['canvas', 'spread'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            style={{
+              padding: '5px 16px',
+              fontSize: 12,
+              fontFamily: FONTS.mono,
+              background: value === v ? COLORS.elevated : 'transparent',
+              color: value === v ? COLORS.text : COLORS.textSecondary,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            {v === 'canvas' ? '⬡ map' : '▟ spread'}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The capture-read view. Two layouts over the same data, selected by posture:
+ * - **linear** (`closed`/`flat`): the active line as a single card stack with
+ *   the focused node's divergences listed below (C1).
+ * - **book** spread (`book`): left page = the spine (root → focused), right
+ *   page = the focused node's divergences. The hinge sits at the fork point;
+ *   reaching across it (tapping a divergence) walks into that branch (C2).
+ *
+ * Authoring (append / diverge-with-intent) and the compose footer are shared
+ * across both layouts.
+ */
+export function CoverView({
+  treeId,
+  nodes,
+  focusedNodeId,
+  onFocus,
+  authoring,
+  mode,
+  maxWidth,
+  hinge,
+  isPinned,
+  onTogglePin,
+  contextText,
+  tagsOf,
+  onOpenTags,
+}: CoverViewProps) {
+  const nodeMap = useMemo(() => buildNodeMap(nodes), [nodes]);
+  const childrenMap = useMemo(() => buildChildrenMap(nodes), [nodes]);
+  const rootId = useMemo(() => nodes.find((n) => n.parentId === null)?.nodeId ?? null, [nodes]);
+
+  const focusId = nodeMap.has(focusedNodeId) ? focusedNodeId : (rootId ?? focusedNodeId);
+  const line = useMemo(() => pathToRoot(nodeMap, focusId), [nodeMap, focusId]);
+  const divergences = useMemo(() => childrenOf(childrenMap, focusId), [childrenMap, focusId]);
+
+  // Spine neighbours for page-turn gestures.
+  const parentId = nodeMap.get(focusId)?.parentId ?? null;
+  const nextChild = divergences.length > 0 ? divergences[divergences.length - 1] : null;
+
+  // Diverge flow: pick an intent, then compose the divergence content.
+  const [picking, setPicking] = useState(false);
+  const [divergeIntent, setDivergeIntent] = useState<BranchIntent | null>(null);
+
+  // Flat-mode layout preference (persisted): the 2D map or the book spread.
+  const [flatLayout, setFlatLayoutState] = useState<'canvas' | 'spread'>(() =>
+    typeof localStorage !== 'undefined' && localStorage.getItem(FLAT_LAYOUT_KEY) === 'spread'
+      ? 'spread'
+      : 'canvas',
+  );
+  const setFlatLayout = (value: 'canvas' | 'spread') => {
+    setFlatLayoutState(value);
+    if (typeof localStorage !== 'undefined') localStorage.setItem(FLAT_LAYOUT_KEY, value);
+  };
+  // Map view: show the focused node's cover/active-line in a side detail panel.
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  // Edit state lives here (not in MonologueCard) so it survives the
+  // linear↔book layout swap rather than being lost to a remount.
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+
+  const resetDiverge = () => {
+    setPicking(false);
+    setDivergeIntent(null);
+  };
+
+  // Focusing anything else cancels an in-progress edit/diverge.
+  const focusNode = (id: string) => {
+    setEditingNodeId(null);
+    resetDiverge();
+    onFocus(id);
+  };
+
+  const saveEdit = async () => {
+    if (!editingNodeId) return;
+    const id = await authoring.edit(editingNodeId, draft);
+    setEditingNodeId(null);
+    onFocus(id);
+  };
+
+  const submitAppend = async (content: string) => {
+    const id = await authoring.append(treeId, focusId, content);
+    onFocus(id);
+  };
+
+  const submitDiverge = async (content: string) => {
+    if (!divergeIntent) return;
+    const id = await authoring.diverge(treeId, focusId, content, divergeIntent);
+    resetDiverge();
+    onFocus(id);
+  };
+
+  // Page-turn gesture (D2): a horizontal swipe walks the spine — right → back
+  // to the parent, left → forward to the next thought. Reaching across the
+  // hinge to take a branch stays a tap (it's a choice of which branch).
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart: TouchEventHandler<HTMLDivElement> = (e) => {
+    const t = e.touches[0];
+    touchStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const onTouchEnd: TouchEventHandler<HTMLDivElement> = (e) => {
+    const s = touchStart.current;
+    touchStart.current = null;
+    if (!s || editingNodeId) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dir = swipeDirection(t.clientX - s.x, t.clientY - s.y);
+    if (dir === 'right') {
+      if (parentId) focusNode(parentId);
+    } else if (dir === 'left') {
+      if (nextChild) focusNode(nextChild.nodeId);
+    }
+  };
+  const swipe = { onTouchStart, onTouchEnd };
+
+  // On-device AI actions (Android only). Each builds a prompt from the active
+  // line up to the node, generates, and attaches a typed node.
+  const ai = useAi();
+  const [runningAi, setRunningAi] = useState<'summarize' | 'reply' | null>(null);
+  const aiBusy = runningAi !== null || ai.busy !== null;
+
+  // Context the model sees: traverse up to the root or the lowest summary node,
+  // whichever comes first (matching core/desktop). The displayed line is the
+  // full path; only AI context stops at a summary boundary. Empty root excluded.
+  const aiThread = (nodeId: string) =>
+    threadText(
+      pathToSummaryOrRoot(nodeMap, nodeId).filter((n) => !(n.parentId === null && n.content === '')),
+    );
+
+  const summarizeNode = async (node: Node) => {
+    if (aiBusy) return;
+    setRunningAi('summarize');
+    try {
+      const text = await ai.generate(buildSummaryPrompt(aiThread(node.nodeId), contextText));
+      if (text != null) focusNode(await authoring.summarize(treeId, node.nodeId, text));
+    } finally {
+      setRunningAi(null);
+    }
+  };
+  const aiReplyNode = async (node: Node) => {
+    if (aiBusy) return;
+    setRunningAi('reply');
+    try {
+      const text = await ai.generate(buildReplyPrompt(aiThread(node.nodeId), contextText));
+      if (text != null) focusNode(await authoring.aiReply(treeId, node.nodeId, text));
+    } finally {
+      setRunningAi(null);
+    }
+  };
+  // Focus a node and open the branch-intent picker (shared by the card and the
+  // flat canvas).
+  const startDiverge = (node: Node) => {
+    setEditingNodeId(null);
+    onFocus(node.nodeId);
+    setDivergeIntent(null);
+    setPicking(true);
+  };
+
+  // One spine card, fully wired — reused by both layouts.
+  const spineCard = (node: Node) => (
+    <MonologueCard
+      key={node.nodeId}
+      node={node}
+      isRoot={node.parentId === null}
+      focused={node.nodeId === focusId}
+      editing={editingNodeId === node.nodeId}
+      draft={draft}
+      onFocus={() => focusNode(node.nodeId)}
+      onStartEdit={() => {
+        setEditingNodeId(node.nodeId);
+        setDraft(node.content);
+      }}
+      onDraftChange={setDraft}
+      onSaveEdit={() => void saveEdit()}
+      onCancelEdit={() => setEditingNodeId(null)}
+      onDelete={() => {
+        void authoring.remove(node.nodeId);
+        if (node.parentId) onFocus(node.parentId);
+      }}
+      onDiverge={() => startDiverge(node)}
+      onSummarize={ai.supported ? () => void summarizeNode(node) : undefined}
+      onAiReply={ai.supported ? () => void aiReplyNode(node) : undefined}
+      onOpenTags={onOpenTags ? () => onOpenTags(node) : undefined}
+      tags={tagsOf?.(node.nodeId)}
+      aiBusy={aiBusy}
+      aiRunning={runningAi}
+      pinned={isPinned?.(treeId, node.nodeId)}
+      onTogglePin={onTogglePin ? () => onTogglePin(treeId, node.nodeId) : undefined}
+    />
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minWidth: 0 }}>
+      {mode === 'book' ? (
+        <BookSpread
+          line={line}
+          divergences={divergences}
+          maxWidth={maxWidth}
+          renderSpineCard={spineCard}
+          onFocus={focusNode}
+          hinge={hinge}
+          swipe={swipe}
+        />
+      ) : mode === 'flat' ? (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <FlatLayoutToggle value={flatLayout} onChange={setFlatLayout} />
+          {flatLayout === 'spread' ? (
+            <BookSpread
+              line={line}
+              divergences={divergences}
+              maxWidth={maxWidth}
+              renderSpineCard={spineCard}
+              onFocus={focusNode}
+              hinge={hinge}
+              swipe={swipe}
+            />
+          ) : (
+            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+              <FlatCanvas
+                nodes={nodes}
+                focusId={focusId}
+                onFocus={focusNode}
+                onOpenDetail={(id) => {
+                  focusNode(id);
+                  setDetailOpen(true);
+                }}
+                onDiverge={startDiverge}
+                onBackgroundTap={() => setDetailOpen(false)}
+              />
+              {detailOpen && (
+                <div
+                  style={{
+                    flex: '0 0 auto',
+                    width: 'min(420px, 46%)',
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: COLORS.bg,
+                    borderLeft: `1px solid ${COLORS.borderHi}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '6px 10px',
+                      borderBottom: `1px solid ${COLORS.border}`,
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontFamily: FONTS.mono, color: COLORS.textSecondary }}>
+                      focused line
+                    </span>
+                    <button
+                      onClick={() => setDetailOpen(false)}
+                      aria-label="Close detail"
+                      style={{ background: 'transparent', border: 'none', color: COLORS.textSecondary, fontSize: 18, cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <LinearStack
+                    line={line}
+                    divergences={divergences}
+                    maxWidth={maxWidth}
+                    renderSpineCard={spineCard}
+                    onFocus={focusNode}
+                    swipe={swipe}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <LinearStack
+          line={line}
+          divergences={divergences}
+          maxWidth={maxWidth}
+          renderSpineCard={spineCard}
+          onFocus={focusNode}
+          swipe={swipe}
+        />
+      )}
+
+      {(aiBusy || ai.error) && (
+        <div
+          onClick={!aiBusy && ai.error ? ai.clearError : undefined}
+          className={aiBusy ? 'ai-working' : undefined}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            background: aiBusy ? 'rgba(126,200,184,0.12)' : 'rgba(216,138,138,0.12)',
+            borderTop: `1px solid ${aiBusy ? COLORS.ai : '#d88a8a'}`,
+            color: aiBusy ? COLORS.ai : '#d88a8a',
+            fontSize: 12.5,
+            fontFamily: FONTS.mono,
+            cursor: !aiBusy && ai.error ? 'pointer' : 'default',
+          }}
+        >
+          {aiBusy && <span className="spinner" />}
+          <span>
+            {aiBusy
+              ? `${ai.busy ?? 'Thinking…'} — please wait`
+              : `${ai.error} — tap to dismiss`}
+          </span>
+        </div>
+      )}
+
+      {picking && !divergeIntent ? (
+        <IntentPicker onPick={(intent) => setDivergeIntent(intent)} onCancel={resetDiverge} />
+      ) : divergeIntent ? (
+        <ComposeBar
+          key="diverge"
+          autoFocus
+          accent={intentColor(divergeIntent)}
+          submitLabel="Branch"
+          placeholder={`Write the ${divergeIntent}…`}
+          onSubmit={submitDiverge}
+        />
+      ) : (
+        <ComposeBar key="append" placeholder="Continue the line…" onSubmit={submitAppend} />
+      )}
+    </div>
+  );
+}
+
+interface SwipeHandlers {
+  onTouchStart: TouchEventHandler<HTMLDivElement>;
+  onTouchEnd: TouchEventHandler<HTMLDivElement>;
+}
+
+interface LayoutProps {
+  line: Node[];
+  divergences: Node[];
+  maxWidth: number;
+  renderSpineCard: (node: Node) => ReactNode;
+  onFocus: (nodeId: string) => void;
+  hinge?: HingeInfo;
+  swipe?: SwipeHandlers;
+}
+
+/** Single-column stack (cover / flat): spine then divergence chips below. */
+function LinearStack({ line, divergences, maxWidth, renderSpineCard, onFocus, swipe }: LayoutProps) {
+  return (
+    <div style={{ flex: 1, overflowY: 'auto' }} {...swipe}>
+      <div style={{ maxWidth, margin: '0 auto', padding: '12px 10px 16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
+
+        {divergences.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <PageLabel>branches from here</PageLabel>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {divergences.map((child) => (
+                <button
+                  key={child.nodeId}
+                  onClick={() => onFocus(child.nodeId)}
+                  style={{
+                    maxWidth: 240,
+                    textAlign: 'left',
+                    padding: '6px 10px',
+                    background: COLORS.surface,
+                    border: `1px solid ${intentColor(child.intent)}`,
+                    borderRadius: 8,
+                    color: COLORS.text,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontFamily: FONTS.mono, color: intentColor(child.intent) }}>
+                    {child.intent ?? 'sequence'}
+                  </span>
+                  <div style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {child.content.split('\n')[0] || '(empty)'}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Book posture: two portrait pages either side of the hinge. Left = the spine
+ * you're on; right = what diverges from the focused (last) node. The hinge is
+ * the fork point; tapping a divergence reaches across it into that branch.
+ *
+ * When the posture source reports real hinge geometry (the native plugin), the
+ * seam is placed at the actual fold position and an occlusion gutter keeps
+ * content out from under it. Otherwise (desktop / size-inferred / manual book)
+ * it falls back to a centred split with a thin seam.
+ */
+function BookSpread({ line, divergences, maxWidth, renderSpineCard, onFocus, hinge, swipe }: LayoutProps) {
+  const pageBase: CSSProperties = {
+    minWidth: 0,
+    overflowY: 'auto',
+    padding: '14px 14px 16px',
+  };
+
+  const leftPage = (style: CSSProperties) => (
+    <div style={{ ...pageBase, ...style }} {...swipe}>
+      <PageLabel>spine</PageLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{line.map(renderSpineCard)}</div>
+    </div>
+  );
+
+  const rightPage = (style: CSSProperties) => (
+    <div style={{ ...pageBase, ...style }}>
+      <PageLabel>{divergences.length > 0 ? 'divergences' : 'divergences — none yet'}</PageLabel>
+      {divergences.length === 0 ? (
+        <div style={{ color: COLORS.textSecondary, fontSize: 13, lineHeight: 1.6, padding: '8px 6px' }}>
+          The focused thought has no branches yet. Use{' '}
+          <span style={{ color: COLORS.branch }}>⌥ diverge</span> on it to open an alternative,
+          elaboration, or objection here.
+        </div>
+      ) : (
+        divergences.map((child) => (
+          <button
+            key={child.nodeId}
+            onClick={() => onFocus(child.nodeId)}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              marginBottom: 8,
+              padding: '10px 12px',
+              background: COLORS.surface,
+              border: `1px solid ${COLORS.border}`,
+              borderLeft: `3px solid ${intentColor(child.intent)}`,
+              borderRadius: '0 8px 8px 0',
+              color: COLORS.text,
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ fontSize: 11, fontFamily: FONTS.mono, color: intentColor(child.intent), marginBottom: 4 }}>
+              {child.intent ?? 'sequence'}
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                lineHeight: 1.5,
+                display: '-webkit-box',
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: 6,
+                overflow: 'hidden',
+              }}
+            >
+              {child.content || '(empty)'}
+            </div>
+          </button>
+        ))
+      )}
+    </div>
+  );
+
+  // Real hinge geometry (native plugin): split at the fold, gutter = occlusion.
+  if (hinge && hinge.orientation === 'vertical' && hinge.position > 0) {
+    const size = Math.max(hinge.size ?? 0, 0);
+    const leftWidth = Math.max(140, Math.round(hinge.position - size / 2));
+    const gutter = Math.max(size, 1);
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', width: '100%' }}>
+        {leftPage({ flex: `0 0 ${leftWidth}px`, width: leftWidth })}
+        <div
+          aria-hidden
+          style={{
+            width: gutter,
+            flex: '0 0 auto',
+            background: COLORS.bg,
+            boxShadow: 'inset 0 0 14px rgba(0,0,0,0.6)',
+          }}
+        />
+        {rightPage({ flex: '1 1 0' })}
+      </div>
+    );
+  }
+
+  // Fallback: centred, equal pages, thin seam.
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', width: '100%', maxWidth }}>
+        {leftPage({ flex: 1 })}
+        <div
+          aria-hidden
+          style={{
+            width: 2,
+            flex: '0 0 auto',
+            background: COLORS.borderHi,
+            boxShadow: '0 0 14px 2px rgba(0,0,0,0.5)',
+          }}
+        />
+        {rightPage({ flex: 1 })}
+      </div>
+    </div>
+  );
+}

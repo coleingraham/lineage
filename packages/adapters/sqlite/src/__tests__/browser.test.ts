@@ -80,6 +80,7 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     embeddingModel: null,
     metadata: null,
     author: null,
+    intent: null,
     ...overrides,
   };
 }
@@ -208,6 +209,7 @@ describe('BrowserSqliteRepository', () => {
         node.embeddingModel,
         null, // metadata (JSON-serialized)
         node.author,
+        node.intent,
       ]);
     });
 

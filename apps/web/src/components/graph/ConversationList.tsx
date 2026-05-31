@@ -77,6 +77,7 @@ export function ConversationList({
         embeddingModel: null,
         metadata: null,
         author: null,
+        intent: null,
       });
 
       onSelectTree(treeId);

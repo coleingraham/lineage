@@ -17,6 +17,7 @@ describe('Node type', () => {
       embeddingModel: null,
       metadata: null,
       author: null,
+      intent: null,
     };
     expect(node.nodeId).toBe('550e8400-e29b-41d4-a716-446655440000');
   });
@@ -36,6 +37,7 @@ describe('Node type', () => {
       embeddingModel: null,
       metadata: null,
       author: null,
+      intent: null,
     };
     expect(node.type).toBe('ai');
     expect(node.parentId).toBe('550e8400-e29b-41d4-a716-446655440000');

@@ -24,6 +24,14 @@ INSERT OR IGNORE INTO node_types (id, name) VALUES
   (1, 'human'), (2, 'ai'), (3, 'summary'),
   (4, 'system'), (5, 'tool_call'), (6, 'tool_result');
 
+CREATE TABLE IF NOT EXISTS branch_intents (
+  id   INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+INSERT OR IGNORE INTO branch_intents (id, name) VALUES
+  (1, 'sequence'), (2, 'alternative'), (3, 'elaboration'), (4, 'objection');
+
 CREATE TABLE IF NOT EXISTS trees (
   tree_id          TEXT PRIMARY KEY,
   title            TEXT NOT NULL,
@@ -45,7 +53,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   token_count     INTEGER,
   embedding_model TEXT,
   metadata        TEXT,
-  author          TEXT
+  author          TEXT,
+  intent_id       INTEGER REFERENCES branch_intents(id)
 );
 `;
 
@@ -101,6 +110,16 @@ const MIGRATE_V5_STMTS = [
   'CREATE INDEX IF NOT EXISTS idx_ctr_kind ON cross_tree_refs(kind)',
 ];
 
+const MIGRATE_V6_STMTS = [
+  `CREATE TABLE IF NOT EXISTS branch_intents (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+  )`,
+  `INSERT OR IGNORE INTO branch_intents (id, name) VALUES
+    (1, 'sequence'), (2, 'alternative'), (3, 'elaboration'), (4, 'objection')`,
+  'ALTER TABLE nodes ADD COLUMN intent_id INTEGER REFERENCES branch_intents(id)',
+];
+
 interface NodeRow {
   node_id: string;
   tree_id: string;
@@ -115,6 +134,7 @@ interface NodeRow {
   embedding_model: string | null;
   metadata: string | null;
   author: string | null;
+  intent: string | null;
 }
 
 interface TreeRow {
@@ -175,6 +195,7 @@ function rowToNode(row: NodeRow): Node {
     embeddingModel: row.embedding_model,
     metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : null,
     author: row.author,
+    intent: row.intent ?? null,
   };
 }
 
@@ -296,6 +317,16 @@ export class TauriSqliteRepository implements NodeRepository {
       }
     }
 
+    // V6: branch_intents lookup table + nodes.intent_id column.
+    const intentCols = await db.select<{ name: string }[]>(
+      "SELECT name FROM pragma_table_info('nodes') WHERE name = 'intent_id'",
+    );
+    if (intentCols.length === 0) {
+      for (const stmt of MIGRATE_V6_STMTS) {
+        await db.execute(stmt);
+      }
+    }
+
     return new TauriSqliteRepository(db);
   }
 
@@ -366,9 +397,10 @@ export class TauriSqliteRepository implements NodeRepository {
       `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
               n.content, n.is_deleted, n.created_at, n.model_name,
               n.provider, n.token_count, n.embedding_model,
-              n.metadata, n.author
+              n.metadata, n.author, bi.name AS intent
        FROM nodes n
        JOIN node_types nt ON nt.id = n.node_type_id
+       LEFT JOIN branch_intents bi ON bi.id = n.intent_id
        WHERE n.node_id = $1`,
       [nodeId],
     );
@@ -383,9 +415,10 @@ export class TauriSqliteRepository implements NodeRepository {
       `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
               n.content, n.is_deleted, n.created_at, n.model_name,
               n.provider, n.token_count, n.embedding_model,
-              n.metadata, n.author
+              n.metadata, n.author, bi.name AS intent
        FROM nodes n
        JOIN node_types nt ON nt.id = n.node_type_id
+       LEFT JOIN branch_intents bi ON bi.id = n.intent_id
        WHERE n.tree_id = $1`,
       [treeId],
     );
@@ -394,8 +427,8 @@ export class TauriSqliteRepository implements NodeRepository {
 
   async putNode(node: Node): Promise<void> {
     await this.db.execute(
-      `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model, metadata, author)
-       VALUES ($1, $2, $3, (SELECT id FROM node_types WHERE name = $4), $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO nodes (node_id, tree_id, parent_id, node_type_id, content, is_deleted, created_at, model_name, provider, token_count, embedding_model, metadata, author, intent_id)
+       VALUES ($1, $2, $3, (SELECT id FROM node_types WHERE name = $4), $5, $6, $7, $8, $9, $10, $11, $12, $13, (SELECT id FROM branch_intents WHERE name = $14))
        ON CONFLICT(node_id) DO UPDATE SET
          tree_id = excluded.tree_id,
          parent_id = excluded.parent_id,
@@ -408,7 +441,8 @@ export class TauriSqliteRepository implements NodeRepository {
          token_count = excluded.token_count,
          embedding_model = excluded.embedding_model,
          metadata = excluded.metadata,
-         author = excluded.author`,
+         author = excluded.author,
+         intent_id = excluded.intent_id`,
       [
         node.nodeId,
         node.treeId,
@@ -423,6 +457,7 @@ export class TauriSqliteRepository implements NodeRepository {
         node.embeddingModel,
         node.metadata ? JSON.stringify(node.metadata) : null,
         node.author,
+        node.intent,
       ],
     );
   }
@@ -487,9 +522,10 @@ export class TauriSqliteRepository implements NodeRepository {
     const sql = `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                         n.content, n.is_deleted, n.created_at, n.model_name,
                         n.provider, n.token_count, n.embedding_model,
-                        n.metadata, n.author, t.title AS tree_title
+                        n.metadata, n.author, bi.name AS intent, t.title AS tree_title
                  FROM nodes n
                  JOIN node_types nt ON nt.id = n.node_type_id
+                 LEFT JOIN branch_intents bi ON bi.id = n.intent_id
                  JOIN trees t ON t.tree_id = n.tree_id
                  WHERE ${conditions.join(' AND ')}
                  ORDER BY n.created_at DESC`;
@@ -735,9 +771,10 @@ export class TauriSqliteRepository implements NodeRepository {
     const sql = `SELECT n.node_id, n.tree_id, n.parent_id, nt.name AS type_name,
                         n.content, n.is_deleted, n.created_at, n.model_name,
                         n.provider, n.token_count, n.embedding_model,
-                        n.metadata, n.author
+                        n.metadata, n.author, bi.name AS intent
                  FROM nodes n
                  JOIN node_types nt ON nt.id = n.node_type_id
+                 LEFT JOIN branch_intents bi ON bi.id = n.intent_id
                  JOIN node_tags ntg ON ntg.node_id = n.node_id
                  WHERE ntg.tag_id IN (${placeholders})
                    AND n.is_deleted = 0${treeFilter}

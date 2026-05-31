@@ -1,4 +1,4 @@
-import type { Node, NodeType } from './types.js';
+import type { BranchIntent, Node, NodeType } from './types.js';
 
 export interface CreateNodeFields {
   treeId: string;
@@ -12,6 +12,7 @@ export interface CreateNodeFields {
   embeddingModel?: string | null;
   metadata?: Record<string, unknown> | null;
   author?: string | null;
+  intent?: BranchIntent | null;
 }
 
 /**
@@ -35,5 +36,6 @@ export function createNode(fields: CreateNodeFields): Node {
     embeddingModel: fields.embeddingModel ?? null,
     metadata: fields.metadata ?? null,
     author: fields.author ?? null,
+    intent: fields.intent ?? null,
   };
 }

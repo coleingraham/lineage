@@ -121,6 +121,7 @@ export class RestNodeRepository implements NodeRepository {
         type: node.type,
         content: node.content,
         parentId: node.parentId,
+        intent: node.intent,
       }),
     });
     if (!res.ok) throw new Error(`putNode failed: HTTP ${res.status}`);
