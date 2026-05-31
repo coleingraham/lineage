@@ -5,11 +5,35 @@ import type {
   Tree,
   Tag,
   TagCategory,
+  ContextSource,
+  CrossTreeRef,
+  CrossTreeRefQuery,
   SearchOptions,
   SearchResult,
   SemanticSearchResult,
 } from '@lineage/core';
+import { CROSS_TREE_REF_KINDS } from '@lineage/core';
 import { runMigrations } from './migrations/index.js';
+
+interface CrossTreeRefRow {
+  from_tree_id: string;
+  from_node_id: string | null;
+  to_tree_id: string;
+  to_node_id: string;
+  kind: string;
+  live: number;
+}
+
+function rowToCrossTreeRef(row: CrossTreeRefRow): CrossTreeRef {
+  return {
+    fromTreeId: row.from_tree_id,
+    fromNodeId: row.from_node_id,
+    toTreeId: row.to_tree_id,
+    toNodeId: row.to_node_id,
+    kind: row.kind,
+    live: row.live === 1,
+  };
+}
 
 interface NodeRow {
   node_id: string;
@@ -54,14 +78,14 @@ function rowToNode(row: NodeRow): Node {
 }
 
 function rowToTree(row: TreeRow): Tree {
+  // contextSources are sourced from the unified cross_tree_refs table, not the
+  // legacy context_sources column — see fillContextSources / migration V5.
   return {
     treeId: row.tree_id,
     title: row.title,
     createdAt: row.created_at,
     rootNodeId: row.root_node_id,
-    contextSources: row.context_sources
-      ? (JSON.parse(row.context_sources) as Tree['contextSources'])
-      : null,
+    contextSources: null,
   };
 }
 
@@ -109,6 +133,37 @@ export class SqliteRepository implements NodeRepository {
     runMigrations(this.db);
   }
 
+  /** Attach contextSources (from cross_tree_refs) to a base tree. */
+  private fillContextSources(tree: Tree): Tree {
+    const rows = this.db
+      .prepare<
+        [string, string],
+        { to_tree_id: string; to_node_id: string }
+      >('SELECT to_tree_id, to_node_id FROM cross_tree_refs WHERE from_tree_id = ? AND from_node_id IS NULL AND kind = ?')
+      .all(tree.treeId, CROSS_TREE_REF_KINDS.CONTEXT_SOURCE);
+    const contextSources: ContextSource[] = rows.map((r) => ({
+      treeId: r.to_tree_id,
+      nodeId: r.to_node_id,
+    }));
+    return { ...tree, contextSources: contextSources.length > 0 ? contextSources : null };
+  }
+
+  /** Replace a tree's tree-owned context_source refs to match `contextSources`. */
+  private syncContextSources(treeId: string, contextSources: ContextSource[] | null): void {
+    this.db
+      .prepare(
+        'DELETE FROM cross_tree_refs WHERE from_tree_id = ? AND from_node_id IS NULL AND kind = ?',
+      )
+      .run(treeId, CROSS_TREE_REF_KINDS.CONTEXT_SOURCE);
+    const insert = this.db.prepare(
+      `INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+       VALUES (?, NULL, ?, ?, ?, 1)`,
+    );
+    for (const cs of contextSources ?? []) {
+      insert.run(treeId, cs.treeId, cs.nodeId, CROSS_TREE_REF_KINDS.CONTEXT_SOURCE);
+    }
+  }
+
   async getTree(treeId: string): Promise<Tree> {
     const row = this.db
       .prepare<[string], TreeRow>('SELECT * FROM trees WHERE tree_id = ?')
@@ -116,32 +171,28 @@ export class SqliteRepository implements NodeRepository {
     if (!row) {
       throw new Error(`Tree not found: ${treeId}`);
     }
-    return rowToTree(row);
+    return this.fillContextSources(rowToTree(row));
   }
 
   async listTrees(): Promise<Tree[]> {
     const rows = this.db.prepare<[], TreeRow>('SELECT * FROM trees').all();
-    return rows.map(rowToTree);
+    return rows.map((row) => this.fillContextSources(rowToTree(row)));
   }
 
   async putTree(tree: Tree): Promise<void> {
+    // The legacy context_sources column is left NULL; contextSources live in
+    // the unified cross_tree_refs table.
     this.db
       .prepare(
         `INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
-         VALUES (?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, NULL)
          ON CONFLICT(tree_id) DO UPDATE SET
            title = excluded.title,
            created_at = excluded.created_at,
-           root_node_id = excluded.root_node_id,
-           context_sources = excluded.context_sources`,
+           root_node_id = excluded.root_node_id`,
       )
-      .run(
-        tree.treeId,
-        tree.title,
-        tree.createdAt,
-        tree.rootNodeId,
-        tree.contextSources ? JSON.stringify(tree.contextSources) : null,
-      );
+      .run(tree.treeId, tree.title, tree.createdAt, tree.rootNodeId);
+    this.syncContextSources(tree.treeId, tree.contextSources);
   }
 
   async getNode(nodeId: string): Promise<Node> {
@@ -227,6 +278,7 @@ export class SqliteRepository implements NodeRepository {
       )
       .run(treeId);
     this.db.prepare('DELETE FROM tree_tags WHERE tree_id = ?').run(treeId);
+    this.db.prepare('DELETE FROM cross_tree_refs WHERE from_tree_id = ?').run(treeId);
     this.db.prepare('DELETE FROM nodes WHERE tree_id = ?').run(treeId);
     const result = this.db.prepare('DELETE FROM trees WHERE tree_id = ?').run(treeId);
     if (result.changes === 0) {
@@ -281,7 +333,7 @@ export class SqliteRepository implements NodeRepository {
         TreeRow
       >("SELECT * FROM trees WHERE title LIKE '%' || ? || '%' COLLATE NOCASE ORDER BY created_at DESC")
       .all(query);
-    return rows.map(rowToTree);
+    return rows.map((row) => this.fillContextSources(rowToTree(row)));
   }
 
   // ── Tag category CRUD ──
@@ -551,6 +603,73 @@ export class SqliteRepository implements NodeRepository {
          GROUP BY t.tree_id${having}`,
       )
       .all(...params) as TreeRow[];
-    return rows.map(rowToTree);
+    return rows.map((row) => this.fillContextSources(rowToTree(row)));
   }
+
+  // ── Cross-tree references ──────────────────────────────────────────────
+
+  async putCrossTreeRef(ref: CrossTreeRef): Promise<void> {
+    // Delete-then-insert keyed on the full tuple (NULL from_node_id makes a
+    // UNIQUE index awkward, so upsert manually).
+    this.deleteRefExact(ref);
+    this.db
+      .prepare(
+        `INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(ref.fromTreeId, ref.fromNodeId, ref.toTreeId, ref.toNodeId, ref.kind, ref.live ? 1 : 0);
+  }
+
+  private deleteRefExact(ref: CrossTreeRef): void {
+    this.db
+      .prepare(
+        `DELETE FROM cross_tree_refs
+         WHERE from_tree_id = ? AND from_node_id IS ? AND to_tree_id = ?
+           AND to_node_id = ? AND kind = ?`,
+      )
+      .run(ref.fromTreeId, ref.fromNodeId, ref.toTreeId, ref.toNodeId, ref.kind);
+  }
+
+  async getCrossTreeRefs(query?: CrossTreeRefQuery): Promise<CrossTreeRef[]> {
+    const { sql, params } = buildRefWhere(query);
+    const rows = this.db
+      .prepare(`SELECT * FROM cross_tree_refs${sql}`)
+      .all(...params) as CrossTreeRefRow[];
+    return rows.map(rowToCrossTreeRef);
+  }
+
+  async deleteCrossTreeRefs(query: CrossTreeRefQuery): Promise<number> {
+    const { sql, params } = buildRefWhere(query);
+    const result = this.db.prepare(`DELETE FROM cross_tree_refs${sql}`).run(...params);
+    return result.changes;
+  }
+}
+
+/** Build a parameterized WHERE clause for a cross-tree-ref query. */
+function buildRefWhere(query?: CrossTreeRefQuery): { sql: string; params: unknown[] } {
+  if (!query) return { sql: '', params: [] };
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  if (query.fromTreeId !== undefined) {
+    conditions.push('from_tree_id = ?');
+    params.push(query.fromTreeId);
+  }
+  if (query.fromNodeId !== undefined) {
+    // `IS` matches NULL correctly when fromNodeId is null.
+    conditions.push('from_node_id IS ?');
+    params.push(query.fromNodeId);
+  }
+  if (query.toTreeId !== undefined) {
+    conditions.push('to_tree_id = ?');
+    params.push(query.toTreeId);
+  }
+  if (query.toNodeId !== undefined) {
+    conditions.push('to_node_id = ?');
+    params.push(query.toNodeId);
+  }
+  if (query.kind !== undefined) {
+    conditions.push('kind = ?');
+    params.push(query.kind);
+  }
+  return { sql: conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '', params };
 }

@@ -38,12 +38,17 @@ function makeNode(overrides: Partial<Node> = {}): Node {
  */
 function createMockSql(result: Record<string, unknown>[] = []) {
   const rows = Object.assign([...result], { count: result.length });
+  const empty = Object.assign([] as Record<string, unknown>[], { count: 0 });
   const calls: { strings: TemplateStringsArray; values: unknown[] }[] = [];
 
+  // The first tagged-template call returns the configured rows; subsequent
+  // calls (e.g. the contextSources lookup that getTree/listTrees now perform
+  // against cross_tree_refs) return an empty set so they don't echo the
+  // primary result back.
   const sql = Object.assign(
     (strings: TemplateStringsArray, ...values: unknown[]) => {
       calls.push({ strings, values });
-      return Promise.resolve(rows);
+      return Promise.resolve(calls.length === 1 ? rows : empty);
     },
     {
       unsafe: vi.fn().mockResolvedValue(undefined),
@@ -113,7 +118,8 @@ describe('PostgresRepository', () => {
       const repo = new PostgresRepository(sql as never);
       const tree = makeTree();
       await repo.putTree(tree);
-      expect(calls).toHaveLength(1);
+      // Inserts the tree, then syncs (deletes) its context_source refs.
+      expect(calls.length).toBeGreaterThanOrEqual(1);
       expect(calls[0].values).toContain(tree.treeId);
     });
   });
@@ -183,7 +189,8 @@ describe('PostgresRepository', () => {
       const { sql } = createMockSql();
       const repo = new PostgresRepository(sql as never);
       await repo.migrate();
-      expect(sql.unsafe).toHaveBeenCalledTimes(4);
+      // V1–V4 plus V5 (cross_tree_refs table) and its backfill statement.
+      expect(sql.unsafe).toHaveBeenCalledTimes(6);
     });
   });
 });

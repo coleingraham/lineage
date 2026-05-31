@@ -4,10 +4,14 @@ import type {
   Tag,
   TagCategory,
   Tree,
+  ContextSource,
+  CrossTreeRef,
+  CrossTreeRefQuery,
   SearchOptions,
   SearchResult,
   SemanticSearchResult,
 } from '@lineage/core';
+import { CROSS_TREE_REF_KINDS } from '@lineage/core';
 import Database from '@tauri-apps/plugin-sql';
 
 const INIT_SQL = `
@@ -83,6 +87,20 @@ const MIGRATE_V4_STMTS = [
   'CREATE INDEX IF NOT EXISTS idx_tree_tags_tag ON tree_tags(tag_id)',
 ];
 
+const MIGRATE_V5_STMTS = [
+  `CREATE TABLE IF NOT EXISTS cross_tree_refs (
+    from_tree_id  TEXT NOT NULL,
+    from_node_id  TEXT,
+    to_tree_id    TEXT NOT NULL,
+    to_node_id    TEXT NOT NULL,
+    kind          TEXT NOT NULL,
+    live          INTEGER NOT NULL DEFAULT 1
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_ctr_from ON cross_tree_refs(from_tree_id, from_node_id)',
+  'CREATE INDEX IF NOT EXISTS idx_ctr_to ON cross_tree_refs(to_tree_id, to_node_id)',
+  'CREATE INDEX IF NOT EXISTS idx_ctr_kind ON cross_tree_refs(kind)',
+];
+
 interface NodeRow {
   node_id: string;
   tree_id: string;
@@ -105,6 +123,26 @@ interface TreeRow {
   created_at: string;
   root_node_id: string;
   context_sources: string | null;
+}
+
+interface CrossTreeRefRow {
+  from_tree_id: string;
+  from_node_id: string | null;
+  to_tree_id: string;
+  to_node_id: string;
+  kind: string;
+  live: number;
+}
+
+function rowToCrossTreeRef(row: CrossTreeRefRow): CrossTreeRef {
+  return {
+    fromTreeId: row.from_tree_id,
+    fromNodeId: row.from_node_id,
+    toTreeId: row.to_tree_id,
+    toNodeId: row.to_node_id,
+    kind: row.kind,
+    live: row.live === 1,
+  };
 }
 
 interface TagCategoryRow {
@@ -141,14 +179,14 @@ function rowToNode(row: NodeRow): Node {
 }
 
 function rowToTree(row: TreeRow): Tree {
+  // contextSources come from the unified cross_tree_refs table, not the legacy
+  // context_sources column — see fillContextSources / migration V5.
   return {
     treeId: row.tree_id,
     title: row.title,
     createdAt: row.created_at,
     rootNodeId: row.root_node_id,
-    contextSources: row.context_sources
-      ? (JSON.parse(row.context_sources) as Tree['contextSources'])
-      : null,
+    contextSources: null,
   };
 }
 
@@ -228,7 +266,69 @@ export class TauriSqliteRepository implements NodeRepository {
       }
     }
 
+    // V5: unified cross_tree_refs table; backfill from trees.context_sources.
+    const ctrCols = await db.select<{ cnt: number }[]>(
+      "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name = 'cross_tree_refs'",
+    );
+    if (ctrCols.length === 0 || ctrCols[0].cnt === 0) {
+      for (const stmt of MIGRATE_V5_STMTS) {
+        await db.execute(stmt);
+      }
+      // Backfill tree-owned context_source refs from the legacy column.
+      const treeRows = await db.select<{ tree_id: string; context_sources: string | null }[]>(
+        'SELECT tree_id, context_sources FROM trees WHERE context_sources IS NOT NULL',
+      );
+      for (const row of treeRows) {
+        if (!row.context_sources) continue;
+        let sources: { treeId: string; nodeId: string }[];
+        try {
+          sources = JSON.parse(row.context_sources) as { treeId: string; nodeId: string }[];
+        } catch {
+          continue;
+        }
+        for (const cs of sources) {
+          await db.execute(
+            `INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+             VALUES ($1, NULL, $2, $3, 'context_source', 1)`,
+            [row.tree_id, cs.treeId, cs.nodeId],
+          );
+        }
+      }
+    }
+
     return new TauriSqliteRepository(db);
+  }
+
+  /** Attach contextSources (from cross_tree_refs) to a base tree. */
+  private async fillContextSources(tree: Tree): Promise<Tree> {
+    const rows = await this.db.select<{ to_tree_id: string; to_node_id: string }[]>(
+      `SELECT to_tree_id, to_node_id FROM cross_tree_refs
+       WHERE from_tree_id = $1 AND from_node_id IS NULL AND kind = $2`,
+      [tree.treeId, CROSS_TREE_REF_KINDS.CONTEXT_SOURCE],
+    );
+    const contextSources: ContextSource[] = rows.map((r) => ({
+      treeId: r.to_tree_id,
+      nodeId: r.to_node_id,
+    }));
+    return { ...tree, contextSources: contextSources.length > 0 ? contextSources : null };
+  }
+
+  /** Replace a tree's tree-owned context_source refs to match `contextSources`. */
+  private async syncContextSources(
+    treeId: string,
+    contextSources: ContextSource[] | null,
+  ): Promise<void> {
+    await this.db.execute(
+      'DELETE FROM cross_tree_refs WHERE from_tree_id = $1 AND from_node_id IS NULL AND kind = $2',
+      [treeId, CROSS_TREE_REF_KINDS.CONTEXT_SOURCE],
+    );
+    for (const cs of contextSources ?? []) {
+      await this.db.execute(
+        `INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+         VALUES ($1, NULL, $2, $3, $4, 1)`,
+        [treeId, cs.treeId, cs.nodeId, CROSS_TREE_REF_KINDS.CONTEXT_SOURCE],
+      );
+    }
   }
 
   async getTree(treeId: string): Promise<Tree> {
@@ -238,31 +338,27 @@ export class TauriSqliteRepository implements NodeRepository {
     if (rows.length === 0) {
       throw new Error(`Tree not found: ${treeId}`);
     }
-    return rowToTree(rows[0]);
+    return this.fillContextSources(rowToTree(rows[0]));
   }
 
   async listTrees(): Promise<Tree[]> {
     const rows = await this.db.select<TreeRow[]>('SELECT * FROM trees');
-    return rows.map(rowToTree);
+    return Promise.all(rows.map((row) => this.fillContextSources(rowToTree(row))));
   }
 
   async putTree(tree: Tree): Promise<void> {
+    // The legacy context_sources column is left NULL; contextSources live in
+    // the unified cross_tree_refs table.
     await this.db.execute(
       `INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
-       VALUES ($1, $2, $3, $4, $5)
+       VALUES ($1, $2, $3, $4, NULL)
        ON CONFLICT(tree_id) DO UPDATE SET
          title = excluded.title,
          created_at = excluded.created_at,
-         root_node_id = excluded.root_node_id,
-         context_sources = excluded.context_sources`,
-      [
-        tree.treeId,
-        tree.title,
-        tree.createdAt,
-        tree.rootNodeId,
-        tree.contextSources ? JSON.stringify(tree.contextSources) : null,
-      ],
+         root_node_id = excluded.root_node_id`,
+      [tree.treeId, tree.title, tree.createdAt, tree.rootNodeId],
     );
+    await this.syncContextSources(tree.treeId, tree.contextSources);
   }
 
   async getNode(nodeId: string): Promise<Node> {
@@ -355,6 +451,7 @@ export class TauriSqliteRepository implements NodeRepository {
       [treeId],
     );
     await this.db.execute('DELETE FROM tree_tags WHERE tree_id = $1', [treeId]);
+    await this.db.execute('DELETE FROM cross_tree_refs WHERE from_tree_id = $1', [treeId]);
     await this.db.execute('DELETE FROM nodes WHERE tree_id = $1', [treeId]);
     await this.db.execute('DELETE FROM trees WHERE tree_id = $1', [treeId]);
   }
@@ -406,7 +503,7 @@ export class TauriSqliteRepository implements NodeRepository {
       "SELECT * FROM trees WHERE title LIKE '%' || $1 || '%' COLLATE NOCASE ORDER BY created_at DESC",
       [query],
     );
-    return rows.map(rowToTree);
+    return Promise.all(rows.map((row) => this.fillContextSources(rowToTree(row))));
   }
 
   // ── Tag category CRUD ──────────────────────────────────────────────────
@@ -667,6 +764,68 @@ export class TauriSqliteRepository implements NodeRepository {
                  WHERE tt.tag_id IN (${placeholders})
                  GROUP BY tr.tree_id${having}`;
     const rows = await this.db.select<TreeRow[]>(sql, params);
-    return rows.map(rowToTree);
+    return Promise.all(rows.map((row) => this.fillContextSources(rowToTree(row))));
   }
+
+  // ── Cross-tree references ──────────────────────────────────────────────
+
+  async putCrossTreeRef(ref: CrossTreeRef): Promise<void> {
+    // Delete-then-insert keyed on the full tuple (NULL from_node_id makes a
+    // UNIQUE constraint awkward, so upsert manually).
+    await this.db.execute(
+      `DELETE FROM cross_tree_refs
+       WHERE from_tree_id = $1 AND from_node_id IS $2 AND to_tree_id = $3
+         AND to_node_id = $4 AND kind = $5`,
+      [ref.fromTreeId, ref.fromNodeId, ref.toTreeId, ref.toNodeId, ref.kind],
+    );
+    await this.db.execute(
+      `INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [ref.fromTreeId, ref.fromNodeId, ref.toTreeId, ref.toNodeId, ref.kind, ref.live ? 1 : 0],
+    );
+  }
+
+  async getCrossTreeRefs(query?: CrossTreeRefQuery): Promise<CrossTreeRef[]> {
+    const { sql, params } = buildRefWhere(query);
+    const rows = await this.db.select<CrossTreeRefRow[]>(
+      `SELECT * FROM cross_tree_refs${sql}`,
+      params,
+    );
+    return rows.map(rowToCrossTreeRef);
+  }
+
+  async deleteCrossTreeRefs(query: CrossTreeRefQuery): Promise<number> {
+    const { sql, params } = buildRefWhere(query);
+    const result = await this.db.execute(`DELETE FROM cross_tree_refs${sql}`, params);
+    return result.rowsAffected;
+  }
+}
+
+/** Build a parameterized WHERE clause for a cross-tree-ref query. */
+function buildRefWhere(query?: CrossTreeRefQuery): { sql: string; params: unknown[] } {
+  if (!query) return { sql: '', params: [] };
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let i = 1;
+  if (query.fromTreeId !== undefined) {
+    conditions.push(`from_tree_id = $${i++}`);
+    params.push(query.fromTreeId);
+  }
+  if (query.fromNodeId !== undefined) {
+    conditions.push(`from_node_id IS $${i++}`);
+    params.push(query.fromNodeId);
+  }
+  if (query.toTreeId !== undefined) {
+    conditions.push(`to_tree_id = $${i++}`);
+    params.push(query.toTreeId);
+  }
+  if (query.toNodeId !== undefined) {
+    conditions.push(`to_node_id = $${i++}`);
+    params.push(query.toNodeId);
+  }
+  if (query.kind !== undefined) {
+    conditions.push(`kind = $${i}`);
+    params.push(query.kind);
+  }
+  return { sql: conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '', params };
 }

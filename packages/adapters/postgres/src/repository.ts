@@ -1,6 +1,8 @@
 import type postgres from 'postgres';
 import type {
   ContextSource,
+  CrossTreeRef,
+  CrossTreeRefQuery,
   Node,
   NodeRepository,
   Tree,
@@ -11,6 +13,7 @@ import type {
   SemanticSearchOptions,
   SemanticSearchResult,
 } from '@lineage/core';
+import { CROSS_TREE_REF_KINDS } from '@lineage/core';
 import { runMigrations } from './migrations/index.js';
 
 interface NodeRow {
@@ -79,13 +82,35 @@ function rowToNode(row: NodeRow): Node {
 }
 
 function rowToTree(row: TreeRow): Tree {
+  // contextSources come from the unified cross_tree_refs table, not the legacy
+  // context_sources column — see fillContextSources / migration V5.
   return {
     treeId: row.tree_id,
     title: row.title,
     createdAt:
       typeof row.created_at === 'string' ? row.created_at : new Date(row.created_at).toISOString(),
     rootNodeId: row.root_node_id,
-    contextSources: row.context_sources ?? null,
+    contextSources: null,
+  };
+}
+
+interface CrossTreeRefRow {
+  from_tree_id: string;
+  from_node_id: string | null;
+  to_tree_id: string;
+  to_node_id: string;
+  kind: string;
+  live: boolean;
+}
+
+function rowToCrossTreeRef(row: CrossTreeRefRow): CrossTreeRef {
+  return {
+    fromTreeId: row.from_tree_id,
+    fromNodeId: row.from_node_id,
+    toTreeId: row.to_tree_id,
+    toNodeId: row.to_node_id,
+    kind: row.kind,
+    live: row.live,
   };
 }
 
@@ -121,6 +146,38 @@ export class PostgresRepository implements NodeRepository {
     await runMigrations(this.sql);
   }
 
+  /** Attach contextSources (from cross_tree_refs) to a base tree. */
+  private async fillContextSources(tree: Tree): Promise<Tree> {
+    const rows = await this.sql<{ to_tree_id: string; to_node_id: string }[]>`
+      SELECT to_tree_id, to_node_id FROM cross_tree_refs
+      WHERE from_tree_id = ${tree.treeId} AND from_node_id IS NULL
+        AND kind = ${CROSS_TREE_REF_KINDS.CONTEXT_SOURCE}
+    `;
+    const contextSources: ContextSource[] = rows.map((r) => ({
+      treeId: r.to_tree_id,
+      nodeId: r.to_node_id,
+    }));
+    return { ...tree, contextSources: contextSources.length > 0 ? contextSources : null };
+  }
+
+  /** Replace a tree's tree-owned context_source refs to match `contextSources`. */
+  private async syncContextSources(
+    treeId: string,
+    contextSources: ContextSource[] | null,
+  ): Promise<void> {
+    await this.sql`
+      DELETE FROM cross_tree_refs
+      WHERE from_tree_id = ${treeId} AND from_node_id IS NULL
+        AND kind = ${CROSS_TREE_REF_KINDS.CONTEXT_SOURCE}
+    `;
+    for (const cs of contextSources ?? []) {
+      await this.sql`
+        INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+        VALUES (${treeId}, NULL, ${cs.treeId}, ${cs.nodeId}, ${CROSS_TREE_REF_KINDS.CONTEXT_SOURCE}, TRUE)
+      `;
+    }
+  }
+
   async getTree(treeId: string): Promise<Tree> {
     const rows = await this.sql<TreeRow[]>`
       SELECT tree_id, title, created_at, root_node_id, context_sources
@@ -130,7 +187,7 @@ export class PostgresRepository implements NodeRepository {
     if (rows.length === 0) {
       throw new Error(`Tree not found: ${treeId}`);
     }
-    return rowToTree(rows[0]);
+    return this.fillContextSources(rowToTree(rows[0]));
   }
 
   async listTrees(): Promise<Tree[]> {
@@ -138,20 +195,21 @@ export class PostgresRepository implements NodeRepository {
       SELECT tree_id, title, created_at, root_node_id, context_sources
       FROM trees
     `;
-    return rows.map(rowToTree);
+    return Promise.all(rows.map((row) => this.fillContextSources(rowToTree(row))));
   }
 
   async putTree(tree: Tree): Promise<void> {
-    const contextSourcesJson = tree.contextSources ? JSON.stringify(tree.contextSources) : null;
+    // The legacy context_sources column is left NULL; contextSources live in
+    // the unified cross_tree_refs table.
     await this.sql`
       INSERT INTO trees (tree_id, title, created_at, root_node_id, context_sources)
-      VALUES (${tree.treeId}, ${tree.title}, ${tree.createdAt}, ${tree.rootNodeId}, ${contextSourcesJson}::jsonb)
+      VALUES (${tree.treeId}, ${tree.title}, ${tree.createdAt}, ${tree.rootNodeId}, NULL)
       ON CONFLICT (tree_id) DO UPDATE SET
         title = EXCLUDED.title,
         created_at = EXCLUDED.created_at,
-        root_node_id = EXCLUDED.root_node_id,
-        context_sources = EXCLUDED.context_sources
+        root_node_id = EXCLUDED.root_node_id
     `;
+    await this.syncContextSources(tree.treeId, tree.contextSources);
   }
 
   async getNode(nodeId: string): Promise<Node> {
@@ -220,6 +278,7 @@ export class PostgresRepository implements NodeRepository {
   }
 
   async deleteTree(treeId: string): Promise<void> {
+    await this.sql`DELETE FROM cross_tree_refs WHERE from_tree_id = ${treeId}`;
     await this.sql`DELETE FROM nodes WHERE tree_id = ${treeId}`;
     const result = await this.sql`DELETE FROM trees WHERE tree_id = ${treeId}`;
     if (result.count === 0) {
@@ -288,7 +347,7 @@ export class PostgresRepository implements NodeRepository {
       WHERE title ILIKE ${pattern}
       ORDER BY created_at DESC
     `;
-    return rows.map(rowToTree);
+    return Promise.all(rows.map((row) => this.fillContextSources(rowToTree(row))));
   }
 
   // ── Tag category CRUD ──
@@ -500,6 +559,64 @@ export class PostgresRepository implements NodeRepository {
       GROUP BY t.tree_id, t.title, t.created_at, t.root_node_id, t.context_sources
       HAVING COUNT(DISTINCT tt.tag_id) >= ${requiredCount}
     `;
-    return rows.map(rowToTree);
+    return Promise.all(rows.map((row) => this.fillContextSources(rowToTree(row))));
+  }
+
+  // ── Cross-tree references ──────────────────────────────────────────────
+
+  async putCrossTreeRef(ref: CrossTreeRef): Promise<void> {
+    await this.sql`
+      DELETE FROM cross_tree_refs
+      WHERE from_tree_id = ${ref.fromTreeId}
+        AND from_node_id IS NOT DISTINCT FROM ${ref.fromNodeId}
+        AND to_tree_id = ${ref.toTreeId} AND to_node_id = ${ref.toNodeId} AND kind = ${ref.kind}
+    `;
+    await this.sql`
+      INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+      VALUES (${ref.fromTreeId}, ${ref.fromNodeId}, ${ref.toTreeId}, ${ref.toNodeId}, ${ref.kind}, ${ref.live})
+    `;
+  }
+
+  async getCrossTreeRefs(query?: CrossTreeRefQuery): Promise<CrossTreeRef[]> {
+    const rows = await this.sql<CrossTreeRefRow[]>`
+      SELECT from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live
+      FROM cross_tree_refs
+      ${this.refWhere(query)}
+    `;
+    return rows.map(rowToCrossTreeRef);
+  }
+
+  async deleteCrossTreeRefs(query: CrossTreeRefQuery): Promise<number> {
+    const result = await this.sql`
+      DELETE FROM cross_tree_refs
+      ${this.refWhere(query)}
+    `;
+    return result.count;
+  }
+
+  /** Build a WHERE fragment for a cross-tree-ref query (empty = match all). */
+  private refWhere(query?: CrossTreeRefQuery): postgres.Fragment {
+    const conditions: postgres.Fragment[] = [];
+    if (query?.fromTreeId !== undefined) {
+      conditions.push(this.sql`from_tree_id = ${query.fromTreeId}`);
+    }
+    if (query?.fromNodeId !== undefined) {
+      conditions.push(this.sql`from_node_id IS NOT DISTINCT FROM ${query.fromNodeId}`);
+    }
+    if (query?.toTreeId !== undefined) {
+      conditions.push(this.sql`to_tree_id = ${query.toTreeId}`);
+    }
+    if (query?.toNodeId !== undefined) {
+      conditions.push(this.sql`to_node_id = ${query.toNodeId}`);
+    }
+    if (query?.kind !== undefined) {
+      conditions.push(this.sql`kind = ${query.kind}`);
+    }
+    if (conditions.length === 0) return this.sql``;
+    let where = this.sql`WHERE ${conditions[0]}`;
+    for (let i = 1; i < conditions.length; i++) {
+      where = this.sql`${where} AND ${conditions[i]}`;
+    }
+    return where;
   }
 }

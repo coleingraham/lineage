@@ -76,6 +76,20 @@ CREATE INDEX IF NOT EXISTS idx_node_tags_tag ON node_tags(tag_id);
 CREATE INDEX IF NOT EXISTS idx_tree_tags_tag ON tree_tags(tag_id);
 `;
 
+const MIGRATE_V5 = `
+CREATE TABLE IF NOT EXISTS cross_tree_refs (
+  from_tree_id  TEXT NOT NULL,
+  from_node_id  TEXT,
+  to_tree_id    TEXT NOT NULL,
+  to_node_id    TEXT NOT NULL,
+  kind          TEXT NOT NULL,
+  live          INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_ctr_from ON cross_tree_refs(from_tree_id, from_node_id);
+CREATE INDEX IF NOT EXISTS idx_ctr_to ON cross_tree_refs(to_tree_id, to_node_id);
+CREATE INDEX IF NOT EXISTS idx_ctr_kind ON cross_tree_refs(kind);
+`;
+
 export function runMigrations(db: Database.Database): void {
   db.exec(INIT_SQL);
 
@@ -106,4 +120,49 @@ export function runMigrations(db: Database.Database): void {
   if (hasTagCategories.cnt === 0) {
     db.exec(MIGRATE_V4);
   }
+
+  // V5: unified cross_tree_refs table; backfill from trees.context_sources.
+  const hasCrossTreeRefs = db
+    .prepare(
+      "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name = 'cross_tree_refs'",
+    )
+    .get() as { cnt: number };
+  if (hasCrossTreeRefs.cnt === 0) {
+    db.exec(MIGRATE_V5);
+    backfillCrossTreeRefs(db);
+  }
+}
+
+/**
+ * Backfill the unified cross_tree_refs table from the legacy
+ * trees.context_sources JSON column. Each entry becomes a tree-owned
+ * (from_node_id = NULL) `context_source` ref. Behavior-preserving: the column
+ * is left in place but is no longer read by the repository.
+ */
+function backfillCrossTreeRefs(db: Database.Database): void {
+  const rows = db
+    .prepare<
+      [],
+      { tree_id: string; context_sources: string | null }
+    >('SELECT tree_id, context_sources FROM trees WHERE context_sources IS NOT NULL')
+    .all();
+  const insert = db.prepare(
+    `INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+     VALUES (?, NULL, ?, ?, 'context_source', 1)`,
+  );
+  const insertMany = db.transaction((items: typeof rows) => {
+    for (const row of items) {
+      if (!row.context_sources) continue;
+      let sources: { treeId: string; nodeId: string }[];
+      try {
+        sources = JSON.parse(row.context_sources) as { treeId: string; nodeId: string }[];
+      } catch {
+        continue;
+      }
+      for (const cs of sources) {
+        insert.run(row.tree_id, cs.treeId, cs.nodeId);
+      }
+    }
+  });
+  insertMany(rows);
 }
