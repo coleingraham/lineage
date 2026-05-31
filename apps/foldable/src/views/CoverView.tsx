@@ -32,6 +32,8 @@ interface CoverViewProps {
   maxWidth: number;
   /** Real hinge geometry, when the posture source provides it (native plugin). */
   hinge?: HingeInfo;
+  isPinned?: (treeId: string, nodeId: string) => boolean;
+  onTogglePin?: (treeId: string, nodeId: string) => void;
 }
 
 function PageLabel({ children }: { children: ReactNode }) {
@@ -71,6 +73,8 @@ export function CoverView({
   mode,
   maxWidth,
   hinge,
+  isPinned,
+  onTogglePin,
 }: CoverViewProps) {
   const nodeMap = useMemo(() => buildNodeMap(nodes), [nodes]);
   const childrenMap = useMemo(() => buildChildrenMap(nodes), [nodes]);
@@ -190,6 +194,8 @@ export function CoverView({
       }}
       onSummarize={ai.supported ? () => void summarizeNode(node) : undefined}
       onAiReply={ai.supported ? () => void aiReplyNode(node) : undefined}
+      pinned={isPinned?.(treeId, node.nodeId)}
+      onTogglePin={onTogglePin ? () => onTogglePin(treeId, node.nodeId) : undefined}
     />
   );
 

@@ -13,6 +13,9 @@ import { CoverView } from './views/CoverView.js';
 import { ComposeBar } from './components/ComposeBar.js';
 import { TreeBrowser } from './components/TreeBrowser.js';
 import { ProsePanel } from './components/ProsePanel.js';
+import { PinsPanel } from './components/PinsPanel.js';
+import { usePins } from './hooks/usePins.js';
+import type { PinnedRef } from './lib/pins.js';
 import { exportBackup } from './lib/backup.js';
 import { isAiSupported } from './ai/native.js';
 import { COLORS, FONTS } from './styles/theme.js';
@@ -41,7 +44,9 @@ export function App() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [proseOpen, setProseOpen] = useState(false);
+  const [pinsOpen, setPinsOpen] = useState(false);
   const aiSupported = isAiSupported();
+  const pins = usePins();
   const trees = useTreeList(repo, refreshKey);
   const { nodes, loading } = useTreeData(repo, session.selectedTreeId, refreshKey);
   const authoring = useAuthoring(repo, refresh);
@@ -155,6 +160,35 @@ export function App() {
     [repo, authoring, setSession],
   );
 
+  // Pin / new-from-context: the pinned nodes become the new tree's context
+  // sources, with an (optionally AI-summarized) opening thought.
+  const resolvePin = useCallback(
+    async (ref: PinnedRef): Promise<string | null> => {
+      if (!repo) return null;
+      try {
+        return (await repo.getNode(ref.nodeId)).content;
+      } catch {
+        return null;
+      }
+    },
+    [repo],
+  );
+
+  const createFromContext = useCallback(
+    async (rootContent: string, refs: PinnedRef[]) => {
+      const { treeId, rootNodeId } = await authoring.createTree(
+        deriveTitle(rootContent),
+        rootContent,
+        refs.map((r) => ({ treeId: r.treeId, nodeId: r.nodeId })),
+      );
+      setPinsOpen(false);
+      pins.clear();
+      setCreatingNew(false);
+      setSession({ selectedTreeId: treeId, focusedNodeId: rootNodeId });
+    },
+    [authoring, pins, setSession],
+  );
+
   const shell = SHELL[effectiveMode];
   const selectedTree = useMemo(
     () => trees.find((t) => t.treeId === session.selectedTreeId) ?? null,
@@ -171,6 +205,8 @@ export function App() {
         source={modeOverride ? 'manual' : fold.source}
         overridden={modeOverride !== null}
         onCycleMode={cycleMode}
+        pinCount={pins.pins.length}
+        onOpenPins={() => setPinsOpen(true)}
       />
 
       {shell.banner && (
@@ -203,6 +239,8 @@ export function App() {
               mode={effectiveMode}
               maxWidth={shell.maxWidth}
               hinge={fold.hinge}
+              isPinned={pins.isPinned}
+              onTogglePin={(treeId, nodeId) => pins.toggle({ treeId, nodeId })}
             />
           ) : (
             <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>
@@ -216,6 +254,17 @@ export function App() {
       </div>
 
       {proseOpen && <ProsePanel onCreate={createFromProse} onClose={() => setProseOpen(false)} />}
+
+      {pinsOpen && (
+        <PinsPanel
+          pins={pins.pins}
+          resolve={resolvePin}
+          onRemove={pins.remove}
+          onClear={pins.clear}
+          onCreate={createFromContext}
+          onClose={() => setPinsOpen(false)}
+        />
+      )}
 
       {browserOpen && (
         <TreeBrowser
@@ -240,9 +289,21 @@ interface HeaderProps {
   source: string;
   overridden: boolean;
   onCycleMode: () => void;
+  pinCount: number;
+  onOpenPins: () => void;
 }
 
-function Header({ title, onOpenBrowser, onNew, mode, source, overridden, onCycleMode }: HeaderProps) {
+function Header({
+  title,
+  onOpenBrowser,
+  onNew,
+  mode,
+  source,
+  overridden,
+  onCycleMode,
+  pinCount,
+  onOpenPins,
+}: HeaderProps) {
   return (
     <header
       style={{
@@ -312,6 +373,26 @@ function Header({ title, onOpenBrowser, onNew, mode, source, overridden, onCycle
         </span>
         <span style={{ fontSize: 9 }}>{source}</span>
       </button>
+
+      {pinCount > 0 && (
+        <button
+          onClick={onOpenPins}
+          title="Pinned thoughts"
+          style={{
+            padding: '6px 10px',
+            background: 'transparent',
+            color: COLORS.root,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontFamily: FONTS.mono,
+            fontSize: 12,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          📌 {pinCount}
+        </button>
+      )}
 
       <button
         onClick={onNew}

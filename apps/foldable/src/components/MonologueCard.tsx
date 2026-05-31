@@ -20,6 +20,8 @@ interface MonologueCardProps {
   /** AI actions, shown on the focused card when on-device AI is available. */
   onSummarize?: () => void;
   onAiReply?: () => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
 }
 
 const ACTION_STYLE: CSSProperties = {
@@ -48,6 +50,8 @@ export function MonologueCard({
   onDiverge,
   onSummarize,
   onAiReply,
+  pinned,
+  onTogglePin,
 }: MonologueCardProps) {
   const typeLabel = node.type === 'ai' ? 'ai' : node.type === 'summary' ? 'summary' : null;
   const accent = isRoot
@@ -143,6 +147,14 @@ export function MonologueCard({
           {onSummarize && (
             <button onClick={onSummarize} style={{ ...ACTION_STYLE, color: COLORS.summary }}>
               summarize
+            </button>
+          )}
+          {onTogglePin && (
+            <button
+              onClick={onTogglePin}
+              style={{ ...ACTION_STYLE, color: pinned ? COLORS.root : COLORS.textSecondary }}
+            >
+              {pinned ? '📌 pinned' : 'pin'}
             </button>
           )}
           <button onClick={onStartEdit} style={ACTION_STYLE}>

@@ -1,11 +1,16 @@
 import { useCallback, useMemo } from 'react';
-import type { BranchIntent, NodeRepository, Tree } from '@lineage/core';
+import type { BranchIntent, ContextSource, NodeRepository, Tree } from '@lineage/core';
 import { BRANCH_INTENTS, NODE_TYPES, createNode } from '@lineage/core';
 import { getAuthorId } from '../lib/authorId.js';
 
 export interface Authoring {
-  /** Create a new monologue tree seeded with a root thought. */
-  createTree: (title: string, rootContent: string) => Promise<{ treeId: string; rootNodeId: string }>;
+  /** Create a new monologue tree seeded with a root thought, optionally with
+   * cross-tree context sources (pinned nodes injected as background). */
+  createTree: (
+    title: string,
+    rootContent: string,
+    contextSources?: ContextSource[],
+  ) => Promise<{ treeId: string; rootNodeId: string }>;
   /** Append a sequential continuation to the active line. Returns the new node id. */
   append: (treeId: string, parentId: string, content: string) => Promise<string>;
   /** Fork a divergence off a node with an explicit branch intent. Returns the new node id. */
@@ -40,7 +45,7 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
   const author = useMemo(() => getAuthorId(), []);
 
   const createTree = useCallback<Authoring['createTree']>(
-    async (title, rootContent) => {
+    async (title, rootContent, contextSources) => {
       if (!repo) throw new Error('Repository not ready');
       const treeId = crypto.randomUUID();
       const root = createNode({
@@ -56,7 +61,7 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
         title: title.trim() || 'Untitled monologue',
         createdAt: new Date().toISOString(),
         rootNodeId: root.nodeId,
-        contextSources: null,
+        contextSources: contextSources && contextSources.length > 0 ? contextSources : null,
       };
       await repo.putTree(tree);
       await repo.putNode(root);
