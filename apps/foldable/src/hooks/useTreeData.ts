@@ -19,56 +19,76 @@ export function useTreeList(repo: NodeRepository | null, refreshKey: number): Tr
   return trees;
 }
 
+/** A resolved cross-tree context source: where it comes from + its content. */
+export interface ContextSourceInfo {
+  treeId: string;
+  nodeId: string;
+  treeTitle: string;
+  content: string;
+}
+
+export interface ContextData {
+  /** Joined content for grounding AI prompts. */
+  text: string;
+  count: number;
+  sources: ContextSourceInfo[];
+}
+
 /**
- * Load the content of a tree's cross-tree context sources (pinned nodes injected
- * as background), so on-device AI can be grounded in them. Returns the joined
- * text and a count.
+ * Load a tree's cross-tree context sources (pinned nodes injected as
+ * background): each source's content and which tree it came from, plus the
+ * joined text used to ground on-device AI.
  */
 export function useContextText(
   repo: NodeRepository | null,
   treeId: string | null,
   refreshKey: number,
-): { text: string; count: number } {
-  const [text, setText] = useState('');
-  const [count, setCount] = useState(0);
+): ContextData {
+  const [data, setData] = useState<ContextData>({ text: '', count: 0, sources: [] });
 
   useEffect(() => {
     if (!repo || !treeId) {
-      setText('');
-      setCount(0);
+      setData({ text: '', count: 0, sources: [] });
       return;
     }
     let active = true;
     (async () => {
       try {
         const tree = await repo.getTree(treeId);
-        const sources = tree.contextSources ?? [];
-        if (sources.length === 0) {
-          if (active) {
-            setText('');
-            setCount(0);
-          }
+        const refs = tree.contextSources ?? [];
+        if (refs.length === 0) {
+          if (active) setData({ text: '', count: 0, sources: [] });
           return;
         }
-        const contents = await Promise.all(
-          sources.map(async (s) => {
+        const titleCache = new Map<string, string>();
+        const resolved = await Promise.all(
+          refs.map(async (ref): Promise<ContextSourceInfo | null> => {
             try {
-              return (await repo.getNode(s.nodeId)).content;
+              const node = await repo.getNode(ref.nodeId);
+              let treeTitle = titleCache.get(ref.treeId);
+              if (treeTitle === undefined) {
+                treeTitle = await repo
+                  .getTree(ref.treeId)
+                  .then((t) => t.title)
+                  .catch(() => 'Untitled');
+                titleCache.set(ref.treeId, treeTitle);
+              }
+              return { treeId: ref.treeId, nodeId: ref.nodeId, treeTitle, content: node.content };
             } catch {
               return null;
             }
           }),
         );
-        const resolved = contents.filter((c): c is string => !!c);
+        const sources = resolved.filter((s): s is ContextSourceInfo => s !== null);
         if (active) {
-          setText(resolved.join('\n\n'));
-          setCount(resolved.length);
+          setData({
+            text: sources.map((s) => s.content).join('\n\n'),
+            count: sources.length,
+            sources,
+          });
         }
       } catch {
-        if (active) {
-          setText('');
-          setCount(0);
-        }
+        if (active) setData({ text: '', count: 0, sources: [] });
       }
     })();
     return () => {
@@ -76,7 +96,7 @@ export function useContextText(
     };
   }, [repo, treeId, refreshKey]);
 
-  return { text, count };
+  return data;
 }
 
 /** Load the (non-deleted) nodes of a tree, refreshing when `refreshKey` changes. */

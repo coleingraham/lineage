@@ -14,6 +14,7 @@ import { ComposeBar } from './components/ComposeBar.js';
 import { TreeBrowser } from './components/TreeBrowser.js';
 import { ProsePanel } from './components/ProsePanel.js';
 import { PinsPanel } from './components/PinsPanel.js';
+import { ContextPanel } from './components/ContextPanel.js';
 import { usePins } from './hooks/usePins.js';
 import type { PinnedRef } from './lib/pins.js';
 import { exportBackup } from './lib/backup.js';
@@ -45,6 +46,7 @@ export function App() {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [proseOpen, setProseOpen] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
   const aiSupported = isAiSupported();
   const pins = usePins();
   const trees = useTreeList(repo, refreshKey);
@@ -209,6 +211,7 @@ export function App() {
         pinCount={pins.pins.length}
         onOpenPins={() => setPinsOpen(true)}
         contextCount={!creatingNew && session.selectedTreeId ? context.count : 0}
+        onOpenContext={() => setContextOpen(true)}
       />
 
       {shell.banner && (
@@ -269,6 +272,17 @@ export function App() {
         />
       )}
 
+      {contextOpen && (
+        <ContextPanel
+          sources={context.sources}
+          onOpen={(treeId, nodeId) => {
+            setCreatingNew(false);
+            setSession({ selectedTreeId: treeId, focusedNodeId: nodeId });
+          }}
+          onClose={() => setContextOpen(false)}
+        />
+      )}
+
       {browserOpen && (
         <TreeBrowser
           trees={trees}
@@ -295,6 +309,7 @@ interface HeaderProps {
   pinCount: number;
   onOpenPins: () => void;
   contextCount: number;
+  onOpenContext: () => void;
 }
 
 function Header({
@@ -308,6 +323,7 @@ function Header({
   pinCount,
   onOpenPins,
   contextCount,
+  onOpenContext,
 }: HeaderProps) {
   return (
     <header
@@ -380,20 +396,23 @@ function Header({
       </button>
 
       {contextCount > 0 && (
-        <span
-          title={`AI is grounded in ${contextCount} pinned context source${contextCount === 1 ? '' : 's'}`}
+        <button
+          onClick={onOpenContext}
+          title={`AI is grounded in ${contextCount} pinned context source${contextCount === 1 ? '' : 's'} — tap to view`}
           style={{
             padding: '6px 8px',
+            background: 'transparent',
             color: COLORS.ai,
             border: `1px solid ${COLORS.border}`,
             borderRadius: 8,
+            cursor: 'pointer',
             fontFamily: FONTS.mono,
             fontSize: 12,
             whiteSpace: 'nowrap',
           }}
         >
           🔗 {contextCount}
-        </span>
+        </button>
       )}
 
       {pinCount > 0 && (
