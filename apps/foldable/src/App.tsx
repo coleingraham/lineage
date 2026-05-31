@@ -12,7 +12,9 @@ import { buildChildrenMap, buildNodeMap, deepestNewestLeaf } from './lib/tree.js
 import { CoverView } from './views/CoverView.js';
 import { ComposeBar } from './components/ComposeBar.js';
 import { TreeBrowser } from './components/TreeBrowser.js';
+import { ProsePanel } from './components/ProsePanel.js';
 import { exportBackup } from './lib/backup.js';
+import { isAiSupported } from './ai/native.js';
 import { COLORS, FONTS } from './styles/theme.js';
 
 /** Posture-driven layout envelope: width + an informational banner per mode. */
@@ -38,6 +40,8 @@ export function App() {
   // button — nulling the selection alone would just get re-selected.
   const [creatingNew, setCreatingNew] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [proseOpen, setProseOpen] = useState(false);
+  const aiSupported = isAiSupported();
   const trees = useTreeList(repo, refreshKey);
   const { nodes, loading } = useTreeData(repo, session.selectedTreeId, refreshKey);
   const authoring = useAuthoring(repo, refresh);
@@ -135,6 +139,22 @@ export function App() {
     [authoring, setSession],
   );
 
+  // D3: build a monologue spine from AI-suggested, author-edited thoughts.
+  const createFromProse = useCallback(
+    async (segments: string[]) => {
+      if (!repo || segments.length === 0) return;
+      const { treeId, rootNodeId } = await authoring.createTree(deriveTitle(segments[0]), segments[0]);
+      let parent = rootNodeId;
+      for (const seg of segments.slice(1)) {
+        parent = await authoring.append(treeId, parent, seg);
+      }
+      setProseOpen(false);
+      setCreatingNew(false);
+      setSession({ selectedTreeId: treeId, focusedNodeId: parent });
+    },
+    [repo, authoring, setSession],
+  );
+
   const shell = SHELL[effectiveMode];
   const selectedTree = useMemo(
     () => trees.find((t) => t.treeId === session.selectedTreeId) ?? null,
@@ -188,9 +208,14 @@ export function App() {
             <Centered>{loading ? 'Loading…' : 'Empty tree.'}</Centered>
           )
         ) : (
-          <EmptyState onStart={startMonologue} />
+          <EmptyState
+            onStart={startMonologue}
+            onFromProse={aiSupported ? () => setProseOpen(true) : undefined}
+          />
         )}
       </div>
+
+      {proseOpen && <ProsePanel onCreate={createFromProse} onClose={() => setProseOpen(false)} />}
 
       {browserOpen && (
         <TreeBrowser
@@ -325,7 +350,13 @@ function Centered({ children }: { children: ReactNode }) {
   );
 }
 
-function EmptyState({ onStart }: { onStart: (content: string) => void }) {
+function EmptyState({
+  onStart,
+  onFromProse,
+}: {
+  onStart: (content: string) => void;
+  onFromProse?: () => void;
+}) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div
@@ -347,6 +378,24 @@ function EmptyState({ onStart }: { onStart: (content: string) => void }) {
           Capture a thought to start a monologue. Continue the line, or diverge into an
           alternative, elaboration, or objection.
         </div>
+        {onFromProse && (
+          <button
+            onClick={onFromProse}
+            style={{
+              marginTop: 8,
+              padding: '8px 14px',
+              background: 'transparent',
+              color: COLORS.branch,
+              border: `1px solid ${COLORS.branch}`,
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontFamily: FONTS.mono,
+              fontSize: 13,
+            }}
+          >
+            ✨ From prose
+          </button>
+        )}
       </div>
       <ComposeBar placeholder="Start a monologue…" submitLabel="Start" onSubmit={onStart} />
     </div>

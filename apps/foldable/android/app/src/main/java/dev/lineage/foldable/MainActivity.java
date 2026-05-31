@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PosturePlugin.class);
+        registerPlugin(AiPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
