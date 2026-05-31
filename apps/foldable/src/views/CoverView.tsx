@@ -159,6 +159,8 @@ export function CoverView({
     setFlatLayoutState(value);
     if (typeof localStorage !== 'undefined') localStorage.setItem(FLAT_LAYOUT_KEY, value);
   };
+  // Map view: show the focused node's cover/active-line in a side detail panel.
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // Edit state lives here (not in MonologueCard) so it survives the
   // linear↔book layout swap rather than being lost to a remount.
@@ -321,12 +323,61 @@ export function CoverView({
               swipe={swipe}
             />
           ) : (
-            <FlatCanvas
-              nodes={nodes}
-              focusId={focusId}
-              onFocus={focusNode}
-              onDiverge={startDiverge}
-            />
+            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+              <FlatCanvas
+                nodes={nodes}
+                focusId={focusId}
+                onFocus={focusNode}
+                onOpenDetail={(id) => {
+                  focusNode(id);
+                  setDetailOpen(true);
+                }}
+                onDiverge={startDiverge}
+                onBackgroundTap={() => setDetailOpen(false)}
+              />
+              {detailOpen && (
+                <div
+                  style={{
+                    flex: '0 0 auto',
+                    width: 'min(420px, 46%)',
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: COLORS.bg,
+                    borderLeft: `1px solid ${COLORS.borderHi}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '6px 10px',
+                      borderBottom: `1px solid ${COLORS.border}`,
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontFamily: FONTS.mono, color: COLORS.textSecondary }}>
+                      focused line
+                    </span>
+                    <button
+                      onClick={() => setDetailOpen(false)}
+                      aria-label="Close detail"
+                      style={{ background: 'transparent', border: 'none', color: COLORS.textSecondary, fontSize: 18, cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <LinearStack
+                    line={line}
+                    divergences={divergences}
+                    maxWidth={maxWidth}
+                    renderSpineCard={spineCard}
+                    onFocus={focusNode}
+                    swipe={swipe}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       ) : (

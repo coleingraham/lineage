@@ -6,9 +6,14 @@ import { COLORS, FONTS, intentColor } from '../styles/theme.js';
 interface FlatCanvasProps {
   nodes: Node[];
   focusId: string;
+  /** ＋ : focus a node (target the compose bar) without opening detail. */
   onFocus: (nodeId: string) => void;
+  /** Tap a card: focus it and open the cover/detail panel. */
+  onOpenDetail: (nodeId: string) => void;
   /** Focus the node and open the branch-intent picker. */
   onDiverge: (node: Node) => void;
+  /** Tap blank canvas space: close the detail panel. */
+  onBackgroundTap: () => void;
 }
 
 const CARD_W = 220;
@@ -33,7 +38,14 @@ function nodeAccent(node: Node): string {
  * it); use ＋ to target a node for a new child, or ⌥ to branch. Pan in both
  * directions; the focused card scrolls into view.
  */
-export function FlatCanvas({ nodes, focusId, onFocus, onDiverge }: FlatCanvasProps) {
+export function FlatCanvas({
+  nodes,
+  focusId,
+  onFocus,
+  onOpenDetail,
+  onDiverge,
+  onBackgroundTap,
+}: FlatCanvasProps) {
   const layout = useMemo(() => layoutTree(nodes), [nodes]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef<HTMLDivElement>(null);
@@ -50,7 +62,11 @@ export function FlatCanvas({ nodes, focusId, onFocus, onDiverge }: FlatCanvasPro
   }, [focusId, layout]);
 
   return (
-    <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', position: 'relative' }}>
+    <div
+      ref={scrollRef}
+      onClick={onBackgroundTap}
+      style={{ flex: 1, minHeight: 0, overflow: 'auto', position: 'relative' }}
+    >
       <div style={{ position: 'relative', width, height }}>
         {/* Connectors */}
         <svg
@@ -102,7 +118,10 @@ export function FlatCanvas({ nodes, focusId, onFocus, onDiverge }: FlatCanvasPro
             <div
               key={node.nodeId}
               ref={focused ? focusedRef : undefined}
-              onClick={() => onFocus(node.nodeId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail(node.nodeId);
+              }}
               style={{
                 position: 'absolute',
                 left: left(p.col),
