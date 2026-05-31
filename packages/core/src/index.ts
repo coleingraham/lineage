@@ -1,5 +1,7 @@
 export type {
   ContextSource,
+  CrossTreeRef,
+  CrossTreeRefQuery,
   Node,
   NodeType,
   Tree,
@@ -10,7 +12,7 @@ export type {
   Tag,
   TagCategory,
 } from './types.js';
-export { NODE_TYPES } from './types.js';
+export { NODE_TYPES, CROSS_TREE_REF_KINDS } from './types.js';
 export type { NodeRepository } from './repository.js';
 export type { EmbeddingProvider } from './embedding.js';
 export type { Message, GenerationConfig, StreamChunk, StreamToken, LLMProvider } from './llm.js';
@@ -25,5 +27,14 @@ export type { CreateNodeFields } from './nodes.js';
 
 export { createEmbeddingJob } from './embeddingJob.js';
 export type { EmbeddingJob, EmbeddingJobOptions } from './embeddingJob.js';
+
+export { project, forkTransform } from './projection.js';
+export type {
+  SourceSelection,
+  AttachmentPoint,
+  ProjectionResult,
+  TransformContext,
+  Transform,
+} from './projection.js';
 
 export const VERSION = '0.0.0';

@@ -3,6 +3,8 @@ import type {
   Tree,
   Tag,
   TagCategory,
+  CrossTreeRef,
+  CrossTreeRefQuery,
   SearchOptions,
   SearchResult,
   SemanticSearchOptions,
@@ -54,4 +56,12 @@ export interface NodeRepository {
     options?: { treeId?: string; matchAll?: boolean },
   ): Promise<Node[]>;
   findTreesByTags(tagIds: string[], options?: { matchAll?: boolean }): Promise<Tree[]>;
+
+  // ── Cross-tree references (off-spine soft links; never traversed in context) ──
+  /** Upsert a cross-tree reference, keyed by (fromTreeId, fromNodeId, toTreeId, toNodeId, kind). */
+  putCrossTreeRef(ref: CrossTreeRef): Promise<void>;
+  /** List cross-tree references matching the query (all, if no query). */
+  getCrossTreeRefs(query?: CrossTreeRefQuery): Promise<CrossTreeRef[]>;
+  /** Delete cross-tree references matching the query. Returns the count removed. */
+  deleteCrossTreeRefs(query: CrossTreeRefQuery): Promise<number>;
 }

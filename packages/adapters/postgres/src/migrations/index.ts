@@ -78,9 +78,40 @@ CREATE INDEX IF NOT EXISTS idx_node_tags_tag ON node_tags(tag_id);
 CREATE INDEX IF NOT EXISTS idx_tree_tags_tag ON tree_tags(tag_id);
 `;
 
+const MIGRATE_V5 = `
+CREATE TABLE IF NOT EXISTS cross_tree_refs (
+  from_tree_id  UUID NOT NULL,
+  from_node_id  UUID,
+  to_tree_id    UUID NOT NULL,
+  to_node_id    UUID NOT NULL,
+  kind          TEXT NOT NULL,
+  live          BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE INDEX IF NOT EXISTS idx_ctr_from ON cross_tree_refs(from_tree_id, from_node_id);
+CREATE INDEX IF NOT EXISTS idx_ctr_to ON cross_tree_refs(to_tree_id, to_node_id);
+CREATE INDEX IF NOT EXISTS idx_ctr_kind ON cross_tree_refs(kind);
+`;
+
+// Backfill tree-owned context_source refs from the legacy column. Idempotent:
+// only trees without existing context_source refs are processed.
+const MIGRATE_V5_BACKFILL = `
+INSERT INTO cross_tree_refs (from_tree_id, from_node_id, to_tree_id, to_node_id, kind, live)
+SELECT t.tree_id, NULL, (elem->>'treeId')::uuid, (elem->>'nodeId')::uuid, 'context_source', TRUE
+FROM trees t
+CROSS JOIN LATERAL jsonb_array_elements(t.context_sources) AS elem
+WHERE t.context_sources IS NOT NULL
+  AND jsonb_typeof(t.context_sources) = 'array'
+  AND NOT EXISTS (
+    SELECT 1 FROM cross_tree_refs c
+    WHERE c.from_tree_id = t.tree_id AND c.from_node_id IS NULL AND c.kind = 'context_source'
+  );
+`;
+
 export async function runMigrations(sql: postgres.Sql): Promise<void> {
   await sql.unsafe(INIT_SQL);
   await sql.unsafe(MIGRATE_V2);
   await sql.unsafe(MIGRATE_V3);
   await sql.unsafe(MIGRATE_V4);
+  await sql.unsafe(MIGRATE_V5);
+  await sql.unsafe(MIGRATE_V5_BACKFILL);
 }
