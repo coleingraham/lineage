@@ -16,6 +16,7 @@ export function PinnedList({
   selectedPinNodeIds,
   onPinSelectionChange,
   onCreateTreeFromContext,
+  onMergeIntoCurrentTree,
 }: {
   pinnedNodes: PinnedNode[];
   currentTreeNodes: GraphNode[];
@@ -28,9 +29,11 @@ export function PinnedList({
   selectedPinNodeIds: Set<string>;
   onPinSelectionChange: (ids: Set<string>) => void;
   onCreateTreeFromContext: () => Promise<void>;
+  onMergeIntoCurrentTree: () => Promise<void>;
 }) {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [isMerging, setIsMerging] = useState(false);
   const nodeById = new Map(currentTreeNodes.map((n) => [n.id, n]));
   const treeById = new Map(trees.map((t) => [t.treeId, t]));
 
@@ -66,6 +69,26 @@ export function PinnedList({
       setCreateError(e instanceof Error ? e.message : 'Failed to create conversation');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // In-tree merge requires every selected pin to belong to the current tree —
+  // the merge node's summary parents must live in the same tree as the merge node.
+  const selectedPins = pinnedNodes.filter((p) => selectedPinNodeIds.has(p.nodeId));
+  const canMerge =
+    currentTreeId !== null &&
+    selectedPins.length > 0 &&
+    selectedPins.every((p) => p.treeId === currentTreeId);
+
+  const handleMergeIntoCurrentTree = async () => {
+    setIsMerging(true);
+    setCreateError(null);
+    try {
+      await onMergeIntoCurrentTree();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : 'Failed to merge branches');
+    } finally {
+      setIsMerging(false);
     }
   };
 
@@ -175,6 +198,32 @@ export function PinnedList({
             }}
           >
             {isCreating ? 'Summarizing...' : 'New conversation from context'}
+          </button>
+          <button
+            onClick={handleMergeIntoCurrentTree}
+            disabled={isMerging || !canMerge}
+            title={
+              canMerge
+                ? 'Merge the selected branches into a new node in the current conversation'
+                : 'Select pins from the current conversation only to merge in-tree'
+            }
+            style={{
+              display: 'block',
+              width: '100%',
+              marginTop: '4px',
+              background: isMerging ? 'rgba(200,184,138,0.08)' : 'rgba(200,184,138,0.06)',
+              border: '1px solid rgba(200,184,138,0.18)',
+              borderRadius: '4px',
+              color: !canMerge ? '#555' : isMerging ? '#888' : '#c8b88a',
+              fontSize: '10px',
+              fontFamily: FONTS.mono,
+              letterSpacing: '0.04em',
+              padding: '7px 0',
+              cursor: !canMerge ? 'not-allowed' : isMerging ? 'wait' : 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {isMerging ? 'Summarizing...' : 'Merge into current conversation'}
           </button>
           {createError && (
             <div

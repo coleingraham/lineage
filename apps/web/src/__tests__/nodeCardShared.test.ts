@@ -8,6 +8,7 @@ function makeNode(overrides: Partial<GraphNode>): GraphNode {
     type: 'human',
     content: 'test',
     parentId: null,
+    mergeParentIds: [],
     depth: 0,
     isDeleted: false,
     childCount: 0,

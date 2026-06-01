@@ -1055,3 +1055,192 @@ describe('create_tree_from_nodes with LLM', () => {
     expect(summaryNode.content).toBe('Auto-generated summary.');
   });
 });
+
+describe('merge_branches', () => {
+  it('creates an in-tree merge node parented to the summary nodes', async () => {
+    const { client } = await setup();
+
+    const tree = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Source', rootContent: 'root' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const sA = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: {
+          treeId: tree.treeId,
+          parentId: tree.rootNodeId,
+          content: 'Summary A',
+          type: 'summary',
+        },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const sB = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: {
+          treeId: tree.treeId,
+          parentId: tree.rootNodeId,
+          content: 'Summary B',
+          type: 'summary',
+        },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'merge_branches',
+        arguments: {
+          treeId: tree.treeId,
+          sourceNodes: [
+            { treeId: tree.treeId, nodeId: sA.nodeId },
+            { treeId: tree.treeId, nodeId: sB.nodeId },
+          ],
+          content: 'merged input',
+        },
+      })) as { content: unknown[] },
+    ) as { treeId: string; nodeId: string; mergeParentIds: string[] };
+
+    expect(result.mergeParentIds).toEqual([sA.nodeId, sB.nodeId]);
+
+    const mergeNode = parseResult(
+      (await client.callTool({
+        name: 'get_node',
+        arguments: { nodeId: result.nodeId },
+      })) as { content: unknown[] },
+    ) as { parentId: string; content: string; metadata: { mergeParentIds: string[] } };
+
+    expect(mergeNode.parentId).toBe(sA.nodeId);
+    expect(mergeNode.content).toBe('merged input');
+    expect(mergeNode.metadata.mergeParentIds).toEqual([sA.nodeId, sB.nodeId]);
+  });
+
+  it('auto-summarizes non-summary sources before merging', async () => {
+    const { client } = await setup({ llm: fakeLlm('Auto summary.') });
+
+    const tree = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Source', rootContent: 'root' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const branchA = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: { treeId: tree.treeId, parentId: tree.rootNodeId, content: 'Branch A' },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const branchB = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: { treeId: tree.treeId, parentId: tree.rootNodeId, content: 'Branch B' },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'merge_branches',
+        arguments: {
+          treeId: tree.treeId,
+          sourceNodes: [
+            { treeId: tree.treeId, nodeId: branchA.nodeId },
+            { treeId: tree.treeId, nodeId: branchB.nodeId },
+          ],
+        },
+      })) as { content: unknown[] },
+    ) as { mergeParentIds: string[] };
+
+    // Each parent is a freshly-created summary, not the original branch node
+    expect(result.mergeParentIds).toHaveLength(2);
+    expect(result.mergeParentIds).not.toContain(branchA.nodeId);
+    expect(result.mergeParentIds).not.toContain(branchB.nodeId);
+
+    const parent = parseResult(
+      (await client.callTool({
+        name: 'get_node',
+        arguments: { nodeId: result.mergeParentIds[0] },
+      })) as { content: unknown[] },
+    ) as { type: string; content: string };
+    expect(parent.type).toBe('summary');
+    expect(parent.content).toBe('Auto summary.');
+  });
+
+  it('rejects sources that do not belong to the target tree', async () => {
+    const { client } = await setup();
+
+    const tree1 = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Tree 1', rootContent: 'root1' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const tree2 = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Tree 2', rootContent: 'root2' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const s1 = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: {
+          treeId: tree1.treeId,
+          parentId: tree1.rootNodeId,
+          content: 'S1',
+          type: 'summary',
+        },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const s2 = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: {
+          treeId: tree2.treeId,
+          parentId: tree2.rootNodeId,
+          content: 'S2',
+          type: 'summary',
+        },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const result = (await client.callTool({
+      name: 'merge_branches',
+      arguments: {
+        treeId: tree1.treeId,
+        sourceNodes: [
+          { treeId: tree1.treeId, nodeId: s1.nodeId },
+          { treeId: tree2.treeId, nodeId: s2.nodeId },
+        ],
+      },
+    })) as { content: unknown[]; isError?: boolean };
+
+    expect(result.isError).toBe(true);
+    expect(parseResult(result)).toContain('must belong to tree');
+  });
+
+  it('errors when the target tree does not exist', async () => {
+    const { client } = await setup();
+    const result = (await client.callTool({
+      name: 'merge_branches',
+      arguments: {
+        treeId: 'nonexistent',
+        sourceNodes: [
+          { treeId: 'nonexistent', nodeId: 'a' },
+          { treeId: 'nonexistent', nodeId: 'b' },
+        ],
+      },
+    })) as { content: unknown[]; isError?: boolean };
+
+    expect(result.isError).toBe(true);
+    expect(parseResult(result)).toContain('Tree not found');
+  });
+});
