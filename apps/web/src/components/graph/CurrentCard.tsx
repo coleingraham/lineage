@@ -148,6 +148,22 @@ export function CurrentCard({
         <span style={{ fontSize: '9px', color: '#2e2e2e', fontFamily: FONTS.mono }}>
           depth {node.depth}
         </span>
+        {node.mergeParentIds.length > 0 && (
+          <span
+            title="Merge node — its parents are the summaries of the merged branches"
+            style={{
+              fontSize: '9px',
+              color: COLORS.summary,
+              letterSpacing: '0.08em',
+              border: `1px solid ${COLORS.summary}55`,
+              padding: '2px 8px',
+              borderRadius: '3px',
+              fontFamily: FONTS.mono,
+            }}
+          >
+            ⋈ MERGED FROM {node.mergeParentIds.length + 1}
+          </span>
+        )}
         <div style={{ flex: 1 }} />
         <div
           style={{

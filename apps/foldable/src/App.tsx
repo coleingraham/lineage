@@ -128,7 +128,10 @@ export function App() {
     setSession({ focusedNodeId: deepestNewestLeaf(rootId, nodeMap, childrenMap) });
   }, [loading, nodes, session.focusedNodeId, setSession]);
 
-  const onFocus = useCallback((nodeId: string) => setSession({ focusedNodeId: nodeId }), [setSession]);
+  const onFocus = useCallback(
+    (nodeId: string) => setSession({ focusedNodeId: nodeId }),
+    [setSession],
+  );
 
   const selectTree = useCallback(
     (id: string) => {
@@ -189,7 +192,10 @@ export function App() {
   const createFromProse = useCallback(
     async (segments: string[]) => {
       if (!repo || segments.length === 0) return;
-      const { treeId, rootNodeId } = await authoring.createTree(deriveTitle(segments[0]), segments[0]);
+      const { treeId, rootNodeId } = await authoring.createTree(
+        deriveTitle(segments[0]),
+        segments[0],
+      );
       let parent = rootNodeId;
       for (const seg of segments.slice(1)) {
         parent = await authoring.append(treeId, parent, seg);
@@ -235,6 +241,33 @@ export function App() {
     [repo, authoring, aiSupported, aiRunner, pins, setSession],
   );
 
+  // In-tree merge: the pins become the summary parents of a new merge node in
+  // the open monologue (multiple incoming edges), rather than a new tree.
+  const mergeIntoCurrent = useCallback(
+    async (refs: PinnedRef[]) => {
+      const treeId = session.selectedTreeId;
+      if (!repo || refs.length === 0 || !treeId) return;
+      // Parents must live in the same tree as the merge node.
+      if (refs.some((r) => r.treeId !== treeId)) return;
+      const sources = await resolveContextSources(
+        repo,
+        authoring.summarize,
+        refs,
+        aiSupported ? aiRunner.generate : null,
+      );
+      if (sources.length === 0) return;
+      const nodeId = await authoring.mergeNode(
+        treeId,
+        sources.map((s) => s.nodeId),
+      );
+      setPinsOpen(false);
+      pins.clear();
+      setCreatingNew(false);
+      setSession({ selectedTreeId: treeId, focusedNodeId: nodeId });
+    },
+    [repo, session.selectedTreeId, authoring, aiSupported, aiRunner, pins, setSession],
+  );
+
   const shell = SHELL[effectiveMode];
   const selectedTree = useMemo(
     () => trees.find((t) => t.treeId === session.selectedTreeId) ?? null,
@@ -242,7 +275,9 @@ export function App() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: COLORS.bg }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', background: COLORS.bg }}
+    >
       <Header
         title={creatingNew ? null : (selectedTree?.title ?? null)}
         onOpenBrowser={() => setBrowserOpen(true)}
@@ -315,6 +350,8 @@ export function App() {
           onRemove={pins.remove}
           onClear={pins.clear}
           onCreate={createFromContext}
+          onMerge={mergeIntoCurrent}
+          currentTreeId={session.selectedTreeId}
           onClose={() => setPinsOpen(false)}
         />
       )}
@@ -590,8 +627,8 @@ function EmptyState({
           A tree of one mind
         </div>
         <div style={{ color: COLORS.textSecondary, fontSize: 14, maxWidth: 360 }}>
-          Capture a thought to start a monologue. Continue the line, or diverge into an
-          alternative, elaboration, or objection.
+          Capture a thought to start a monologue. Continue the line, or diverge into an alternative,
+          elaboration, or objection.
         </div>
         {onFromProse && (
           <button

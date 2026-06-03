@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { BranchIntent, ContextSource, NodeRepository, Tree } from '@lineage/core';
-import { BRANCH_INTENTS, NODE_TYPES, createNode } from '@lineage/core';
+import { BRANCH_INTENTS, MERGE_PARENT_IDS_KEY, NODE_TYPES, createNode } from '@lineage/core';
 import { getAuthorId } from '../lib/authorId.js';
 
 export interface Authoring {
@@ -29,6 +29,12 @@ export interface Authoring {
   edit: (nodeId: string, content: string) => Promise<string>;
   /** Attach an AI-generated summary node (type `summary`) under a node. */
   summarize: (treeId: string, parentId: string, content: string) => Promise<string>;
+  /**
+   * Create an in-tree merge node whose parents are the given summary nodes
+   * (multiple incoming edges). The first id is the primary `parentId`; the full
+   * set is stored in `metadata.mergeParentIds`. Returns the new node id.
+   */
+  mergeNode: (treeId: string, summaryIds: string[], content?: string) => Promise<string>;
   /** Attach an AI-generated response node (type `ai`) under a node. */
   aiReply: (treeId: string, parentId: string, content: string) => Promise<string>;
   /** Soft-delete a node. */
@@ -129,7 +135,13 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
   const summarize = useCallback<Authoring['summarize']>(
     async (treeId, parentId, content) => {
       if (!repo) throw new Error('Repository not ready');
-      const node = createNode({ treeId, parentId, type: NODE_TYPES.SUMMARY, content, intent: null });
+      const node = createNode({
+        treeId,
+        parentId,
+        type: NODE_TYPES.SUMMARY,
+        content,
+        intent: null,
+      });
       await repo.putNode(node);
       onChanged();
       return node.nodeId;
@@ -156,6 +168,26 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
     [repo, onChanged],
   );
 
+  const mergeNode = useCallback<Authoring['mergeNode']>(
+    async (treeId, summaryIds, content = '') => {
+      if (!repo) throw new Error('Repository not ready');
+      if (summaryIds.length === 0) throw new Error('A merge node needs at least one parent');
+      const node = createNode({
+        treeId,
+        parentId: summaryIds[0],
+        type: NODE_TYPES.HUMAN,
+        content,
+        author,
+        intent: null,
+        metadata: { [MERGE_PARENT_IDS_KEY]: summaryIds },
+      });
+      await repo.putNode(node);
+      onChanged();
+      return node.nodeId;
+    },
+    [repo, author, onChanged],
+  );
+
   const remove = useCallback<Authoring['remove']>(
     async (nodeId) => {
       if (!repo) throw new Error('Repository not ready');
@@ -165,5 +197,5 @@ export function useAuthoring(repo: NodeRepository | null, onChanged: () => void)
     [repo, onChanged],
   );
 
-  return { createTree, append, diverge, edit, summarize, aiReply, remove };
+  return { createTree, append, diverge, edit, summarize, aiReply, mergeNode, remove };
 }

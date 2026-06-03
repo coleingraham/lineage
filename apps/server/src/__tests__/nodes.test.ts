@@ -81,6 +81,25 @@ describe('node routes', () => {
       expect(node.type).toBe('summary');
     });
 
+    it('persists metadata (e.g. mergeParentIds for in-tree merge nodes)', async () => {
+      const tree = await createTree(app);
+
+      const res = await jsonReq(app, `/trees/${tree.treeId}/nodes`, {
+        type: 'human',
+        content: 'merge node',
+        parentId: tree.rootNodeId,
+        metadata: { mergeParentIds: ['s1', 's2'] },
+      });
+      expect(res.status).toBe(201);
+
+      const node = await res.json();
+      expect(node.metadata).toEqual({ mergeParentIds: ['s1', 's2'] });
+
+      // Round-trips on read
+      const read = await (await req(app, `/trees/${tree.treeId}/nodes/${node.nodeId}`)).json();
+      expect(read.metadata).toEqual({ mergeParentIds: ['s1', 's2'] });
+    });
+
     it('accepts any node type including ai', async () => {
       const tree = await createTree(app);
 

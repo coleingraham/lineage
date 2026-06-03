@@ -166,6 +166,27 @@ export function VerticalMinimap({
           );
         })}
 
+        {/* Merge edges — extra incoming edges from a merge node's summary parents */}
+        {flat.flatMap((n) =>
+          n.mergeParentIds.map((pid) => {
+            const from = positions[pid];
+            const to = positions[n.id];
+            if (!from || !to) return null;
+            return (
+              <line
+                key={`${n.id}-m-${pid}`}
+                x1={from.x}
+                y1={from.y}
+                x2={to.x}
+                y2={to.y}
+                stroke={`${nodeColor(n.type, n.isDeleted)}55`}
+                strokeWidth={1}
+                strokeDasharray="2 2"
+              />
+            );
+          }),
+        )}
+
         {/* Nodes */}
         {flat.map((n) => {
           const pos = positions[n.id];

@@ -51,6 +51,7 @@ interface LinearViewProps {
   selectedPinNodeIds: Set<string>;
   onPinSelectionChange: (ids: Set<string>) => void;
   onCreateTreeFromContext: () => Promise<void>;
+  onMergeIntoCurrentTree: () => Promise<void>;
   onNavigateToNode: (treeId: string, nodeId: string) => void;
   autoAiReply?: boolean;
   onOpenTagPicker?: (
@@ -106,6 +107,7 @@ export function LinearView({
   selectedPinNodeIds,
   onPinSelectionChange,
   onCreateTreeFromContext,
+  onMergeIntoCurrentTree,
   onNavigateToNode,
   autoAiReply,
   onOpenTagPicker,
@@ -277,6 +279,7 @@ export function LinearView({
         selectedPinNodeIds={selectedPinNodeIds}
         onPinSelectionChange={onPinSelectionChange}
         onCreateTreeFromContext={onCreateTreeFromContext}
+        onMergeIntoCurrentTree={onMergeIntoCurrentTree}
         onOpenTagPicker={onOpenTagPicker}
       />
       <div

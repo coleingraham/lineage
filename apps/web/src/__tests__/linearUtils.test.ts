@@ -11,6 +11,7 @@ function makeNode(overrides: Partial<GraphNode> & { id: string }): GraphNode {
     type: 'human',
     content: `Node ${overrides.id}`,
     parentId: null,
+    mergeParentIds: [],
     depth: 0,
     isDeleted: false,
     childCount: 0,

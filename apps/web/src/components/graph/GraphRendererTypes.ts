@@ -6,6 +6,8 @@ export interface GraphNode {
   type: NodeType;
   content: string;
   parentId: string | null;
+  /** Additional (non-primary) parents of an in-tree merge node — drawn as extra incoming edges. */
+  mergeParentIds: string[];
   depth: number;
   isDeleted: boolean;
   childCount: number;

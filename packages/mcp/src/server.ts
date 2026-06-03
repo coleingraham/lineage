@@ -19,6 +19,7 @@ import {
   project,
   synthesisTransform,
   BRANCH_INTENTS,
+  MERGE_PARENT_IDS_KEY,
 } from '@lineage/core';
 
 const contextSourceSchema = z.object({
@@ -91,6 +92,61 @@ async function llmSummarize(
   ];
 
   return llm.complete(messages, { maxTokens: 1024 });
+}
+
+/**
+ * Resolve a list of source nodes into context sources that point at summary
+ * nodes — the shared pin→summary logic behind both `create_tree_from_nodes`
+ * (new tree) and `merge_branches` (in-tree merge node):
+ *   1. a summary node is used as-is;
+ *   2. a node with an existing (non-deleted) summary child reuses that child;
+ *   3. otherwise, when an LLM is configured, the node's thread is summarized
+ *      into a new summary child; without an LLM the node is used as-is.
+ *
+ * Returns a discriminated result so callers can surface a not-found error.
+ */
+async function resolveToSummaries(
+  repo: NodeRepository,
+  llm: LLMProvider | null,
+  sourceNodes: ContextSource[],
+): Promise<{ resolved: ContextSource[] } | { error: string }> {
+  const resolved: ContextSource[] = [];
+
+  for (const source of sourceNodes) {
+    let node: Node;
+    try {
+      node = await repo.getNode(source.nodeId);
+    } catch {
+      return { error: `Source node not found: ${source.nodeId}` };
+    }
+
+    if (node.type === 'summary') {
+      resolved.push({ treeId: source.treeId, nodeId: node.nodeId });
+      continue;
+    }
+
+    const treeNodes = await repo.getNodes(node.treeId);
+    const summaryChild = treeNodes.find(
+      (n) => n.parentId === node.nodeId && n.type === 'summary' && !n.isDeleted,
+    );
+    if (summaryChild) {
+      resolved.push({ treeId: source.treeId, nodeId: summaryChild.nodeId });
+    } else if (llm) {
+      const summaryText = await llmSummarize(repo, llm, node.treeId, node.nodeId);
+      const newSummary = createNode({
+        treeId: node.treeId,
+        parentId: node.nodeId,
+        type: 'summary',
+        content: summaryText,
+      });
+      await repo.putNode(newSummary);
+      resolved.push({ treeId: source.treeId, nodeId: newSummary.nodeId });
+    } else {
+      resolved.push({ treeId: source.treeId, nodeId: node.nodeId });
+    }
+  }
+
+  return { resolved };
 }
 
 export function createMcpServer(repo: NodeRepository, options: McpServerOptions = {}): McpServer {
@@ -839,47 +895,11 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
       rootContent: z.string().optional().describe('Content for the root node of the new tree'),
     },
     async ({ title, sourceNodes, rootContent }) => {
-      const resolvedSources: { treeId: string; nodeId: string }[] = [];
-
-      for (const source of sourceNodes) {
-        let node: Node;
-        try {
-          node = await repo.getNode(source.nodeId);
-        } catch {
-          return {
-            content: [{ type: 'text', text: `Source node not found: ${source.nodeId}` }],
-            isError: true,
-          };
-        }
-
-        if (node.type === 'summary') {
-          // Summary nodes are used directly
-          resolvedSources.push({ treeId: source.treeId, nodeId: node.nodeId });
-        } else {
-          // Check for an existing summary child
-          const treeNodes = await repo.getNodes(node.treeId);
-          const summaryChild = treeNodes.find(
-            (n) => n.parentId === node.nodeId && n.type === 'summary' && !n.isDeleted,
-          );
-          if (summaryChild) {
-            resolvedSources.push({ treeId: source.treeId, nodeId: summaryChild.nodeId });
-          } else if (llm) {
-            // Auto-summarize using the configured LLM, save as a summary child node
-            const summaryText = await llmSummarize(repo, llm, node.treeId, node.nodeId);
-            const newSummary = createNode({
-              treeId: node.treeId,
-              parentId: node.nodeId,
-              type: 'summary',
-              content: summaryText,
-            });
-            await repo.putNode(newSummary);
-            resolvedSources.push({ treeId: source.treeId, nodeId: newSummary.nodeId });
-          } else {
-            // No LLM available — use the node itself as-is
-            resolvedSources.push({ treeId: source.treeId, nodeId: node.nodeId });
-          }
-        }
+      const result = await resolveToSummaries(repo, llm, sourceNodes);
+      if ('error' in result) {
+        return { content: [{ type: 'text', text: result.error }], isError: true };
       }
+      const resolvedSources = result.resolved;
 
       const treeId = crypto.randomUUID();
       const rootNodeId = crypto.randomUUID();
@@ -910,6 +930,80 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
             type: 'text',
             text: JSON.stringify(
               { treeId, rootNodeId, title: treeTitle, contextSources: resolvedSources },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'merge_branches',
+    'Merge multiple branches WITHIN a single tree by creating a new merge node whose parents ' +
+      "are the selected branches' summary nodes (a node with multiple incoming edges). " +
+      'Like create_tree_from_nodes, non-summary sources are resolved to summaries (reusing an ' +
+      'existing summary child or auto-summarizing when an LLM is configured), but instead of a ' +
+      'new tree it creates an empty input node in the given tree. All resolved summaries must ' +
+      'belong to the target tree.',
+    {
+      treeId: z.string().describe('The tree to create the merge node in'),
+      sourceNodes: z
+        .array(contextSourceSchema)
+        .min(2)
+        .describe('The branch nodes to merge (the agent equivalent of pinned nodes)'),
+      content: z
+        .string()
+        .optional()
+        .describe('Initial content for the merge node (defaults to empty)'),
+    },
+    async ({ treeId, sourceNodes, content }) => {
+      try {
+        await repo.getTree(treeId);
+      } catch {
+        return { content: [{ type: 'text', text: `Tree not found: ${treeId}` }], isError: true };
+      }
+
+      const result = await resolveToSummaries(repo, llm, sourceNodes);
+      if ('error' in result) {
+        return { content: [{ type: 'text', text: result.error }], isError: true };
+      }
+      const resolvedSources = result.resolved;
+
+      // Merge parents must live in the target tree — the context walk is
+      // single-tree, so a cross-tree summary could never be resolved as a parent.
+      const foreign = resolvedSources.filter((s) => s.treeId !== treeId);
+      if (foreign.length > 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text:
+                `All source nodes must belong to tree ${treeId} to merge in-tree; ` +
+                `found ${foreign.length} from other tree(s). Use create_tree_from_nodes for cross-tree context.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const summaryIds = resolvedSources.map((s) => s.nodeId);
+      const mergeNode = createNode({
+        treeId,
+        parentId: summaryIds[0],
+        type: 'human',
+        content: content ?? '',
+        metadata: { [MERGE_PARENT_IDS_KEY]: summaryIds },
+      });
+      await repo.putNode(mergeNode);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              { treeId, nodeId: mergeNode.nodeId, mergeParentIds: summaryIds },
               null,
               2,
             ),
@@ -1480,43 +1574,12 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
       title: z.string().optional().describe('Title for the seed tree'),
     },
     async ({ nodeIds, intentLabel, title }) => {
-      // Resolve each source to a summary (mirrors create_tree_from_nodes).
-      const resolvedSources: ContextSource[] = [];
-      for (const source of nodeIds) {
-        let node: Node;
-        try {
-          node = await repo.getNode(source.nodeId);
-        } catch {
-          return {
-            content: [{ type: 'text', text: `Source node not found: ${source.nodeId}` }],
-            isError: true,
-          };
-        }
-
-        if (node.type === 'summary') {
-          resolvedSources.push({ treeId: source.treeId, nodeId: node.nodeId });
-        } else {
-          const treeNodes = await repo.getNodes(node.treeId);
-          const summaryChild = treeNodes.find(
-            (n) => n.parentId === node.nodeId && n.type === 'summary' && !n.isDeleted,
-          );
-          if (summaryChild) {
-            resolvedSources.push({ treeId: source.treeId, nodeId: summaryChild.nodeId });
-          } else if (llm) {
-            const summaryText = await llmSummarize(repo, llm, node.treeId, node.nodeId);
-            const newSummary = createNode({
-              treeId: node.treeId,
-              parentId: node.nodeId,
-              type: 'summary',
-              content: summaryText,
-            });
-            await repo.putNode(newSummary);
-            resolvedSources.push({ treeId: source.treeId, nodeId: newSummary.nodeId });
-          } else {
-            resolvedSources.push({ treeId: source.treeId, nodeId: node.nodeId });
-          }
-        }
+      // Resolve each source to a summary (shared pin→summary logic).
+      const resolution = await resolveToSummaries(repo, llm, nodeIds);
+      if ('error' in resolution) {
+        return { content: [{ type: 'text', text: resolution.error }], isError: true };
       }
+      const resolvedSources = resolution.resolved;
 
       // Create the seed tree with the resolved summaries as context sources.
       const treeId = crypto.randomUUID();

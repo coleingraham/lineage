@@ -2,31 +2,42 @@ import type { Node, ContextSource } from './types.js';
 import type { Message } from './llm.js';
 import type { NodeRepository } from './repository.js';
 import { stripThinking } from './content.js';
+import { parentIdsOf } from './nodes.js';
 
 /**
- * Walk from the given node to the root, collecting the path in root-first order.
- * Deleted nodes are skipped — if a deleted node is encountered the path is broken
- * and only the segment from the given node back to (but not including) the deleted
- * ancestor is returned.
+ * Collect the ancestry of a node in root-first order, following **all** of a
+ * node's parents (see {@link parentIdsOf}) so in-tree merge nodes — which have
+ * multiple incoming edges — pull in every merged branch.
  *
- * Summary nodes act as context boundaries — the walk stops when a summary node
- * is encountered (the summary itself is included). This ensures that only the
- * summary and its descendants are used as context, not the full original thread.
+ * Rules (identical to the former single-parent walk for ordinary nodes):
+ * - Deleted nodes break that branch (they and their ancestors are excluded).
+ * - Summary nodes are context boundaries — included, but their parents are not
+ *   traversed (the summary replaces the conversation above it).
+ * - Diamonds are deduped via `visited`, so a shared ancestor appears once.
+ *
+ * Ordering: a node's parents are emitted in `parentIdsOf` order (primary first),
+ * then the node itself. For a single-parent chain this reproduces the exact
+ * root-first order the previous implementation produced.
  */
-function walkToRoot(nodeId: string, nodesById: Map<string, Node>): Node[] {
-  const path: Node[] = [];
-  let current: Node | undefined = nodesById.get(nodeId);
+function collectAncestry(
+  nodeId: string,
+  nodesById: Map<string, Node>,
+  visited: Set<string>,
+): Node[] {
+  if (visited.has(nodeId)) return [];
+  const node = nodesById.get(nodeId);
+  if (!node || node.isDeleted) return [];
+  visited.add(nodeId);
 
-  while (current) {
-    if (current.isDeleted) break;
-    path.push(current);
-    // Stop at summary nodes — they replace the conversation above
-    if (current.type === 'summary') break;
-    current = current.parentId ? nodesById.get(current.parentId) : undefined;
+  // Stop at summary nodes — they replace the conversation above
+  if (node.type === 'summary') return [node];
+
+  const out: Node[] = [];
+  for (const parentId of parentIdsOf(node)) {
+    out.push(...collectAncestry(parentId, nodesById, visited));
   }
-
-  path.reverse();
-  return path;
+  out.push(node);
+  return out;
 }
 
 /**
@@ -70,7 +81,7 @@ export function buildContext(
   options: BuildContextOptions = {},
 ): Message[] {
   const nodesById = new Map(nodes.map((n) => [n.nodeId, n]));
-  const path = walkToRoot(targetNodeId, nodesById);
+  const path = collectAncestry(targetNodeId, nodesById, new Set());
 
   if (path.length === 0) {
     return [];
