@@ -138,6 +138,103 @@ describe('buildContext', () => {
       expect(result).toEqual([{ role: 'human', content: 'b' }]);
     });
   });
+
+  describe('multi-parent merge nodes', () => {
+    // A merge node points at several summary parents via metadata.mergeParentIds.
+    // Each summary is a boundary, so context = each summary (in order) + the node.
+    function mergeMeta(ids: string[]) {
+      return { metadata: { mergeParentIds: ids } };
+    }
+
+    it('includes every summary parent, in mergeParentIds order, then the node', () => {
+      const nodes: Node[] = [
+        makeNode({ nodeId: 'rootA', content: 'A thread', type: 'human' }),
+        makeNode({ nodeId: 'sA', parentId: 'rootA', content: 'summary A', type: 'summary' }),
+        makeNode({ nodeId: 'rootB', content: 'B thread', type: 'human' }),
+        makeNode({ nodeId: 'sB', parentId: 'rootB', content: 'summary B', type: 'summary' }),
+        makeNode({
+          nodeId: 'merge',
+          parentId: 'sA',
+          content: 'merged input',
+          type: 'human',
+          ...mergeMeta(['sA', 'sB']),
+        }),
+      ];
+
+      expect(buildContext(nodes, 'merge')).toEqual([
+        { role: 'ai', content: 'summary A' },
+        { role: 'ai', content: 'summary B' },
+        { role: 'human', content: 'merged input' },
+      ]);
+    });
+
+    it('does not traverse above the summary parents (boundary holds)', () => {
+      const nodes: Node[] = [
+        makeNode({ nodeId: 'h0', content: 'should NOT appear', type: 'human' }),
+        makeNode({ nodeId: 'sA', parentId: 'h0', content: 'summary A', type: 'summary' }),
+        makeNode({ nodeId: 'sB', content: 'summary B', type: 'summary' }),
+        makeNode({
+          nodeId: 'merge',
+          parentId: 'sA',
+          content: 'merged',
+          type: 'human',
+          ...mergeMeta(['sA', 'sB']),
+        }),
+      ];
+
+      const result = buildContext(nodes, 'merge');
+      expect(result).toEqual([
+        { role: 'ai', content: 'summary A' },
+        { role: 'ai', content: 'summary B' },
+        { role: 'human', content: 'merged' },
+      ]);
+    });
+
+    it('includes the merge node when continuing below it', () => {
+      const nodes: Node[] = [
+        makeNode({ nodeId: 'sA', content: 'summary A', type: 'summary' }),
+        makeNode({ nodeId: 'sB', content: 'summary B', type: 'summary' }),
+        makeNode({
+          nodeId: 'merge',
+          parentId: 'sA',
+          content: 'merged input',
+          type: 'human',
+          ...mergeMeta(['sA', 'sB']),
+        }),
+        makeNode({ nodeId: 'reply', parentId: 'merge', content: 'response', type: 'ai' }),
+      ];
+
+      expect(buildContext(nodes, 'reply')).toEqual([
+        { role: 'ai', content: 'summary A' },
+        { role: 'ai', content: 'summary B' },
+        { role: 'human', content: 'merged input' },
+        { role: 'ai', content: 'response' },
+      ]);
+    });
+
+    it('dedupes a shared ancestor reached through two parents (diamond)', () => {
+      // Both non-summary parents share the same ancestor `root`; it appears once.
+      const nodes: Node[] = [
+        makeNode({ nodeId: 'root', content: 'shared', type: 'human' }),
+        makeNode({ nodeId: 'left', parentId: 'root', content: 'left', type: 'human' }),
+        makeNode({ nodeId: 'right', parentId: 'root', content: 'right', type: 'human' }),
+        makeNode({
+          nodeId: 'merge',
+          parentId: 'left',
+          content: 'merged',
+          type: 'human',
+          ...mergeMeta(['left', 'right']),
+        }),
+      ];
+
+      expect(buildContext(nodes, 'merge')).toEqual([
+        { role: 'human', content: 'shared' },
+        { role: 'human', content: 'left' },
+        { role: 'human', content: 'right' },
+        { role: 'human', content: 'merged' },
+      ]);
+    });
+  });
 });
 
 describe('assembleContext', () => {

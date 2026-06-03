@@ -31,6 +31,7 @@ export function Sidebar({
   selectedPinNodeIds,
   onPinSelectionChange,
   onCreateTreeFromContext,
+  onMergeIntoCurrentTree,
   onNavigateToNode,
   onOpenTagPicker,
 }: {
@@ -52,6 +53,7 @@ export function Sidebar({
   selectedPinNodeIds?: Set<string>;
   onPinSelectionChange?: (ids: Set<string>) => void;
   onCreateTreeFromContext?: () => Promise<void>;
+  onMergeIntoCurrentTree?: () => Promise<void>;
   onNavigateToNode?: (treeId: string, nodeId: string) => void;
   onOpenTagPicker?: (
     target: { type: 'node'; nodeId: string } | { type: 'tree'; treeId: string },
@@ -548,6 +550,7 @@ export function Sidebar({
                 selectedPinNodeIds={selectedPinNodeIds ?? new Set()}
                 onPinSelectionChange={onPinSelectionChange ?? (() => {})}
                 onCreateTreeFromContext={onCreateTreeFromContext ?? (() => Promise.resolve())}
+                onMergeIntoCurrentTree={onMergeIntoCurrentTree ?? (() => Promise.resolve())}
               />
             )}
           </>

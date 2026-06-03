@@ -15,6 +15,7 @@ import { SETTINGS_KEYS } from './hooks/useSettings.js';
 import { Sidebar } from './components/graph/Sidebar.js';
 import type { SidebarMode, PinnedNode } from './components/graph/GraphRendererTypes.js';
 import { streamCompletion } from '@lineage/sdk';
+import { createNode } from '@lineage/core';
 import type { ContextSource, Node } from '@lineage/core';
 import './styles/graph.css';
 
@@ -126,9 +127,12 @@ export function App() {
     setSelectedPinNodeIds(ids);
   }, []);
 
-  // ── Create tree from selected pins ─────────────────────────────────────────
-  const handleCreateTreeFromContext = useCallback(async () => {
-    if (!repo || selectedPinNodeIds.size === 0) return;
+  // ── Resolve selected pins to context sources (summary nodes) ───────────────
+  // Shared by "new tree from context" and "merge into current tree": each pin
+  // is used as-is if a summary, reuses an existing summary child, or is
+  // summarized via the server. Returns the resolved context sources in order.
+  const resolveSelectedPins = useCallback(async (): Promise<ContextSource[]> => {
+    if (!repo || selectedPinNodeIds.size === 0) return [];
 
     const serverUrl = localStorage.getItem('lineage:serverUrl');
     if (!serverUrl) throw new Error('No server URL configured — set it in Settings');
@@ -191,8 +195,14 @@ export function App() {
       }),
     );
 
-    const contextSources = resolved.filter((cs): cs is ContextSource => cs !== null);
+    return resolved.filter((cs): cs is ContextSource => cs !== null);
+  }, [repo, selectedPinNodeIds, pinnedNodes]);
 
+  // ── Create a new tree seeded with the selected pins ────────────────────────
+  const handleCreateTreeFromContext = useCallback(async () => {
+    if (!repo || selectedPinNodeIds.size === 0) return;
+
+    const contextSources = await resolveSelectedPins();
     if (contextSources.length === 0) {
       throw new Error('No context sources could be resolved');
     }
@@ -204,29 +214,53 @@ export function App() {
     const title = `Seeded conversation`;
 
     await repo.putTree({ treeId, title, createdAt, rootNodeId, contextSources });
-    await repo.putNode({
-      nodeId: rootNodeId,
-      treeId,
-      parentId: null,
-      type: 'human',
-      content: '',
-      isDeleted: false,
-      createdAt,
-      modelName: null,
-      provider: null,
-      tokenCount: null,
-      embeddingModel: null,
-      metadata: null,
-      author: null,
-      intent: null,
-    });
+    await repo.putNode(
+      createNode({ nodeId: rootNodeId, treeId, parentId: null, type: 'human', content: '' }),
+    );
 
     // Clear pin selection and navigate with root node in edit mode
     setSelectedPinNodeIds(new Set());
     refresh();
     setSelectedTreeId(treeId);
     setPendingEditNodeId(rootNodeId);
-  }, [repo, selectedPinNodeIds, pinnedNodes, refresh, setSelectedTreeId]);
+  }, [repo, selectedPinNodeIds, resolveSelectedPins, refresh, setSelectedTreeId]);
+
+  // ── Merge selected pins into a new node in the current tree ────────────────
+  // Instead of a new tree, create a merge node whose parents are the resolved
+  // summary nodes (multiple incoming edges). All pins must belong to the current
+  // tree so the summary parents live alongside the merge node.
+  const handleMergeIntoCurrentTree = useCallback(async () => {
+    if (!repo || !selectedTreeId || selectedPinNodeIds.size === 0) return;
+
+    const selectedPins = pinnedNodes.filter((p) => selectedPinNodeIds.has(p.nodeId));
+    if (selectedPins.some((p) => p.treeId !== selectedTreeId)) {
+      throw new Error('All selected pins must belong to the current conversation to merge');
+    }
+
+    const contextSources = await resolveSelectedPins();
+    if (contextSources.length === 0) {
+      throw new Error('No context sources could be resolved');
+    }
+
+    const summaryIds = contextSources.map((cs) => cs.nodeId);
+    const mergeNodeId = crypto.randomUUID();
+    await repo.putNode(
+      createNode({
+        nodeId: mergeNodeId,
+        treeId: selectedTreeId,
+        parentId: summaryIds[0],
+        type: 'human',
+        content: '',
+        metadata: { mergeParentIds: summaryIds },
+      }),
+    );
+
+    // Clear pin selection and open the new merge node in edit mode
+    setSelectedPinNodeIds(new Set());
+    refresh();
+    setFocusNodeId(mergeNodeId);
+    setPendingEditNodeId(mergeNodeId);
+  }, [repo, selectedTreeId, selectedPinNodeIds, pinnedNodes, resolveSelectedPins, refresh]);
 
   // ── Node data ───────────────────────────────────────────────────────────────
   const {
@@ -337,6 +371,7 @@ export function App() {
         selectedPinNodeIds,
         onPinSelectionChange: handlePinSelectionChange,
         onCreateTreeFromContext: handleCreateTreeFromContext,
+        onMergeIntoCurrentTree: handleMergeIntoCurrentTree,
         onNavigateToNode: handleNavigateToNode,
       }
     : null;

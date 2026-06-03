@@ -76,6 +76,9 @@ export function MonologueCard({
   const chipLabel = isRoot
     ? 'root'
     : (typeLabel ?? (node.intent && node.intent !== 'sequence' ? node.intent : null));
+  // Merge nodes carry their full parent set in metadata.mergeParentIds.
+  const mergeParents = node.metadata?.mergeParentIds;
+  const mergeCount = Array.isArray(mergeParents) ? mergeParents.length : 0;
 
   return (
     <div
@@ -106,6 +109,25 @@ export function MonologueCard({
           }}
         >
           {chipLabel}
+        </div>
+      )}
+
+      {mergeCount > 1 && (
+        <div
+          title="This node merges several branches; their summaries are its parents"
+          style={{
+            display: 'inline-block',
+            marginLeft: chipLabel ? 6 : 0,
+            marginBottom: 6,
+            padding: '1px 8px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontFamily: FONTS.mono,
+            color: COLORS.summary,
+            border: `1px solid ${COLORS.summary}`,
+          }}
+        >
+          ⋈ merged from {mergeCount}
         </div>
       )}
 

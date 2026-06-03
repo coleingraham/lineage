@@ -15,6 +15,10 @@ interface PinsPanelProps {
   onClear: () => void;
   /** Create a new monologue whose context sources are the pins. */
   onCreate: (refs: PinnedRef[]) => Promise<void>;
+  /** Merge the pins into a node in the current monologue (in-tree). */
+  onMerge?: (refs: PinnedRef[]) => Promise<void>;
+  /** The currently open monologue, if any — merging requires same-tree pins. */
+  currentTreeId?: string | null;
   onClose: () => void;
 }
 
@@ -23,9 +27,19 @@ interface PinsPanelProps {
  * new-from-context flow: the pins become the new tree's context sources, and
  * any pin that isn't already a summary is summarized on-device first (forced).
  */
-export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose }: PinsPanelProps) {
+export function PinsPanel({
+  pins,
+  resolve,
+  onRemove,
+  onClear,
+  onCreate,
+  onMerge,
+  currentTreeId,
+  onClose,
+}: PinsPanelProps) {
   const [resolved, setResolved] = useState<ResolvedPin[]>([]);
   const [creating, setCreating] = useState(false);
+  const [merging, setMerging] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -46,6 +60,24 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
       await onCreate(resolved.map((r) => r.ref));
     } finally {
       setCreating(false);
+    }
+  };
+
+  // In-tree merge: every pin must belong to the open monologue, since the merge
+  // node's summary parents live alongside it in the same tree.
+  const canMerge =
+    !!onMerge &&
+    currentTreeId != null &&
+    resolved.length > 0 &&
+    resolved.every((r) => r.ref.treeId === currentTreeId);
+
+  const merge = async () => {
+    if (!onMerge || resolved.length === 0) return;
+    setMerging(true);
+    try {
+      await onMerge(resolved.map((r) => r.ref));
+    } finally {
+      setMerging(false);
     }
   };
 
@@ -84,7 +116,13 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
           </span>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: COLORS.textSecondary, fontSize: 20, cursor: 'pointer' }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: COLORS.textSecondary,
+              fontSize: 20,
+              cursor: 'pointer',
+            }}
           >
             ✕
           </button>
@@ -95,7 +133,9 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
           summarized on-device first.
         </p>
 
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div
+          style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}
+        >
           {resolved.length === 0 ? (
             <div style={{ color: COLORS.textSecondary, fontSize: 13, padding: '12px 4px' }}>
               No pinned thoughts. Pin a node (its footer) to gather material here.
@@ -131,7 +171,13 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
                 <button
                   onClick={() => onRemove(ref)}
                   aria-label="Unpin"
-                  style={{ background: 'transparent', border: 'none', color: COLORS.textSecondary, cursor: 'pointer', fontSize: 14 }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: COLORS.textSecondary,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                  }}
                 >
                   ✕
                 </button>
@@ -140,10 +186,42 @@ export function PinsPanel({ pins, resolve, onRemove, onClear, onCreate, onClose 
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button onClick={onClear} disabled={resolved.length === 0} style={ghost}>
             clear all
           </button>
+          {onMerge && (
+            <button
+              onClick={merge}
+              disabled={merging || !canMerge}
+              title={
+                canMerge
+                  ? 'Merge the pins into a new node in the current monologue'
+                  : 'Pin only thoughts from the open monologue to merge in-tree'
+              }
+              style={{
+                marginLeft: 'auto',
+                padding: '9px 16px',
+                background: 'transparent',
+                color: !canMerge ? COLORS.dim : COLORS.branch,
+                border: `1px solid ${!canMerge ? COLORS.border : COLORS.branch}`,
+                borderRadius: 8,
+                cursor: !canMerge ? 'default' : 'pointer',
+                fontFamily: FONTS.mono,
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              {merging ? (
+                <>
+                  <span className="spinner" style={{ marginRight: 6 }} />
+                  Summarizing…
+                </>
+              ) : (
+                'Merge into current'
+              )}
+            </button>
+          )}
           <button
             onClick={create}
             disabled={creating || resolved.length === 0}

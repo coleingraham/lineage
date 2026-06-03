@@ -44,6 +44,7 @@ interface GraphViewProps {
   selectedPinNodeIds: Set<string>;
   onPinSelectionChange: (ids: Set<string>) => void;
   onCreateTreeFromContext: () => Promise<void>;
+  onMergeIntoCurrentTree: () => Promise<void>;
   onNavigateToNode: (treeId: string, nodeId: string) => void;
   autoAiReply?: boolean;
   onOpenTagPicker?: (
@@ -81,6 +82,7 @@ export function GraphView({
   selectedPinNodeIds,
   onPinSelectionChange,
   onCreateTreeFromContext,
+  onMergeIntoCurrentTree,
   autoAiReply,
   onOpenTagPicker,
 }: GraphViewProps) {
@@ -193,6 +195,7 @@ export function GraphView({
         selectedPinNodeIds={selectedPinNodeIds}
         onPinSelectionChange={onPinSelectionChange}
         onCreateTreeFromContext={onCreateTreeFromContext}
+        onMergeIntoCurrentTree={onMergeIntoCurrentTree}
         onOpenTagPicker={onOpenTagPicker}
       />
       <GraphRenderer

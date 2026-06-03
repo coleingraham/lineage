@@ -1,4 +1,5 @@
 import type { Node } from '@lineage/core';
+import { parentIdsOf } from '@lineage/core';
 import type { GraphNode } from './GraphRendererTypes.js';
 
 export function toGraphNodes(nodes: Node[]): GraphNode[] {
@@ -16,6 +17,8 @@ export function toGraphNodes(nodes: Node[]): GraphNode[] {
     type: n.type,
     content: n.content,
     parentId: n.parentId,
+    // Extra parents beyond the primary spine parent (merge nodes have several).
+    mergeParentIds: parentIdsOf(n).filter((id) => id !== n.parentId),
     depth: depths.get(n.nodeId) ?? 0,
     isDeleted: n.isDeleted,
     childCount: childCounts.get(n.nodeId) ?? 0,

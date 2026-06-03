@@ -23,7 +23,7 @@ export { createRepository, createLlmProvider, createEmbeddingProvider } from './
 export { buildContext, assembleContext } from './context.js';
 export type { BuildContextOptions } from './context.js';
 export { stripThinking, extractThinking } from './content.js';
-export { createNode } from './nodes.js';
+export { createNode, parentIdsOf, MERGE_PARENT_IDS_KEY } from './nodes.js';
 export type { CreateNodeFields } from './nodes.js';
 
 export { createEmbeddingJob } from './embeddingJob.js';

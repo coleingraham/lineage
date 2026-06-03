@@ -1,4 +1,5 @@
 import type { Node } from '@lineage/core';
+import { parentIdsOf } from '@lineage/core';
 
 /** Map of parentId → children, for quick downward traversal. */
 export function buildChildrenMap(nodes: Node[]): Map<string | null, Node[]> {
@@ -39,22 +40,27 @@ export function pathToRoot(nodeMap: Map<string, Node>, focusedNodeId: string): N
 }
 
 /**
- * Like {@link pathToRoot}, but a **summary node is a context boundary**: the
- * walk stops at the nearest (lowest) summary ancestor, inclusive — matching
- * core's `walkToRoot`. Used to build the context an AI reply/summary sees, so
- * it traverses up to the root or the lowest summary, whichever comes first.
- * Stops if a deleted node is hit.
+ * Like {@link pathToRoot}, but a **summary node is a context boundary** and a
+ * node may have **multiple parents** (an in-tree merge node): the walk follows
+ * every parent (see {@link parentIdsOf}), stopping at the nearest summary
+ * ancestor on each branch, inclusive — matching core's `collectAncestry`. Used
+ * to build the context an AI reply/summary sees, so merged branches' summaries
+ * are all included. Deleted nodes and diamonds (shared ancestors) are handled.
  */
 export function pathToSummaryOrRoot(nodeMap: Map<string, Node>, focusedNodeId: string): Node[] {
-  const path: Node[] = [];
-  let cur: Node | undefined = nodeMap.get(focusedNodeId);
-  while (cur) {
-    if (cur.isDeleted) break;
-    path.push(cur);
-    if (cur.type === 'summary') break;
-    cur = cur.parentId ? nodeMap.get(cur.parentId) : undefined;
+  const visited = new Set<string>();
+  function collect(nodeId: string): Node[] {
+    if (visited.has(nodeId)) return [];
+    const node = nodeMap.get(nodeId);
+    if (!node || node.isDeleted) return [];
+    visited.add(nodeId);
+    if (node.type === 'summary') return [node];
+    const out: Node[] = [];
+    for (const pid of parentIdsOf(node)) out.push(...collect(pid));
+    out.push(node);
+    return out;
   }
-  return path.reverse();
+  return collect(focusedNodeId);
 }
 
 /**

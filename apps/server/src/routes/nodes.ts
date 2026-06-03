@@ -9,6 +9,7 @@ const createNodeBody = z.object({
   parentId: z.string().min(1),
   nodeId: z.string().uuid().optional(),
   intent: z.string().min(1).nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 const updateNodeBody = z.object({
@@ -73,7 +74,7 @@ export function nodeRoutes(repo: NodeRepository) {
       provider: null,
       tokenCount: null,
       embeddingModel: null,
-      metadata: null,
+      metadata: body.metadata ?? null,
       author: null,
       intent: body.intent ?? null,
     };
