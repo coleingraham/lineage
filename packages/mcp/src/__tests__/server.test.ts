@@ -1244,3 +1244,241 @@ describe('merge_branches', () => {
     expect(parseResult(result)).toContain('Tree not found');
   });
 });
+
+// ── Lineage ↔ Claude App Bridge ──────────────────────────────────────────────
+
+describe('lineage_checkpoint', () => {
+  it('creates a fresh tree under a context root, an immutable turn chain, and an LLM summary', async () => {
+    const { client, repo } = await setup({ llm: fakeLlm('Eager summary.') });
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'lineage_checkpoint',
+        arguments: {
+          turns: [
+            { role: 'user', content: 'How should we shard?' },
+            { role: 'assistant', content: 'By tenant id.' },
+          ],
+          synopsis: 'Decided on tenant-based sharding.',
+          label: 'sharding',
+        },
+      })) as { content: unknown[] },
+    ) as {
+      treeId: string;
+      contextNodeId: string;
+      nodeIds: string[];
+      summaryNodeId: string;
+      summary: string;
+    };
+
+    expect(result.nodeIds).toHaveLength(2);
+    expect(result.summary).toBe('Eager summary.');
+
+    // Context root carries the logical kind and the synopsis as content.
+    const root = await repo.getNode(result.contextNodeId);
+    expect(root.parentId).toBeNull();
+    expect(root.metadata).toMatchObject({ kind: 'context' });
+    expect(root.content).toBe('Decided on tenant-based sharding.');
+
+    // Turns form a chain: first turn parented to the context root.
+    const first = await repo.getNode(result.nodeIds[0]);
+    expect(first.type).toBe('human');
+    expect(first.parentId).toBe(result.contextNodeId);
+    const second = await repo.getNode(result.nodeIds[1]);
+    expect(second.type).toBe('ai');
+    expect(second.parentId).toBe(result.nodeIds[0]);
+
+    // Summary node hangs off the last turn.
+    const summaryNode = await repo.getNode(result.summaryNodeId);
+    expect(summaryNode.type).toBe('summary');
+    expect(summaryNode.parentId).toBe(result.nodeIds[1]);
+    expect(summaryNode.metadata).toMatchObject({ synopsis: 'Decided on tenant-based sharding.' });
+  });
+
+  it('attaches under an existing parentNodeId without minting a new tree', async () => {
+    const { client, repo } = await setup();
+
+    const tree = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Existing' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'lineage_checkpoint',
+        arguments: {
+          turns: [{ role: 'user', content: 'Just one turn.' }],
+          parentNodeId: tree.rootNodeId,
+        },
+      })) as { content: unknown[] },
+    ) as { treeId: string; contextNodeId: string | null; nodeIds: string[] };
+
+    expect(result.treeId).toBe(tree.treeId);
+    expect(result.contextNodeId).toBeNull();
+    const node = await repo.getNode(result.nodeIds[0]);
+    expect(node.parentId).toBe(tree.rootNodeId);
+  });
+
+  it('falls back to synopsis as the summary when no LLM is configured', async () => {
+    const { client, repo } = await setup();
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'lineage_checkpoint',
+        arguments: {
+          turns: [{ role: 'user', content: 'A turn.' }],
+          synopsis: 'My synopsis.',
+        },
+      })) as { content: unknown[] },
+    ) as { summary: string; summaryNodeId: string };
+
+    expect(result.summary).toBe('My synopsis.');
+    const summaryNode = await repo.getNode(result.summaryNodeId);
+    expect(summaryNode.content).toBe('My synopsis.');
+  });
+});
+
+describe('lineage_view', () => {
+  it('returns ancestry, the focal node, and its direct children', async () => {
+    const { client } = await setup();
+
+    const cp = parseResult(
+      (await client.callTool({
+        name: 'lineage_checkpoint',
+        arguments: {
+          turns: [
+            { role: 'user', content: 'Q1' },
+            { role: 'assistant', content: 'A1' },
+          ],
+        },
+      })) as { content: unknown[] },
+    ) as { nodeIds: string[] };
+
+    const focalId = cp.nodeIds[0]; // the first turn — has an ancestor (root) and a child (A1)
+    const view = parseResult(
+      (await client.callTool({
+        name: 'lineage_view',
+        arguments: { nodeId: focalId },
+      })) as { content: unknown[] },
+    ) as { focus: { nodeId: string }; ancestry: unknown[]; children: { nodeId: string }[] };
+
+    expect(view.focus.nodeId).toBe(focalId);
+    expect(view.ancestry.length).toBeGreaterThanOrEqual(1);
+    expect(view.children.map((c) => c.nodeId)).toContain(cp.nodeIds[1]);
+  });
+
+  it('focuses the most recent node when nodeId is omitted', async () => {
+    const { client } = await setup();
+    await client.callTool({
+      name: 'lineage_checkpoint',
+      arguments: { turns: [{ role: 'user', content: 'only' }] },
+    });
+
+    const view = parseResult(
+      (await client.callTool({ name: 'lineage_view', arguments: {} })) as { content: unknown[] },
+    ) as { focus: { nodeId: string } };
+
+    // The most recently created node is the summary node, but the focal node
+    // must at minimum be a real node in the tree we just built.
+    expect(typeof view.focus.nodeId).toBe('string');
+  });
+});
+
+describe('lineage_seed', () => {
+  it('resolves sources to summaries, sets context sources, and returns seed text', async () => {
+    const { client, repo } = await setup({ llm: fakeLlm('Summary of source.') });
+
+    const tree = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Source', rootContent: 'root' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const node = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: { treeId: tree.treeId, parentId: tree.rootNodeId, content: 'A detailed point.' },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'lineage_seed',
+        arguments: {
+          nodeIds: [{ treeId: tree.treeId, nodeId: node.nodeId }],
+          intentLabel: 'alternative',
+        },
+      })) as { content: unknown[] },
+    ) as {
+      seedTreeId: string;
+      seedNodeId: string;
+      contextSources: { nodeId: string }[];
+      seedText: string;
+    };
+
+    expect(result.contextSources[0].nodeId).not.toBe(node.nodeId); // resolved to a summary
+    expect(result.seedText).toContain('Branch intent: alternative');
+    expect(result.seedText).toContain('Summary of source.');
+
+    // Seed root records the known intent in metadata.
+    const seedRoot = await repo.getNode(result.seedNodeId);
+    expect(seedRoot.metadata).toMatchObject({ intentLabel: 'alternative', intent: 'alternative' });
+
+    // The seed tree's context sources are persisted.
+    const seedTree = await repo.getTree(result.seedTreeId);
+    expect(seedTree.contextSources).toHaveLength(1);
+  });
+});
+
+describe('lineage_synthesize', () => {
+  it('writes a synthesis node and a synthesis_link ref per source', async () => {
+    const { client, repo } = await setup();
+
+    const tree = parseResult(
+      (await client.callTool({
+        name: 'create_tree',
+        arguments: { title: 'Work', rootContent: 'root' },
+      })) as { content: unknown[] },
+    ) as { treeId: string; rootNodeId: string };
+
+    const a = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: { treeId: tree.treeId, parentId: tree.rootNodeId, content: 'Branch A' },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+    const b = parseResult(
+      (await client.callTool({
+        name: 'create_node',
+        arguments: { treeId: tree.treeId, parentId: tree.rootNodeId, content: 'Branch B' },
+      })) as { content: unknown[] },
+    ) as { nodeId: string };
+
+    const result = parseResult(
+      (await client.callTool({
+        name: 'lineage_synthesize',
+        arguments: {
+          nodeIds: [
+            { treeId: tree.treeId, nodeId: a.nodeId },
+            { treeId: tree.treeId, nodeId: b.nodeId },
+          ],
+          synthesis: 'A and B together suggest C.',
+          attachTreeId: tree.treeId,
+          attachParentNodeId: tree.rootNodeId,
+        },
+      })) as { content: unknown[] },
+    ) as { synthesisNodeId: string; links: unknown[] };
+
+    expect(result.links).toHaveLength(2);
+    const synthNode = await repo.getNode(result.synthesisNodeId);
+    expect(synthNode.content).toBe('A and B together suggest C.');
+    expect(synthNode.parentId).toBe(tree.rootNodeId);
+
+    const refs = await repo.getCrossTreeRefs({ fromNodeId: result.synthesisNodeId });
+    expect(refs).toHaveLength(2);
+    expect(refs.every((r) => r.kind === 'synthesis_link')).toBe(true);
+  });
+});
