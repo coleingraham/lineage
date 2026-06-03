@@ -99,6 +99,26 @@ Supported LLM providers: `ollama`, `openai`, `anthropic`, `bedrock`. When config
 | `end_session`            | End a session with summary (auto-generated if LLM configured)      |
 | `create_tree_from_nodes` | Build a new tree from curated nodes across multiple trees          |
 
+### Claude App bridge
+
+Tools that give Lineage a presence inside the Claude app for long conversations. The server
+never reads the thread directly — Claude extracts content and passes it in.
+
+| Tool                 | Description                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `lineage_checkpoint` | Capture-in: persist extracted turns as immutable nodes with an eager summary             |
+| `lineage_view`       | Orient: return a focused subtree (ancestry + focal node + children + off-spine refs)     |
+| `lineage_seed`       | Branch-out: build a copy-ready context seed from selected nodes for a fresh chat         |
+| `lineage_synthesize` | Write a synthesis node linked to its sources via soft (off-spine) `synthesis_link` refs  |
+
+`lineage_checkpoint` eagerly embeds the segment summary when an embedding provider is
+configured (Postgres). Set `LINEAGE_APP_URL` (or pass `appUrl` to `createMcpServer`) to have
+the bridge tools return deep links into the Lineage web app.
+
+> Note: serving these to the Claude app requires a remote (HTTP) MCP transport with connector
+> auth, which is not yet part of this package — today they are reachable over stdio (e.g. from
+> Claude Code).
+
 ## Using with Claude Code
 
 ### MCP server configuration

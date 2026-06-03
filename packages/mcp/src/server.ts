@@ -5,11 +5,21 @@ import type {
   Node,
   Tree,
   LLMProvider,
+  EmbeddingProvider,
   Message,
   Tag,
   TagCategory,
+  ContextSource,
 } from '@lineage/core';
-import { buildContext, createNode, stripThinking } from '@lineage/core';
+import {
+  buildContext,
+  createNode,
+  stripThinking,
+  assembleContext,
+  project,
+  synthesisTransform,
+  BRANCH_INTENTS,
+} from '@lineage/core';
 
 const contextSourceSchema = z.object({
   treeId: z.string(),
@@ -25,6 +35,19 @@ Write the summary as a single, dense paragraph. Do not use bullet points or head
 
 export interface McpServerOptions {
   llm?: LLMProvider;
+  /**
+   * Optional embedding provider. When present, capture-in (`lineage_checkpoint`)
+   * eagerly embeds the segment summary. When absent (e.g. SQLite with no
+   * embedding storage), embedding is skipped silently and any background
+   * embedding job handles it later.
+   */
+  embedding?: EmbeddingProvider;
+  /**
+   * Base URL of the Lineage web app, used to build deep links returned by the
+   * bridge tools (e.g. `http://localhost:5173`). Falls back to the
+   * `LINEAGE_APP_URL` env var. When neither is set, deep links are omitted.
+   */
+  appUrl?: string;
 }
 
 /**
@@ -72,6 +95,14 @@ async function llmSummarize(
 
 export function createMcpServer(repo: NodeRepository, options: McpServerOptions = {}): McpServer {
   const llm = options.llm ?? null;
+  const embedding = options.embedding ?? null;
+  const appUrl = (options.appUrl ?? process.env.LINEAGE_APP_URL)?.replace(/\/+$/, '');
+
+  /** Build a deep link into the Lineage web app, or undefined when no base URL is configured. */
+  const makeUrl = (treeId: string, nodeId: string): string | undefined =>
+    appUrl
+      ? `${appUrl}/?tree=${encodeURIComponent(treeId)}&node=${encodeURIComponent(nodeId)}`
+      : undefined;
 
   const server = new McpServer({
     name: 'lineage',
@@ -1186,7 +1217,9 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
       matchAll: z
         .boolean()
         .default(true)
-        .describe('When true (default), all tags must match (AND). When false, any tag can match (OR).'),
+        .describe(
+          'When true (default), all tags must match (AND). When false, any tag can match (OR).',
+        ),
     },
     async ({ tagIds, scope, treeId, matchAll }) => {
       const result: { nodes?: Node[]; trees?: Tree[] } = {};
@@ -1199,6 +1232,409 @@ export function createMcpServer(repo: NodeRepository, options: McpServerOptions 
       }
 
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // ── Lineage ↔ Claude App Bridge ─────────────────────────────────────────
+  // Tools that give Lineage a presence inside the Claude app for long
+  // conversations. The server never reads the app thread directly — Claude
+  // extracts content and passes it in. See the bridge plan for the design.
+
+  server.tool(
+    'lineage_checkpoint',
+    'Capture-in: persist a segment of the current conversation into Lineage as immutable nodes, ' +
+      'with an eager summary. You extract the relevant turns and pass them in — the server never ' +
+      'sees the thread. Use on-demand at meaningful moments; do not auto-capture every turn. ' +
+      'Omit parentNodeId to start a new tree under a fresh context root, or pass it to attach under an existing node.',
+    {
+      turns: z
+        .array(
+          z.object({
+            role: z.enum(['user', 'assistant']).describe('Who produced this turn'),
+            content: z.string().describe('The turn text'),
+          }),
+        )
+        .min(1)
+        .describe('Conversation turns extracted from the thread, in chronological order'),
+      synopsis: z
+        .string()
+        .optional()
+        .describe(
+          'Your characterization of the segment — decisions made, open questions, key entities. ' +
+            'Strongly recommended: it conditions the eager summary so the node is good to seed from later.',
+        ),
+      label: z.string().optional().describe('Human-facing segment/branch label'),
+      parentNodeId: z
+        .string()
+        .optional()
+        .describe(
+          'Existing node to attach under; omit to create a new tree under a fresh context root',
+        ),
+    },
+    async ({ turns, synopsis, label, parentNodeId }) => {
+      // 1. Resolve the attach point.
+      let treeId: string;
+      let parentId: string;
+      let contextNodeId: string | null = null;
+      if (parentNodeId) {
+        let parent: Node;
+        try {
+          parent = await repo.getNode(parentNodeId);
+        } catch {
+          return {
+            content: [{ type: 'text', text: `Parent node not found: ${parentNodeId}` }],
+            isError: true,
+          };
+        }
+        treeId = parent.treeId;
+        parentId = parentNodeId;
+      } else {
+        // Mint a new tree under a fresh context root (logical 'context' via metadata).
+        treeId = crypto.randomUUID();
+        const rootNodeId = crypto.randomUUID();
+        await repo.putTree({
+          treeId,
+          title: label ?? 'Checkpoint',
+          createdAt: new Date().toISOString(),
+          rootNodeId,
+          contextSources: null,
+        });
+        await repo.putNode(
+          createNode({
+            nodeId: rootNodeId,
+            treeId,
+            parentId: null,
+            type: 'human',
+            content: synopsis ?? '',
+            metadata: { kind: 'context' },
+          }),
+        );
+        contextNodeId = rootNodeId;
+        parentId = rootNodeId;
+      }
+
+      // 2. Persist the turns as an immutable chain.
+      const nodeIds: string[] = [];
+      let prev = parentId;
+      for (const turn of turns) {
+        const node = createNode({
+          treeId,
+          parentId: prev,
+          type: turn.role === 'user' ? 'human' : 'ai',
+          content: turn.content,
+          metadata: label !== undefined ? { label } : null,
+        });
+        await repo.putNode(node);
+        nodeIds.push(node.nodeId);
+        prev = node.nodeId;
+      }
+      const lastNodeId = prev;
+
+      // 3. Eager summary (reuse the seeding summary pipeline).
+      let summary: string;
+      if (llm) {
+        summary = await llmSummarize(repo, llm, treeId, lastNodeId);
+      } else if (synopsis) {
+        summary = synopsis;
+      } else {
+        summary = turns
+          .map(
+            (t) => `[${t.role}] ${t.content.slice(0, 100)}${t.content.length > 100 ? '...' : ''}`,
+          )
+          .join('\n');
+      }
+
+      let summaryNodeId: string | null = null;
+      if (summary.trim()) {
+        const summaryNode = createNode({
+          treeId,
+          parentId: lastNodeId,
+          type: 'summary',
+          content: summary,
+          metadata: synopsis !== undefined ? { synopsis } : null,
+        });
+        await repo.putNode(summaryNode);
+        summaryNodeId = summaryNode.nodeId;
+
+        // 4. Eager embedding (guarded — no-op without an embedding provider).
+        if (embedding) {
+          try {
+            const [vec] = await embedding.embed([summary]);
+            if (vec) await repo.updateNodeEmbedding(summaryNodeId, vec, embedding.modelId);
+          } catch {
+            // Best-effort: a background embedding job can backfill later.
+          }
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                treeId,
+                contextNodeId,
+                nodeIds,
+                summaryNodeId,
+                summary,
+                ...(makeUrl(treeId, lastNodeId) && { url: makeUrl(treeId, lastNodeId) }),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'lineage_view',
+    'Orient: return a focused subtree (ancestry + focal node + direct children + off-spine refs) ' +
+      'around a node — not the full graph. Each node carries its nodeId so you can branch from it with ' +
+      'lineage_seed. Omit nodeId to focus the most recently created node.',
+    {
+      nodeId: z
+        .string()
+        .optional()
+        .describe('Focal node ID; omit to use the most recently created node across all trees'),
+    },
+    async ({ nodeId }) => {
+      let focal: Node;
+      if (nodeId) {
+        try {
+          focal = await repo.getNode(nodeId);
+        } catch {
+          return { content: [{ type: 'text', text: `Node not found: ${nodeId}` }], isError: true };
+        }
+      } else {
+        const trees = await repo.listTrees();
+        const all: Node[] = [];
+        for (const t of trees) all.push(...(await repo.getNodes(t.treeId)));
+        const active = all.filter((n) => !n.isDeleted);
+        if (active.length === 0) {
+          return { content: [{ type: 'text', text: 'No nodes found.' }] };
+        }
+        active.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        focal = active[0]!;
+      }
+
+      const allNodes = await repo.getNodes(focal.treeId);
+      const nodeMap = new Map(allNodes.map((n) => [n.nodeId, n]));
+
+      const ancestry: Node[] = [];
+      let cur = focal.parentId ? nodeMap.get(focal.parentId) : undefined;
+      while (cur) {
+        ancestry.unshift(cur);
+        cur = cur.parentId ? nodeMap.get(cur.parentId) : undefined;
+      }
+
+      const children = allNodes.filter((n) => n.parentId === focal.nodeId && !n.isDeleted);
+      const refs = await repo.getCrossTreeRefs({
+        fromTreeId: focal.treeId,
+        fromNodeId: focal.nodeId,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                focus: focal,
+                ancestry,
+                children,
+                refs,
+                hint: 'To branch out from any node here, call lineage_seed with its nodeId.',
+                ...(makeUrl(focal.treeId, focal.nodeId) && {
+                  url: makeUrl(focal.treeId, focal.nodeId),
+                }),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'lineage_seed',
+    'Branch-out: build a copy-ready context seed from selected nodes so the user can start a fresh ' +
+      'chat pre-seeded with this context. Eagerly summarizes the selection, creates a seed tree whose ' +
+      'context sources are those summaries, and returns seedText to paste into a new chat. ' +
+      'NOTE: the widget cannot open a new chat — branch-out is always paste-based.',
+    {
+      nodeIds: z
+        .array(contextSourceSchema)
+        .min(1)
+        .describe('Source nodes (treeId + nodeId each) to seed the new conversation from'),
+      intentLabel: z
+        .string()
+        .describe(
+          'Required: how this branch diverges, captured at fork time. Prefer one of ' +
+            'sequence | alternative | elaboration | objection; freeform is allowed.',
+        ),
+      title: z.string().optional().describe('Title for the seed tree'),
+    },
+    async ({ nodeIds, intentLabel, title }) => {
+      // Resolve each source to a summary (mirrors create_tree_from_nodes).
+      const resolvedSources: ContextSource[] = [];
+      for (const source of nodeIds) {
+        let node: Node;
+        try {
+          node = await repo.getNode(source.nodeId);
+        } catch {
+          return {
+            content: [{ type: 'text', text: `Source node not found: ${source.nodeId}` }],
+            isError: true,
+          };
+        }
+
+        if (node.type === 'summary') {
+          resolvedSources.push({ treeId: source.treeId, nodeId: node.nodeId });
+        } else {
+          const treeNodes = await repo.getNodes(node.treeId);
+          const summaryChild = treeNodes.find(
+            (n) => n.parentId === node.nodeId && n.type === 'summary' && !n.isDeleted,
+          );
+          if (summaryChild) {
+            resolvedSources.push({ treeId: source.treeId, nodeId: summaryChild.nodeId });
+          } else if (llm) {
+            const summaryText = await llmSummarize(repo, llm, node.treeId, node.nodeId);
+            const newSummary = createNode({
+              treeId: node.treeId,
+              parentId: node.nodeId,
+              type: 'summary',
+              content: summaryText,
+            });
+            await repo.putNode(newSummary);
+            resolvedSources.push({ treeId: source.treeId, nodeId: newSummary.nodeId });
+          } else {
+            resolvedSources.push({ treeId: source.treeId, nodeId: node.nodeId });
+          }
+        }
+      }
+
+      // Create the seed tree with the resolved summaries as context sources.
+      const treeId = crypto.randomUUID();
+      const rootNodeId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      const seedTitle = title ?? `Seed: ${intentLabel}`;
+
+      await repo.putTree({
+        treeId,
+        title: seedTitle,
+        createdAt,
+        rootNodeId,
+        contextSources: resolvedSources,
+      });
+
+      // The seed root has no parent edge, so intent lives in metadata (a known
+      // BRANCH_INTENTS value is recorded explicitly for downstream filtering).
+      const knownIntent = (Object.values(BRANCH_INTENTS) as string[]).includes(intentLabel);
+      await repo.putNode(
+        createNode({
+          nodeId: rootNodeId,
+          treeId,
+          parentId: null,
+          type: 'human',
+          content: '',
+          metadata: { intentLabel, ...(knownIntent && { intent: intentLabel }) },
+        }),
+      );
+
+      const contextBlock = await assembleContext(repo, resolvedSources);
+      const seedText = `Branch intent: ${intentLabel}\n\n${contextBlock}`;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                seedTreeId: treeId,
+                seedNodeId: rootNodeId,
+                intentLabel,
+                contextSources: resolvedSources,
+                seedText,
+                note: 'Paste seedText into a fresh Claude chat to continue this branch. The widget cannot open a new chat for you.',
+                ...(makeUrl(treeId, rootNodeId) && { url: makeUrl(treeId, rootNodeId) }),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'lineage_synthesize',
+    'Synthesize: write a node that synthesizes several source branches, linked to each source via ' +
+      'soft (off-spine) synthesis_link references. No merge, no DAG — the sources are referenced, not copied.',
+    {
+      nodeIds: z
+        .array(contextSourceSchema)
+        .min(1)
+        .describe('Source nodes (treeId + nodeId each) being synthesized'),
+      synthesis: z.string().describe('Your synthesis of the selected branches'),
+      label: z.string().optional().describe('Optional label for the synthesis node'),
+      attachTreeId: z.string().describe('Tree to attach the synthesis node to'),
+      attachParentNodeId: z.string().describe('Parent node the synthesis hangs from'),
+    },
+    async ({ nodeIds, synthesis, label, attachTreeId, attachParentNodeId }) => {
+      try {
+        await repo.getNode(attachParentNodeId);
+      } catch {
+        return {
+          content: [{ type: 'text', text: `Attach parent node not found: ${attachParentNodeId}` }],
+          isError: true,
+        };
+      }
+
+      const sourceNodes: Node[] = [];
+      for (const s of nodeIds) {
+        try {
+          sourceNodes.push(await repo.getNode(s.nodeId));
+        } catch {
+          return {
+            content: [{ type: 'text', text: `Source node not found: ${s.nodeId}` }],
+            isError: true,
+          };
+        }
+      }
+
+      const result = await project(
+        repo,
+        { nodes: sourceNodes },
+        synthesisTransform({ synthesis, ...(label !== undefined && { label }) }),
+        { treeId: attachTreeId, parentNodeId: attachParentNodeId },
+        { newId: () => crypto.randomUUID(), now: () => new Date().toISOString() },
+      );
+
+      const synthNode = result.emittedNodes[0]!;
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                synthesisNodeId: synthNode.nodeId,
+                links: result.refs,
+                ...(makeUrl(attachTreeId, synthNode.nodeId) && {
+                  url: makeUrl(attachTreeId, synthNode.nodeId),
+                }),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
     },
   );
 

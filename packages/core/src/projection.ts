@@ -19,7 +19,7 @@
  * injected {@link NodeRepository}, mirroring `context.ts`.
  */
 import type { CrossTreeRef, Node } from './types.js';
-import { CROSS_TREE_REF_KINDS } from './types.js';
+import { CROSS_TREE_REF_KINDS, NODE_TYPES } from './types.js';
 import type { NodeRepository } from './repository.js';
 
 /** A set of source nodes to project. May span trees and need not be contiguous. */
@@ -151,3 +151,59 @@ export const forkTransform: Transform = {
     return { emittedNodes, refs };
   },
 };
+
+/**
+ * The **synthesis** transform (THO synthesis-nodes-with-soft-links model):
+ * emit a single new node whose content is a caller-provided synthesis of the
+ * source node-set, attached at the attachment point, and record one live
+ * `synthesis_link` ref from the new node back to each source.
+ *
+ * Unlike {@link forkTransform}, this does NOT copy the sources — it references
+ * them off-spine, so context assembly never traverses into them. The synthesis
+ * text is supplied by the caller (the model), so this is a factory returning a
+ * {@link Transform} bound to that text rather than a singleton.
+ */
+export function synthesisTransform(options: { synthesis: string; label?: string }): Transform {
+  return {
+    name: 'synthesis',
+    async apply({ repo, source, attachment, newId, now }): Promise<ProjectionResult> {
+      const createdAt = now();
+      const synthNode: Node = {
+        nodeId: newId(),
+        treeId: attachment.treeId,
+        parentId: attachment.parentNodeId,
+        type: NODE_TYPES.AI,
+        content: options.synthesis,
+        isDeleted: false,
+        createdAt,
+        modelName: null,
+        provider: null,
+        tokenCount: null,
+        embeddingModel: null,
+        metadata: options.label !== undefined ? { label: options.label } : null,
+        author: null,
+        intent: null,
+      };
+      await repo.putNode(synthNode);
+
+      // One live synthesis_link from the new node to each (deduped) source.
+      const seen = new Set<string>();
+      const refs: CrossTreeRef[] = [];
+      for (const src of source.nodes) {
+        const key = `${src.treeId}:${src.nodeId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        refs.push({
+          fromTreeId: attachment.treeId,
+          fromNodeId: synthNode.nodeId,
+          toTreeId: src.treeId,
+          toNodeId: src.nodeId,
+          kind: CROSS_TREE_REF_KINDS.SYNTHESIS_LINK,
+          live: true,
+        });
+      }
+
+      return { emittedNodes: [synthNode], refs };
+    },
+  };
+}

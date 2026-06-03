@@ -29,7 +29,7 @@ export type { CreateNodeFields } from './nodes.js';
 export { createEmbeddingJob } from './embeddingJob.js';
 export type { EmbeddingJob, EmbeddingJobOptions } from './embeddingJob.js';
 
-export { project, forkTransform } from './projection.js';
+export { project, forkTransform, synthesisTransform } from './projection.js';
 export type {
   SourceSelection,
   AttachmentPoint,
